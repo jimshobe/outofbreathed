@@ -1,0 +1,122 @@
+---
+import { getCollection, render } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import '../../styles/stream.css';
+import { MASTODON_INSTANCE, MASTODON_USERNAME } from '../../config';
+
+export async function getStaticPaths() {
+  const posts = await getCollection('blog');
+  return posts.map((post) => ({
+    params: { slug: post.id },
+    props: { post },
+  }));
+}
+
+const { post } = Astro.props;
+const { Content } = await render(post);
+
+// Fetch trip-linked Mastodon posts if mastodon_tag is set
+let tripPosts: any[] = [];
+if (post.data.mastodon_tag) {
+  try {
+    const accountRes = await fetch(
+      `https://${MASTODON_INSTANCE}/api/v1/accounts/lookup?acct=${MASTODON_USERNAME}`
+    );
+    if (accountRes.ok) {
+      const account = await accountRes.json();
+      const res = await fetch(
+        `https://${MASTODON_INSTANCE}/api/v1/accounts/${account.id}/statuses?tagged=${post.data.mastodon_tag}&limit=40&exclude_replies=true&exclude_reblogs=true`
+      );
+      if (res.ok) tripPosts = await res.json();
+    }
+  } catch {
+    // silently skip — trip posts are supplemental
+  }
+}
+
+function formatDate(d: Date) {
+  return d.toLocaleDateString('en-AU', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+function stripHtml(html: string) {
+  return html.replace(/<[^>]+>/g, '').trim();
+}
+---
+
+<Base title={post.data.title}>
+  <article>
+    <header class="post-header">
+      <time class="post-date">{formatDate(post.data.date)}</time>
+      <h1 class="post-title">{post.data.title}</h1>
+    </header>
+
+    <div class="prose">
+      <Content />
+    </div>
+  </article>
+
+  {tripPosts.length > 0 && (
+    <aside class="trip-stream">
+      <h2 class="trip-stream__heading">From the road</h2>
+      <div class="stream">
+        {tripPosts.map((s) => (
+          <article class="entry entry--mastodon">
+            <time class="entry-date" datetime={s.created_at}>
+              {formatDate(new Date(s.created_at))}
+            </time>
+            <p class="mastodon-text" set:html={s.content} />
+            {s.media_attachments?.filter((m: any) => m.type === 'image').length > 0 && (
+              <div class="entry-media">
+                {s.media_attachments
+                  .filter((m: any) => m.type === 'image')
+                  .map((m: any) => (
+                    <img src={m.url} alt={m.description ?? ''} loading="lazy" />
+                  ))}
+              </div>
+            )}
+          </article>
+        ))}
+      </div>
+    </aside>
+  )}
+</Base>
+
+<style>
+  .post-header {
+    margin-bottom: 2.5rem;
+  }
+
+  .post-date {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--color-accent);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-bottom: 0.6rem;
+    font-family: var(--font-ui);
+  }
+
+  .post-title {
+    font-family: var(--font-ui);
+    font-size: 1.9rem;
+    font-weight: 500;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+  }
+
+  .trip-stream {
+    margin-top: 5rem;
+    padding-top: 3rem;
+    border-top: 1px solid var(--color-divider);
+  }
+
+  .trip-stream__heading {
+    font-family: var(--font-ui);
+    font-size: 0.8rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+    margin-bottom: 2rem;
+  }
+</style>
