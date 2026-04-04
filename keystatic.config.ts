@@ -32,8 +32,12 @@ export default config({
           label: 'Mastodon tag',
           description: 'Hashtag (without #) linking this post to Mastodon updates from the same trip or event.',
         }),
-        content: fields.markdownEditor({
+        content: fields.document({
           label: 'Content',
+          formatting: true,
+          dividers: true,
+          links: true,
+          images: true,
         }),
       },
     }),
