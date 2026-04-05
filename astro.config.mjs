@@ -1,10 +1,11 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import react from '@astrojs/react';
-import cloudflare from '@astrojs/cloudflare';
+import vercel from '@astrojs/vercel';
 import keystatic from '@keystatic/astro';
 
 export default defineConfig({
-  adapter: cloudflare(),
+  output: 'server',
+  adapter: vercel(),
   integrations: [react(), keystatic()],
 });
