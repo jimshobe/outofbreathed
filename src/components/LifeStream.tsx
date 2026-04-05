@@ -16,7 +16,7 @@ interface MastodonEntry {
   date: string;
   content: string;
   url: string;
-  media: { url: string; alt: string }[];
+  media: { url: string; previewUrl: string; alt: string }[];
 }
 
 type StreamEntry = BlogEntry | MastodonEntry;
@@ -64,7 +64,23 @@ function BlogCard({ entry }: { entry: BlogEntry }) {
   );
 }
 
-function MastodonCard({ entry }: { entry: MastodonEntry }) {
+function Lightbox({ url, alt, onClose }: { url: string; alt: string; onClose: () => void }) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div className="lightbox" onClick={onClose} role="dialog" aria-modal="true">
+      <img src={url} alt={alt} className="lightbox-img" onClick={(e) => e.stopPropagation()} />
+    </div>
+  );
+}
+
+function MastodonCard({ entry, onImageClick }: { entry: MastodonEntry; onImageClick: (url: string, alt: string) => void }) {
   const text = stripHtml(entry.content);
   if (!text) return null;
 
@@ -75,7 +91,9 @@ function MastodonCard({ entry }: { entry: MastodonEntry }) {
       {entry.media.length > 0 && (
         <div className="entry-media">
           {entry.media.map((m) => (
-            <img key={m.url} src={m.url} alt={m.alt} loading="lazy" />
+            <button key={m.url} className="entry-media-btn" onClick={() => onImageClick(m.url, m.alt)} aria-label="View full size">
+              <img src={m.previewUrl} alt={m.alt} loading="lazy" />
+            </button>
           ))}
         </div>
       )}
@@ -97,6 +115,7 @@ export default function LifeStream() {
   const [entries, setEntries] = useState<StreamEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<{ url: string; alt: string } | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -129,7 +148,7 @@ export default function LifeStream() {
                 url: s.url,
                 media: (s.media_attachments ?? [])
                   .filter((m: any) => m.type === 'image')
-                  .map((m: any) => ({ url: m.url, alt: m.description ?? '' })),
+                  .map((m: any) => ({ url: m.url, previewUrl: m.preview_url ?? m.url, alt: m.description ?? '' })),
               }));
           }
         }
@@ -166,12 +185,17 @@ export default function LifeStream() {
   }
 
   return (
-    <div className="stream">
-      {entries.map((entry) =>
-        entry.type === 'blog'
-          ? <BlogCard key={`blog-${entry.slug}`} entry={entry} />
-          : <MastodonCard key={`mastodon-${entry.id}`} entry={entry} />
+    <>
+      {lightbox && (
+        <Lightbox url={lightbox.url} alt={lightbox.alt} onClose={() => setLightbox(null)} />
       )}
-    </div>
+      <div className="stream">
+        {entries.map((entry) =>
+          entry.type === 'blog'
+            ? <BlogCard key={`blog-${entry.slug}`} entry={entry} />
+            : <MastodonCard key={`mastodon-${entry.id}`} entry={entry} onImageClick={(url, alt) => setLightbox({ url, alt })} />
+        )}
+      </div>
+    </>
   );
 }
