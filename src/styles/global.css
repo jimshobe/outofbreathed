@@ -144,6 +144,25 @@ img {
   align-items: center;
 }
 
+.account-badge {
+  position: absolute;
+  top: -4px;
+  right: -6px;
+  background: #d4a017;
+  color: #0f0f0f;
+  font-size: 0.6rem;
+  font-weight: 700;
+  font-family: var(--font-ui);
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  pointer-events: none;
+}
+
 .account-trigger {
   background: none;
   border: none;
@@ -247,6 +266,35 @@ img {
   font-size: 0.75rem;
   color: var(--color-muted);
   margin-top: 0.15rem;
+}
+
+.account-admin-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  background: #1e1e1e;
+  border: 1px solid var(--color-divider);
+  border-radius: 4px;
+  color: var(--color-text);
+  font-family: var(--font-ui);
+  font-size: 0.82rem;
+  padding: 0.45rem 0.75rem;
+  text-decoration: none;
+  transition: border-color 0.15s;
+}
+
+.account-admin-link:hover {
+  border-color: #3a3a3a;
+  color: var(--color-text);
+}
+
+.account-admin-badge {
+  font-size: 0.7rem;
+  color: #d4a017;
+  background: rgba(251,188,5,0.12);
+  padding: 0.1em 0.45em;
+  border-radius: 10px;
 }
 
 .account-signout {

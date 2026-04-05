@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
 import {
-  collection, doc, getDocs, setDoc, deleteDoc, updateDoc,
-  query, orderBy, collectionGroup, Timestamp,
+  collection, doc, getDocs, getDoc, setDoc, deleteDoc, updateDoc,
+  query, orderBy, collectionGroup, Timestamp, serverTimestamp,
 } from 'firebase/firestore';
 import { signInWithPopup, signOut, onAuthStateChanged, type User } from 'firebase/auth';
 import { auth, googleProvider, db } from '../lib/firebase';
 import PostEditor from './PostEditor';
 
+const ADMIN_UID = import.meta.env.PUBLIC_ADMIN_UID;
+
+type Role = 'pending' | 'member' | 'contributor' | 'admin' | 'banned';
 type Tab = 'posts' | 'comments' | 'users';
 
 interface Post {
@@ -16,6 +19,8 @@ interface Post {
   excerpt: string;
   mastodon_tag: string;
   published: boolean;
+  authorUid: string;
+  authorName: string;
   createdAt: Timestamp | null;
 }
 
@@ -24,6 +29,7 @@ interface Comment {
   postSlug: string;
   text: string;
   authorName: string;
+  authorUid: string;
   createdAt: Timestamp | null;
 }
 
@@ -32,7 +38,7 @@ interface AppUser {
   name: string;
   email: string;
   photo: string;
-  status: 'pending' | 'approved' | 'banned';
+  role: Role;
 }
 
 function slugify(title: string) {
@@ -46,13 +52,23 @@ function formatTs(ts: Timestamp | null) {
 
 // ── Posts List ──────────────────────────────────────────────────────────────
 
-function PostsList({ onEdit }: { onEdit: (post: Post | 'new') => void }) {
+function PostsList({
+  onEdit,
+  currentUser,
+  isAdmin,
+}: {
+  onEdit: (post: Post | 'new') => void;
+  currentUser: User;
+  isAdmin: boolean;
+}) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     getDocs(query(collection(db, 'posts'), orderBy('createdAt', 'desc'))).then((snap) => {
-      setPosts(snap.docs.map((d) => ({ slug: d.id, ...d.data() } as Post)));
+      let all = snap.docs.map((d) => ({ slug: d.id, ...d.data() } as Post));
+      if (!isAdmin) all = all.filter((p) => p.authorUid === currentUser.uid);
+      setPosts(all);
       setLoading(false);
     });
   }, []);
@@ -78,23 +94,28 @@ function PostsList({ onEdit }: { onEdit: (post: Post | 'new') => void }) {
           <thead>
             <tr>
               <th>Title</th>
+              {isAdmin && <th>Author</th>}
               <th>Status</th>
               <th>Date</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {posts.map((p) => (
-              <tr key={p.slug}>
-                <td>{p.title}</td>
-                <td><span className={`status-badge ${p.published ? 'published' : 'draft'}`}>{p.published ? 'Published' : 'Draft'}</span></td>
-                <td>{formatTs(p.createdAt)}</td>
-                <td className="admin-actions">
-                  <button className="btn-sm" onClick={() => onEdit(p)}>Edit</button>
-                  <button className="btn-sm btn-danger" onClick={() => handleDelete(p.slug)}>Delete</button>
-                </td>
-              </tr>
-            ))}
+            {posts.map((p) => {
+              const canEdit = isAdmin || p.authorUid === currentUser.uid;
+              return (
+                <tr key={p.slug}>
+                  <td>{p.title}</td>
+                  {isAdmin && <td className="admin-muted">{p.authorName || '—'}</td>}
+                  <td><span className={`status-badge ${p.published ? 'published' : 'draft'}`}>{p.published ? 'Published' : 'Draft'}</span></td>
+                  <td>{formatTs(p.createdAt)}</td>
+                  <td className="admin-actions">
+                    {canEdit && <button className="btn-sm" onClick={() => onEdit(p)}>Edit</button>}
+                    {canEdit && <button className="btn-sm btn-danger" onClick={() => handleDelete(p.slug)}>Delete</button>}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}
@@ -104,7 +125,15 @@ function PostsList({ onEdit }: { onEdit: (post: Post | 'new') => void }) {
 
 // ── Post Form ────────────────────────────────────────────────────────────────
 
-function PostForm({ post, onDone }: { post: Post | 'new'; onDone: () => void }) {
+function PostForm({
+  post,
+  onDone,
+  currentUser,
+}: {
+  post: Post | 'new';
+  onDone: () => void;
+  currentUser: User;
+}) {
   const isNew = post === 'new';
   const [title, setTitle] = useState(isNew ? '' : post.title);
   const [slug, setSlug] = useState(isNew ? '' : post.slug);
@@ -129,6 +158,8 @@ function PostForm({ post, onDone }: { post: Post | 'new'; onDone: () => void }) 
         excerpt: excerpt.trim() || null,
         mastodon_tag: mastodonTag.trim() || null,
         published,
+        authorUid: isNew ? currentUser.uid : (post as Post).authorUid || currentUser.uid,
+        authorName: isNew ? (currentUser.displayName ?? '') : (post as Post).authorName || (currentUser.displayName ?? ''),
         updatedAt: Timestamp.now(),
       };
       if (isNew) data.createdAt = Timestamp.now();
@@ -210,7 +241,7 @@ function CommentsList() {
 
   return (
     <div>
-      <h2 className="admin-section-title">Comments</h2>
+      <h2 className="admin-section-title" style={{ marginBottom: '1.5rem' }}>Comments</h2>
       {loading ? (
         <p className="admin-muted">Loading…</p>
       ) : comments.length === 0 ? (
@@ -239,9 +270,22 @@ function CommentsList() {
 
 // ── Users Tab ─────────────────────────────────────────────────────────────────
 
+const ROLE_OPTIONS: Role[] = ['member', 'contributor', 'banned'];
+const roleBadgeClass: Record<Role, string> = {
+  admin: 'admin',
+  contributor: 'contributor',
+  member: 'approved',
+  pending: 'pending',
+  banned: 'banned',
+};
+
 function UsersList() {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<'member' | 'contributor'>('member');
+  const [inviting, setInviting] = useState(false);
+  const [inviteSent, setInviteSent] = useState(false);
 
   useEffect(() => {
     getDocs(query(collection(db, 'users'), orderBy('firstSeen', 'desc'))).then((snap) => {
@@ -250,39 +294,99 @@ function UsersList() {
     });
   }, []);
 
-  async function setStatus(uid: string, status: 'approved' | 'banned') {
-    await updateDoc(doc(db, 'users', uid), { status });
-    setUsers((u) => u.map((x) => (x.uid === uid ? { ...x, status } : x)));
+  async function setRole(uid: string, role: Role) {
+    await updateDoc(doc(db, 'users', uid), { role });
+    setUsers((u) => u.map((x) => (x.uid === uid ? { ...x, role } : x)));
   }
 
-  const pending = users.filter((u) => u.status === 'pending');
-  const rest = users.filter((u) => u.status !== 'pending');
+  async function sendInvite() {
+    const email = inviteEmail.trim().toLowerCase();
+    if (!email) return;
+    setInviting(true);
+    try {
+      await setDoc(doc(db, 'invites', email), {
+        email,
+        role: inviteRole,
+        createdAt: serverTimestamp(),
+      });
+      setInviteEmail('');
+      setInviteSent(true);
+      setTimeout(() => setInviteSent(false), 3000);
+    } finally {
+      setInviting(false);
+    }
+  }
+
+  const pending = users.filter((u) => u.role === 'pending');
+  const rest = users.filter((u) => u.role !== 'pending');
 
   return (
     <div>
-      <h2 className="admin-section-title">Users</h2>
+      {/* Invite section */}
+      <div className="admin-section-header">
+        <h2 className="admin-section-title">Invite someone</h2>
+      </div>
+      <div className="invite-form">
+        <input
+          className="form-input invite-email"
+          type="email"
+          placeholder="email@example.com"
+          value={inviteEmail}
+          onChange={(e) => setInviteEmail(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && sendInvite()}
+        />
+        <select
+          className="form-input invite-role"
+          value={inviteRole}
+          onChange={(e) => setInviteRole(e.target.value as 'member' | 'contributor')}
+        >
+          <option value="member">Member</option>
+          <option value="contributor">Contributor</option>
+        </select>
+        <button className="btn-primary" onClick={sendInvite} disabled={inviting || !inviteEmail.trim()}>
+          {inviting ? 'Saving…' : inviteSent ? 'Saved ✓' : 'Save invite'}
+        </button>
+      </div>
+      <p className="form-hint" style={{ marginTop: '0.5rem' }}>
+        When this person signs in with Google using that email, they'll be automatically granted the selected role.
+      </p>
+
+      {/* Users table */}
+      <div className="admin-section-header" style={{ marginTop: '2.5rem' }}>
+        <h2 className="admin-section-title">
+          Users
+          {pending.length > 0 && <span className="pending-count">{pending.length} pending</span>}
+        </h2>
+      </div>
       {loading ? (
         <p className="admin-muted">Loading…</p>
       ) : users.length === 0 ? (
-        <p className="admin-muted">No users yet. They appear here when someone tries to comment.</p>
+        <p className="admin-muted">No users yet. They appear here when someone signs in.</p>
       ) : (
         <table className="admin-table">
           <thead>
-            <tr><th>Name</th><th>Email</th><th>Status</th><th></th></tr>
+            <tr><th>Name</th><th>Email</th><th>Role</th><th></th></tr>
           </thead>
           <tbody>
             {[...pending, ...rest].map((u) => (
               <tr key={u.uid}>
                 <td>{u.name}</td>
                 <td>{u.email}</td>
-                <td><span className={`status-badge ${u.status}`}>{u.status}</span></td>
+                <td>
+                  <span className={`status-badge ${roleBadgeClass[u.role]}`}>
+                    {u.role}
+                  </span>
+                </td>
                 <td className="admin-actions">
-                  {u.status !== 'approved' && (
-                    <button className="btn-sm btn-approve" onClick={() => setStatus(u.uid, 'approved')}>Approve</button>
-                  )}
-                  {u.status !== 'banned' && (
-                    <button className="btn-sm btn-danger" onClick={() => setStatus(u.uid, 'banned')}>Ban</button>
-                  )}
+                  {ROLE_OPTIONS.filter((r) => r !== u.role).map((r) => (
+                    <button
+                      key={r}
+                      className={`btn-sm ${r === 'banned' ? 'btn-danger' : r === 'contributor' ? 'btn-approve' : ''}`}
+                      onClick={() => setRole(u.uid, r)}
+                    >
+                      {r === 'banned' ? 'Ban' : r === 'member' ? 'Make member' : 'Make contributor'}
+                    </button>
+                  ))}
                 </td>
               </tr>
             ))}
@@ -297,17 +401,29 @@ function UsersList() {
 
 export default function Admin({ adminUid }: { adminUid: string }) {
   const [user, setUser] = useState<User | null | undefined>(undefined);
+  const [userRole, setUserRole] = useState<Role | null>(null);
   const [tab, setTab] = useState<Tab>('posts');
   const [editingPost, setEditingPost] = useState<Post | 'new' | null>(null);
 
+  const isAdmin = user?.uid === adminUid;
+
   useEffect(() => onAuthStateChanged(auth, setUser), []);
 
-  if (user === undefined) return <p className="admin-muted">Loading…</p>;
+  useEffect(() => {
+    if (!user) { setUserRole(null); return; }
+    if (user.uid === adminUid) { setUserRole('admin'); return; }
+    getDoc(doc(db, 'users', user.uid)).then((snap) => {
+      if (snap.exists()) setUserRole(snap.data().role as Role);
+      else setUserRole(null);
+    });
+  }, [user]);
+
+  if (user === undefined || (user && !userRole)) return <p className="admin-muted">Loading…</p>;
 
   if (!user) {
     return (
       <div className="admin-signin">
-        <p className="admin-muted">Sign in to access the admin panel.</p>
+        <p className="admin-muted">Sign in to access this page.</p>
         <button className="btn-primary" onClick={() => signInWithPopup(auth, googleProvider)}>
           Sign in with Google
         </button>
@@ -315,7 +431,7 @@ export default function Admin({ adminUid }: { adminUid: string }) {
     );
   }
 
-  if (user.uid !== adminUid) {
+  if (userRole !== 'admin' && userRole !== 'contributor') {
     return (
       <div className="admin-signin">
         <p className="admin-muted">You don't have access to this page.</p>
@@ -324,11 +440,13 @@ export default function Admin({ adminUid }: { adminUid: string }) {
     );
   }
 
+  const tabs: Tab[] = isAdmin ? ['posts', 'comments', 'users'] : ['posts'];
+
   return (
     <div className="admin-wrap">
       <div className="admin-header">
         <nav className="admin-tabs">
-          {(['posts', 'comments', 'users'] as Tab[]).map((t) => (
+          {tabs.map((t) => (
             <button
               key={t}
               className={`admin-tab${tab === t && !editingPost ? ' active' : ''}`}
@@ -343,9 +461,9 @@ export default function Admin({ adminUid }: { adminUid: string }) {
 
       <div className="admin-body">
         {editingPost !== null ? (
-          <PostForm post={editingPost} onDone={() => setEditingPost(null)} />
+          <PostForm post={editingPost} onDone={() => setEditingPost(null)} currentUser={user} />
         ) : tab === 'posts' ? (
-          <PostsList onEdit={setEditingPost} />
+          <PostsList onEdit={setEditingPost} currentUser={user} isAdmin={isAdmin} />
         ) : tab === 'comments' ? (
           <CommentsList />
         ) : (

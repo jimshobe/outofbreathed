@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import {
   collection, addDoc, onSnapshot, query, orderBy,
-  serverTimestamp, doc, getDoc, setDoc, type Timestamp,
+  serverTimestamp, doc, deleteDoc, type Timestamp,
 } from 'firebase/firestore';
-import { signInWithPopup, signOut, onAuthStateChanged, type User } from 'firebase/auth';
+import { signInWithPopup, onAuthStateChanged, type User } from 'firebase/auth';
 import { auth, googleProvider, db } from '../lib/firebase';
 
 const ADMIN_UID = import.meta.env.PUBLIC_ADMIN_UID;
@@ -17,8 +17,6 @@ interface Comment {
   createdAt: Timestamp | null;
 }
 
-type UserStatus = 'pending' | 'approved' | 'banned' | null;
-
 function formatCommentDate(ts: Timestamp | null): string {
   if (!ts) return '';
   return ts.toDate().toLocaleDateString('en-AU', {
@@ -29,9 +27,13 @@ function formatCommentDate(ts: Timestamp | null): string {
 export default function Comments({ postSlug }: { postSlug: string }) {
   const [user, setUser] = useState<User | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
-  const [userStatus, setUserStatus] = useState<UserStatus>(null);
+  const [role, setRole] = useState<string | null>(null);
+  const [roleLoading, setRoleLoading] = useState(false);
   const [text, setText] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  const isAdmin = user?.uid === ADMIN_UID;
+  const canComment = isAdmin || role === 'member' || role === 'contributor';
 
   useEffect(() => onAuthStateChanged(auth, setUser), []);
 
@@ -45,35 +47,21 @@ export default function Comments({ postSlug }: { postSlug: string }) {
     });
   }, [postSlug]);
 
-  // When user signs in, register them in users collection and fetch status
+  // Subscribe to user's role so it updates in real time (e.g. after admin approves)
   useEffect(() => {
-    if (!user) { setUserStatus(null); return; }
-    if (user.uid === ADMIN_UID) { setUserStatus('approved'); return; }
-
-    const userRef = doc(db, 'users', user.uid);
-    getDoc(userRef).then(async (snap) => {
-      if (!snap.exists()) {
-        await setDoc(userRef, {
-          name: user.displayName ?? 'Anonymous',
-          photo: user.photoURL ?? '',
-          email: user.email ?? '',
-          status: 'pending',
-          firstSeen: serverTimestamp(),
-        });
-        setUserStatus('pending');
-      } else {
-        setUserStatus(snap.data().status as UserStatus);
-      }
+    if (!user) { setRole(null); return; }
+    if (user.uid === ADMIN_UID) { setRole('admin'); return; }
+    setRoleLoading(true);
+    return onSnapshot(doc(db, 'users', user.uid), (snap) => {
+      if (snap.exists()) setRole(snap.data().role as string);
+      else setRole('pending');
+      setRoleLoading(false);
     });
   }, [user]);
 
-  async function handleSignIn() {
-    try { await signInWithPopup(auth, googleProvider); } catch {}
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!user || !text.trim() || userStatus !== 'approved') return;
+    if (!user || !text.trim() || !canComment) return;
     setSubmitting(true);
     try {
       await addDoc(collection(db, 'comments', postSlug, 'entries'), {
@@ -89,10 +77,14 @@ export default function Comments({ postSlug }: { postSlug: string }) {
     }
   }
 
+  async function handleDelete(comment: Comment) {
+    await deleteDoc(doc(db, 'comments', postSlug, 'entries', comment.id));
+  }
+
   function renderCommentForm() {
     if (!user) {
       return (
-        <button className="comment-signin" onClick={handleSignIn}>
+        <button className="comment-signin" onClick={() => signInWithPopup(auth, googleProvider).catch(() => {})}>
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
             <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
@@ -103,21 +95,15 @@ export default function Comments({ postSlug }: { postSlug: string }) {
         </button>
       );
     }
-    if (userStatus === 'banned') {
+    if (roleLoading) return null;
+    if (role === 'banned') {
       return <p className="comment-status-msg">You are not permitted to comment.</p>;
     }
-    if (userStatus === 'pending') {
-      return <p className="comment-status-msg">Your account is pending approval to comment. Check back soon.</p>;
+    if (role === 'pending') {
+      return <p className="comment-status-msg">Your account is pending review. You'll be able to comment once approved.</p>;
     }
     return (
       <form className="comment-form" onSubmit={handleSubmit}>
-        <div className="comment-form-user">
-          {user.photoURL && (
-            <img src={user.photoURL} alt={user.displayName ?? ''} className="comment-avatar" referrerPolicy="no-referrer" />
-          )}
-          <span className="comment-form-name">{user.displayName}</span>
-          <button type="button" className="comment-signout" onClick={() => signOut(auth)}>Sign out</button>
-        </div>
         <textarea className="comment-input" placeholder="Leave a comment…" value={text} onChange={(e) => setText(e.target.value)} rows={3} />
         <button type="submit" className="comment-submit" disabled={submitting || !text.trim()}>
           {submitting ? 'Posting…' : 'Post comment'}
@@ -142,6 +128,9 @@ export default function Comments({ postSlug }: { postSlug: string }) {
                 <div className="comment-meta">
                   <span className="comment-author">{c.authorName}</span>
                   <span className="comment-date">{formatCommentDate(c.createdAt)}</span>
+                  {(isAdmin || c.authorUid === user?.uid) && (
+                    <button className="comment-delete" onClick={() => handleDelete(c)} title="Delete comment">×</button>
+                  )}
                 </div>
                 <p className="comment-text">{c.text}</p>
               </div>

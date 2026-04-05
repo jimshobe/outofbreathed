@@ -66,6 +66,27 @@
   color: var(--color-muted);
 }
 
+.comment-delete {
+  background: none;
+  border: none;
+  color: var(--color-muted);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.1rem;
+  margin-left: auto;
+  transition: color 0.15s;
+  opacity: 0;
+}
+
+.comment:hover .comment-delete {
+  opacity: 1;
+}
+
+.comment-delete:hover {
+  color: #e05c6a;
+}
+
 .comment-text {
   font-size: 0.95rem;
   line-height: 1.65;
