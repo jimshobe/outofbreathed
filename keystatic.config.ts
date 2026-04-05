@@ -18,7 +18,7 @@ export default config({
       label: 'Posts',
       slugField: 'title',
       path: 'src/content/blog/*',
-      format: { contentField: 'content' },
+      format: { contentField: 'content', extension: 'md' },
       schema: {
         title: fields.slug({ name: { label: 'Title' } }),
         date: fields.date({
