@@ -5,5 +5,17 @@ import '../styles/stream.css';
 ---
 
 <Base>
+  <p class="stream-intro">What's happening</p>
   <LifeStream client:load />
 </Base>
+
+<style>
+  .stream-intro {
+    font-size: 0.8rem;
+    color: var(--color-muted);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-bottom: 2rem;
+    font-family: var(--font-ui);
+  }
+</style>

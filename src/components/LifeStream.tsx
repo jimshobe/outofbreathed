@@ -47,9 +47,9 @@ function EntryDate({ iso }: { iso: string }) {
   return <time className="entry-date" dateTime={iso}>{formatDate(iso)}</time>;
 }
 
-function BlogCard({ entry }: { entry: BlogEntry }) {
+function BlogCard({ entry, index }: { entry: BlogEntry; index: number }) {
   return (
-    <article className="entry entry--blog">
+    <article className="entry entry--blog" style={{ animationDelay: `${index * 40}ms` }}>
       <EntryDate iso={entry.date} />
       <h2 className="entry-title">
         <a href={`/posts/${entry.slug}`}>{entry.title}</a>
@@ -58,7 +58,7 @@ function BlogCard({ entry }: { entry: BlogEntry }) {
         <p className="entry-excerpt">{entry.excerpt}</p>
       )}
       <a href={`/posts/${entry.slug}`} className="read-more">
-        Read more
+        Read →
       </a>
     </article>
   );
@@ -80,19 +80,21 @@ function Lightbox({ url, alt, onClose }: { url: string; alt: string; onClose: ()
   );
 }
 
-function MastodonCard({ entry, onImageClick }: { entry: MastodonEntry; onImageClick: (url: string, alt: string) => void }) {
+function MastodonCard({ entry, index, onImageClick }: { entry: MastodonEntry; index: number; onImageClick: (url: string, alt: string) => void }) {
   const text = stripHtml(entry.content);
   if (!text) return null;
 
+  const single = entry.media.length === 1;
+
   return (
-    <article className="entry entry--mastodon">
+    <article className="entry entry--mastodon" style={{ animationDelay: `${index * 40}ms` }}>
       <EntryDate iso={entry.date} />
       <MastodonContent html={entry.content} />
       {entry.media.length > 0 && (
-        <div className="entry-media">
+        <div className={single ? 'entry-media entry-media--single' : 'entry-media'}>
           {entry.media.map((m) => (
             <button key={m.url} className="entry-media-btn" onClick={() => onImageClick(m.url, m.alt)} aria-label="View full size">
-              <img src={m.previewUrl} alt={m.alt} loading="lazy" />
+              <img src={single ? m.url : m.previewUrl} alt={m.alt} loading="lazy" />
             </button>
           ))}
         </div>
@@ -190,10 +192,10 @@ export default function LifeStream() {
         <Lightbox url={lightbox.url} alt={lightbox.alt} onClose={() => setLightbox(null)} />
       )}
       <div className="stream">
-        {entries.map((entry) =>
+        {entries.map((entry, i) =>
           entry.type === 'blog'
-            ? <BlogCard key={`blog-${entry.slug}`} entry={entry} />
-            : <MastodonCard key={`mastodon-${entry.id}`} entry={entry} onImageClick={(url, alt) => setLightbox({ url, alt })} />
+            ? <BlogCard key={`blog-${entry.slug}`} entry={entry} index={i} />
+            : <MastodonCard key={`mastodon-${entry.id}`} entry={entry} index={i} onImageClick={(url, alt) => setLightbox({ url, alt })} />
         )}
       </div>
     </>
