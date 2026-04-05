@@ -136,3 +136,131 @@ img {
   border-top: 1px solid var(--color-divider);
   margin: 3rem 0;
 }
+
+/* Account menu */
+.account-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.account-trigger {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  color: var(--color-muted);
+  padding: 0;
+  transition: color 0.15s;
+}
+
+.account-trigger:hover {
+  color: var(--color-text);
+}
+
+.account-trigger-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.account-dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  background: #141414;
+  border: 1px solid var(--color-divider);
+  border-radius: 6px;
+  min-width: 220px;
+  z-index: 100;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+
+.account-loading {
+  padding: 1rem;
+  font-size: 0.85rem;
+  color: var(--color-muted);
+}
+
+.account-signin-prompt {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.account-hint {
+  font-size: 0.82rem;
+  color: var(--color-muted);
+}
+
+.account-google-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #1e1e1e;
+  border: 1px solid var(--color-divider);
+  border-radius: 4px;
+  color: var(--color-text);
+  font-family: var(--font-ui);
+  font-size: 0.82rem;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  width: 100%;
+}
+
+.account-google-btn:hover {
+  border-color: #3a3a3a;
+}
+
+.account-user {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.account-user-info {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.account-user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.account-user-name {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.account-user-status {
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  margin-top: 0.15rem;
+}
+
+.account-signout {
+  background: none;
+  border: none;
+  color: var(--color-muted);
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  transition: color 0.15s;
+}
+
+.account-signout:hover {
+  color: var(--color-text);
+}
