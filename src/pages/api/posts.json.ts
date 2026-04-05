@@ -1,21 +1,25 @@
 import type { APIRoute } from 'astro';
-import { getCollection } from 'astro:content';
-
-export const prerender = true;
+import { getAdminDb } from '../../lib/firebase-admin';
 
 export const GET: APIRoute = async () => {
-  const posts = await getCollection('blog');
+  const db = getAdminDb();
+  const snap = await db
+    .collection('posts')
+    .where('published', '==', true)
+    .orderBy('createdAt', 'desc')
+    .get();
 
-  const data = posts
-    .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf())
-    .map((post) => ({
+  const data = snap.docs.map((doc) => {
+    const d = doc.data();
+    return {
       type: 'blog' as const,
-      title: post.data.title,
-      date: post.data.date.toISOString(),
-      slug: post.id,
-      excerpt: post.data.excerpt ?? null,
-      mastodon_tag: post.data.mastodon_tag ?? null,
-    }));
+      title: d.title,
+      date: d.createdAt?.toDate?.()?.toISOString() ?? new Date().toISOString(),
+      slug: doc.id,
+      excerpt: d.excerpt ?? null,
+      mastodon_tag: d.mastodon_tag ?? null,
+    };
+  });
 
   return new Response(JSON.stringify(data), {
     headers: { 'Content-Type': 'application/json' },

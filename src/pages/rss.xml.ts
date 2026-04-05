@@ -1,22 +1,29 @@
 import rss from '@astrojs/rss';
-import { getCollection } from 'astro:content';
 import type { APIContext } from 'astro';
-
-export const prerender = true;
+import { getAdminDb } from '../lib/firebase-admin';
 
 export async function GET(context: APIContext) {
-  const posts = await getCollection('blog');
-  const sorted = posts.sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+  const db = getAdminDb();
+  const snap = await db
+    .collection('posts')
+    .where('published', '==', true)
+    .orderBy('createdAt', 'desc')
+    .get();
+
+  const items = snap.docs.map((doc) => {
+    const d = doc.data();
+    return {
+      title: d.title,
+      pubDate: d.createdAt?.toDate?.() ?? new Date(),
+      description: d.excerpt ?? undefined,
+      link: `/posts/${doc.id}/`,
+    };
+  });
 
   return rss({
     title: 'outofbreathed.com',
     description: 'A personal stream.',
     site: context.site!,
-    items: sorted.map((post) => ({
-      title: post.data.title,
-      pubDate: post.data.date,
-      description: post.data.excerpt ?? undefined,
-      link: `/posts/${post.id}/`,
-    })),
+    items,
   });
 }

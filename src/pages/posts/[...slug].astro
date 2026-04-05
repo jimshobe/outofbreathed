@@ -1,42 +1,25 @@
 ---
-import { getCollection, render } from 'astro:content';
 import Base from '../../layouts/Base.astro';
 import Comments from '../../components/Comments';
 import '../../styles/stream.css';
 import '../../styles/comments.css';
 import { MASTODON_INSTANCE, MASTODON_USERNAME } from '../../config';
+import { getAdminDb } from '../../lib/firebase-admin';
 
-export const prerender = true;
+const { slug } = Astro.params;
 
-export async function getStaticPaths() {
-  const posts = await getCollection('blog');
-  return posts.map((post) => ({
-    params: { slug: post.id },
-    props: { post },
-  }));
-}
+if (!slug) return Astro.redirect('/');
 
-const { post } = Astro.props;
-const { Content } = await render(post);
+const db = getAdminDb();
+const docSnap = await db.collection('posts').doc(slug).get();
 
-// Fetch trip-linked Mastodon posts if mastodon_tag is set
-let tripPosts: any[] = [];
-if (post.data.mastodon_tag) {
-  try {
-    const accountRes = await fetch(
-      `https://${MASTODON_INSTANCE}/api/v1/accounts/lookup?acct=${MASTODON_USERNAME}`
-    );
-    if (accountRes.ok) {
-      const account = await accountRes.json();
-      const res = await fetch(
-        `https://${MASTODON_INSTANCE}/api/v1/accounts/${account.id}/statuses?tagged=${post.data.mastodon_tag}&limit=40&exclude_replies=true&exclude_reblogs=true`
-      );
-      if (res.ok) tripPosts = await res.json();
-    }
-  } catch {
-    // silently skip — trip posts are supplemental
-  }
-}
+if (!docSnap.exists) return new Response(null, { status: 404 });
+
+const post = docSnap.data()!;
+
+if (!post.published) return new Response(null, { status: 404 });
+
+const postDate = post.createdAt?.toDate?.() ?? new Date();
 
 function formatDate(d: Date) {
   return d.toLocaleDateString('en-AU', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -45,21 +28,38 @@ function formatDate(d: Date) {
 function stripHtml(html: string) {
   return html.replace(/<[^>]+>/g, '').trim();
 }
+
+// Fetch trip-linked Mastodon posts if mastodon_tag is set
+let tripPosts: any[] = [];
+if (post.mastodon_tag) {
+  try {
+    const accountRes = await fetch(
+      `https://${MASTODON_INSTANCE}/api/v1/accounts/lookup?acct=${MASTODON_USERNAME}`
+    );
+    if (accountRes.ok) {
+      const account = await accountRes.json();
+      const res = await fetch(
+        `https://${MASTODON_INSTANCE}/api/v1/accounts/${account.id}/statuses?tagged=${post.mastodon_tag}&limit=40&exclude_replies=true&exclude_reblogs=true`
+      );
+      if (res.ok) tripPosts = await res.json();
+    }
+  } catch {
+    // silently skip
+  }
+}
 ---
 
-<Base title={post.data.title}>
+<Base title={post.title}>
   <article>
     <header class="post-header">
-      <time class="post-date">{formatDate(post.data.date)}</time>
-      <h1 class="post-title">{post.data.title}</h1>
+      <time class="post-date">{formatDate(postDate)}</time>
+      <h1 class="post-title">{post.title}</h1>
     </header>
 
-    <div class="prose">
-      <Content />
-    </div>
+    <div class="prose" set:html={post.content} />
   </article>
 
-  <Comments postSlug={post.id} client:load />
+  <Comments postSlug={slug} client:load />
 
   {tripPosts.length > 0 && (
     <aside class="trip-stream">

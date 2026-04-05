@@ -15,12 +15,15 @@
     "@astrojs/react": "^4.4.2",
     "@astrojs/rss": "^4.0.18",
     "@astrojs/vercel": "^9.0.5",
-    "@keystatic/astro": "^5.0.6",
-    "@keystatic/core": "^0.5.50",
+    "@tiptap/extension-image": "^3.22.2",
+    "@tiptap/extension-link": "^3.22.2",
+    "@tiptap/react": "^3.22.2",
+    "@tiptap/starter-kit": "^3.22.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "astro": "^5.18.1",
     "firebase": "^12.11.0",
+    "firebase-admin": "^13.7.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   }

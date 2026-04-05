@@ -1,7 +1,10 @@
 # build output
 dist/
+.vercel/output/
 # generated types
 .astro/
+# wrangler (old Cloudflare leftovers)
+.wrangler/
 
 # dependencies
 node_modules/
