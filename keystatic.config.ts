@@ -8,6 +8,9 @@ export default config({
     : {
         kind: 'github',
         repo: { owner: 'jimshobe', name: 'outofbreathed' },
+        clientId: process.env.KEYSTATIC_GITHUB_CLIENT_ID!,
+        clientSecret: process.env.KEYSTATIC_GITHUB_CLIENT_SECRET!,
+        secret: process.env.KEYSTATIC_SECRET!,
       },
 
   collections: {
