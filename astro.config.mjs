@@ -6,6 +6,7 @@ import keystatic from '@keystatic/astro';
 
 export default defineConfig({
   output: 'server',
+  site: 'https://outofbreathed.com',
   adapter: vercel(),
   integrations: [react(), keystatic()],
 });
