@@ -1,6 +1,7 @@
 {
   "name": "outofbreathed",
   "compatibility_date": "2026-04-05",
+  "pages_build_output_dir": "dist",
   "kv_namespaces": [
     {
       "binding": "SESSION",
