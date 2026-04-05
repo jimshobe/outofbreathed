@@ -1,7 +1,9 @@
 ---
 import { getCollection, render } from 'astro:content';
 import Base from '../../layouts/Base.astro';
+import Comments from '../../components/Comments';
 import '../../styles/stream.css';
+import '../../styles/comments.css';
 import { MASTODON_INSTANCE, MASTODON_USERNAME } from '../../config';
 
 export const prerender = true;
@@ -56,6 +58,8 @@ function stripHtml(html: string) {
       <Content />
     </div>
   </article>
+
+  <Comments postSlug={post.id} client:load />
 
   {tripPosts.length > 0 && (
     <aside class="trip-stream">
