@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   collection, doc, getDocs, getDoc, setDoc, deleteDoc, updateDoc,
-  query, orderBy, collectionGroup, Timestamp, serverTimestamp,
+  query, orderBy, collectionGroup, Timestamp,
 } from 'firebase/firestore';
 import { signInWithPopup, signOut, onAuthStateChanged, type User } from 'firebase/auth';
 import { auth, googleProvider, db } from '../lib/firebase';
@@ -304,11 +304,13 @@ function UsersList() {
     if (!email) return;
     setInviting(true);
     try {
-      await setDoc(doc(db, 'invites', email), {
-        email,
-        role: inviteRole,
-        createdAt: serverTimestamp(),
+      const currentUser = auth.currentUser;
+      const res = await fetch('/api/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, role: inviteRole, callerUid: currentUser?.uid }),
       });
+      if (!res.ok) throw new Error('Failed to send invite');
       setInviteEmail('');
       setInviteSent(true);
       setTimeout(() => setInviteSent(false), 3000);
@@ -344,11 +346,11 @@ function UsersList() {
           <option value="contributor">Contributor</option>
         </select>
         <button className="btn-primary" onClick={sendInvite} disabled={inviting || !inviteEmail.trim()}>
-          {inviting ? 'Saving…' : inviteSent ? 'Saved ✓' : 'Save invite'}
+          {inviting ? 'Sending…' : inviteSent ? 'Sent ✓' : 'Send invite'}
         </button>
       </div>
       <p className="form-hint" style={{ marginTop: '0.5rem' }}>
-        When this person signs in with Google using that email, they'll be automatically granted the selected role.
+        They'll receive an email with a link. When they sign in with Google using that address, their role is set automatically.
       </p>
 
       {/* Users table */}
