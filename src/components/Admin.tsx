@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   collection, doc, getDocs, getDoc, setDoc, deleteDoc, updateDoc,
-  query, orderBy, collectionGroup, Timestamp,
+  query, orderBy, collectionGroup, Timestamp, serverTimestamp,
 } from 'firebase/firestore';
 import { signInWithPopup, signOut, onAuthStateChanged, type User } from 'firebase/auth';
 import { auth, googleProvider, db } from '../lib/firebase';
@@ -307,6 +307,14 @@ function UsersList() {
     setInviteError(null);
     try {
       const currentUser = auth.currentUser;
+      // Save invite to Firestore (client-side)
+      await setDoc(doc(db, 'invites', email), {
+        email,
+        role: inviteRole,
+        createdAt: serverTimestamp(),
+      });
+
+      // Send invite email (server-side via API)
       const res = await fetch('/api/invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

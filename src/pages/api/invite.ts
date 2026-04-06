@@ -1,40 +1,28 @@
 import type { APIRoute } from 'astro';
 import { Resend } from 'resend';
-import { getAdminDb } from '../../lib/firebase-admin';
-import { FieldValue } from 'firebase-admin/firestore';
 
-const ADMIN_UID = process.env.PUBLIC_ADMIN_UID!;
+const ADMIN_UID = import.meta.env.PUBLIC_ADMIN_UID;
 
 export const POST: APIRoute = async ({ request }) => {
-  // Verify the caller is the admin via their Firebase UID in the request
   const { email, role, callerUid } = await request.json();
 
   if (!email || !role || callerUid !== ADMIN_UID) {
     return new Response(JSON.stringify({ error: 'Unauthorized or missing fields' }), { status: 403 });
   }
 
-  const normalizedEmail = email.trim().toLowerCase();
-
-  // Save invite to Firestore
-  const db = getAdminDb();
-  await db.collection('invites').doc(normalizedEmail).set({
-    email: normalizedEmail,
-    role,
-    createdAt: FieldValue.serverTimestamp(),
-  });
-
-  // Send invite email
-  if (!process.env.RESEND_API_KEY) {
+  if (!import.meta.env.RESEND_API_KEY) {
     console.error('RESEND_API_KEY is not set');
     return new Response(JSON.stringify({ error: 'Email service not configured' }), { status: 500 });
   }
-  const resend = new Resend(process.env.RESEND_API_KEY);
-  const roleLabel = role === 'contributor' ? 'contributor (you can post and comment)' : 'member (you can comment on posts)';
-  const siteUrl = 'https://www.outofbreathed.com';
+
+  const resend = new Resend(import.meta.env.RESEND_API_KEY);
+  const roleLabel = role === 'contributor'
+    ? 'contributor (you can post and comment)'
+    : 'member (you can comment on posts)';
 
   const { error: emailError } = await resend.emails.send({
     from: 'Jim Shobe <jim@outofbreathed.com>',
-    to: normalizedEmail,
+    to: email.trim().toLowerCase(),
     subject: "You're invited to outofbreathed.com",
     html: `
 <!DOCTYPE html>
@@ -58,11 +46,11 @@ export const POST: APIRoute = async ({ request }) => {
             <p style="margin:0 0 28px;font-size:1rem;line-height:1.6;">
               Just sign in with Google using this email address and you'll have access right away.
             </p>
-            <a href="${siteUrl}" style="display:inline-block;background:#c96a2e;color:#fff;text-decoration:none;padding:12px 24px;border-radius:4px;font-size:0.9rem;font-weight:500;">
+            <a href="https://www.outofbreathed.com" style="display:inline-block;background:#c96a2e;color:#fff;text-decoration:none;padding:12px 24px;border-radius:4px;font-size:0.9rem;font-weight:500;">
               Visit the site →
             </a>
             <p style="margin:28px 0 0;font-size:0.82rem;color:#888;line-height:1.6;">
-              Sign in with Google at the top right of the page. Make sure to use the account associated with this email address.
+              Sign in with Google using the person icon at the top right. Make sure to use the account associated with this email address.
             </p>
           </td>
         </tr>
