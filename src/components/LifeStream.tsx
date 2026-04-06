@@ -10,13 +10,20 @@ interface BlogEntry {
   mastodon_tag: string | null;
 }
 
+interface MastodonMedia {
+  url: string;
+  previewUrl: string;
+  alt: string;
+  kind: 'image' | 'video';
+}
+
 interface MastodonEntry {
   type: 'mastodon';
   id: string;
   date: string;
   content: string;
   url: string;
-  media: { url: string; previewUrl: string; alt: string }[];
+  media: MastodonMedia[];
 }
 
 type StreamEntry = BlogEntry | MastodonEntry;
@@ -64,7 +71,7 @@ function BlogCard({ entry, index }: { entry: BlogEntry; index: number }) {
   );
 }
 
-function Lightbox({ url, alt, onClose }: { url: string; alt: string; onClose: () => void }) {
+function Lightbox({ url, alt, kind, onClose }: { url: string; alt: string; kind: 'image' | 'video'; onClose: () => void }) {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
@@ -75,12 +82,16 @@ function Lightbox({ url, alt, onClose }: { url: string; alt: string; onClose: ()
 
   return (
     <div className="lightbox" onClick={onClose} role="dialog" aria-modal="true">
-      <img src={url} alt={alt} className="lightbox-img" onClick={(e) => e.stopPropagation()} />
+      {kind === 'video' ? (
+        <video src={url} className="lightbox-img" controls autoPlay loop onClick={(e) => e.stopPropagation()} />
+      ) : (
+        <img src={url} alt={alt} className="lightbox-img" onClick={(e) => e.stopPropagation()} />
+      )}
     </div>
   );
 }
 
-function MastodonCard({ entry, index, onImageClick }: { entry: MastodonEntry; index: number; onImageClick: (url: string, alt: string) => void }) {
+function MastodonCard({ entry, index, onImageClick }: { entry: MastodonEntry; index: number; onImageClick: (url: string, alt: string, kind: 'image' | 'video') => void }) {
   const text = stripHtml(entry.content);
   if (!text) return null;
 
@@ -93,8 +104,18 @@ function MastodonCard({ entry, index, onImageClick }: { entry: MastodonEntry; in
       {entry.media.length > 0 && (
         <div className={single ? 'entry-media entry-media--single' : 'entry-media'}>
           {entry.media.map((m) => (
-            <button key={m.url} className="entry-media-btn" onClick={() => onImageClick(m.url, m.alt)} aria-label="View full size">
-              <img src={single ? m.url : m.previewUrl} alt={m.alt} loading="lazy" />
+            <button key={m.url} className="entry-media-btn" onClick={() => onImageClick(m.url, m.alt, m.kind)} aria-label={m.kind === 'video' ? 'Play video' : 'View full size'}>
+              {m.kind === 'video' ? (
+                <div className="entry-media-video-thumb">
+                  {m.previewUrl && m.previewUrl !== m.url
+                    ? <img src={m.previewUrl} alt={m.alt} loading="lazy" />
+                    : <video src={m.url} muted playsInline preload="metadata" />
+                  }
+                  <span className="entry-media-play">▶</span>
+                </div>
+              ) : (
+                <img src={single ? m.url : m.previewUrl} alt={m.alt} loading="lazy" />
+              )}
             </button>
           ))}
         </div>
@@ -117,7 +138,7 @@ export default function LifeStream() {
   const [entries, setEntries] = useState<StreamEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [lightbox, setLightbox] = useState<{ url: string; alt: string } | null>(null);
+  const [lightbox, setLightbox] = useState<{ url: string; alt: string; kind: 'image' | 'video' } | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -149,8 +170,13 @@ export default function LifeStream() {
                 content: s.content,
                 url: s.url,
                 media: (s.media_attachments ?? [])
-                  .filter((m: any) => m.type === 'image')
-                  .map((m: any) => ({ url: m.url, previewUrl: m.preview_url ?? m.url, alt: m.description ?? '' })),
+                  .filter((m: any) => ['image', 'gifv', 'video'].includes(m.type))
+                  .map((m: any) => ({
+                    url: m.url,
+                    previewUrl: m.preview_url ?? m.url,
+                    alt: m.description ?? '',
+                    kind: m.type === 'image' ? 'image' : 'video',
+                  })),
               }));
           }
         }
@@ -189,13 +215,13 @@ export default function LifeStream() {
   return (
     <>
       {lightbox && (
-        <Lightbox url={lightbox.url} alt={lightbox.alt} onClose={() => setLightbox(null)} />
+        <Lightbox url={lightbox.url} alt={lightbox.alt} kind={lightbox.kind} onClose={() => setLightbox(null)} />
       )}
       <div className="stream">
         {entries.map((entry, i) =>
           entry.type === 'blog'
             ? <BlogCard key={`blog-${entry.slug}`} entry={entry} index={i} />
-            : <MastodonCard key={`mastodon-${entry.id}`} entry={entry} index={i} onImageClick={(url, alt) => setLightbox({ url, alt })} />
+            : <MastodonCard key={`mastodon-${entry.id}`} entry={entry} index={i} onImageClick={(url, alt, kind) => setLightbox({ url, alt, kind })} />
         )}
       </div>
     </>
