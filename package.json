@@ -9,7 +9,10 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepare": "husky"
   },
   "dependencies": {
     "@astrojs/react": "^4.4.2",
@@ -27,5 +30,14 @@
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "resend": "^6.10.0"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@vitejs/plugin-react": "^6.0.1",
+    "husky": "^9.1.7",
+    "jsdom": "^27.0.1",
+    "vitest": "^3.2.4"
   }
 }
