@@ -24,11 +24,15 @@ export const POST: APIRoute = async ({ request }) => {
   });
 
   // Send invite email
+  if (!process.env.RESEND_API_KEY) {
+    console.error('RESEND_API_KEY is not set');
+    return new Response(JSON.stringify({ error: 'Email service not configured' }), { status: 500 });
+  }
   const resend = new Resend(process.env.RESEND_API_KEY);
   const roleLabel = role === 'contributor' ? 'contributor (you can post and comment)' : 'member (you can comment on posts)';
   const siteUrl = 'https://www.outofbreathed.com';
 
-  await resend.emails.send({
+  const { error: emailError } = await resend.emails.send({
     from: 'Jim Shobe <jim@outofbreathed.com>',
     to: normalizedEmail,
     subject: "You're invited to outofbreathed.com",
@@ -68,6 +72,11 @@ export const POST: APIRoute = async ({ request }) => {
 </body>
 </html>`,
   });
+
+  if (emailError) {
+    console.error('Resend error:', JSON.stringify(emailError));
+    return new Response(JSON.stringify({ error: 'Email failed to send', detail: emailError }), { status: 500 });
+  }
 
   return new Response(JSON.stringify({ ok: true }), { status: 200 });
 };

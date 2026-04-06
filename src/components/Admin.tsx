@@ -286,6 +286,7 @@ function UsersList() {
   const [inviteRole, setInviteRole] = useState<'member' | 'contributor'>('member');
   const [inviting, setInviting] = useState(false);
   const [inviteSent, setInviteSent] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
 
   useEffect(() => {
     getDocs(query(collection(db, 'users'), orderBy('firstSeen', 'desc'))).then((snap) => {
@@ -303,6 +304,7 @@ function UsersList() {
     const email = inviteEmail.trim().toLowerCase();
     if (!email) return;
     setInviting(true);
+    setInviteError(null);
     try {
       const currentUser = auth.currentUser;
       const res = await fetch('/api/invite', {
@@ -310,10 +312,15 @@ function UsersList() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, role: inviteRole, callerUid: currentUser?.uid }),
       });
-      if (!res.ok) throw new Error('Failed to send invite');
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? 'Failed to send invite');
+      }
       setInviteEmail('');
       setInviteSent(true);
       setTimeout(() => setInviteSent(false), 3000);
+    } catch (e: any) {
+      setInviteError(e.message ?? 'Something went wrong');
     } finally {
       setInviting(false);
     }
@@ -349,6 +356,7 @@ function UsersList() {
           {inviting ? 'Sending…' : inviteSent ? 'Sent ✓' : 'Send invite'}
         </button>
       </div>
+      {inviteError && <p className="form-hint" style={{ marginTop: '0.5rem', color: '#e05c6a' }}>{inviteError}</p>}
       <p className="form-hint" style={{ marginTop: '0.5rem' }}>
         They'll receive an email with a link. When they sign in with Google using that address, their role is set automatically.
       </p>
