@@ -160,9 +160,9 @@ function PostForm({
         published,
         authorUid: isNew ? currentUser.uid : (post as Post).authorUid || currentUser.uid,
         authorName: isNew ? (currentUser.displayName ?? '') : (post as Post).authorName || (currentUser.displayName ?? ''),
-        updatedAt: Timestamp.now(),
+        updatedAt: serverTimestamp(),
       };
-      if (isNew) data.createdAt = Timestamp.now();
+      if (isNew) data.createdAt = serverTimestamp();
       await setDoc(doc(db, 'posts', slug.trim()), data, { merge: true });
       onDone();
     } finally {
@@ -307,14 +307,8 @@ function UsersList() {
     setInviteError(null);
     try {
       const currentUser = auth.currentUser;
-      // Save invite to Firestore (client-side)
-      await setDoc(doc(db, 'invites', email), {
-        email,
-        role: inviteRole,
-        createdAt: serverTimestamp(),
-      });
 
-      // Send invite email (server-side via API)
+      // Send invite email first — only save to Firestore if it succeeds
       const res = await fetch('/api/invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -324,6 +318,12 @@ function UsersList() {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error ?? 'Failed to send invite');
       }
+
+      await setDoc(doc(db, 'invites', email), {
+        email,
+        role: inviteRole,
+        createdAt: serverTimestamp(),
+      });
       setInviteEmail('');
       setInviteSent(true);
       setTimeout(() => setInviteSent(false), 3000);

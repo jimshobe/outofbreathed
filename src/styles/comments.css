@@ -114,37 +114,14 @@
   color: #fff;
 }
 
-/* Comment form */
-.comment-form-user {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  margin-bottom: 0.85rem;
-}
-
-.comment-form-name {
-  font-family: var(--font-ui);
+/* Status messages (pending / banned) */
+.comment-status-msg {
   font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--color-text);
-}
-
-.comment-signout {
-  background: none;
-  border: none;
   color: var(--color-muted);
-  font-family: var(--font-ui);
-  font-size: 0.78rem;
-  cursor: pointer;
-  padding: 0;
-  margin-left: 0.25rem;
-  transition: color 0.15s ease;
+  font-style: italic;
 }
 
-.comment-signout:hover {
-  color: var(--color-text);
-}
-
+/* Comment form */
 .comment-input {
   width: 100%;
   background: #141414;

@@ -2,7 +2,7 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
 import Link from '@tiptap/extension-link';
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../lib/firebase';
 
@@ -14,6 +14,7 @@ interface Props {
 
 export default function PostEditor({ content, onChange, postSlug }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const editor = useEditor({
     extensions: [
@@ -30,6 +31,7 @@ export default function PostEditor({ content, onChange, postSlug }: Props) {
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file || !editor) return;
+    setUploadError(null);
     try {
       const storageRef = ref(storage, `posts/${postSlug || 'draft'}/${Date.now()}-${file.name}`);
       await uploadBytes(storageRef, file);
@@ -37,6 +39,7 @@ export default function PostEditor({ content, onChange, postSlug }: Props) {
       editor.chain().focus().setImage({ src: url }).run();
     } catch (err) {
       console.error('Image upload failed', err);
+      setUploadError('Image upload failed. Check Storage rules and try again.');
     }
     e.target.value = '';
   }
@@ -71,6 +74,11 @@ export default function PostEditor({ content, onChange, postSlug }: Props) {
         <button type="button" className="tb-btn" onClick={() => editor.chain().focus().undo().run()} title="Undo">↩</button>
         <button type="button" className="tb-btn" onClick={() => editor.chain().focus().redo().run()} title="Redo">↪</button>
       </div>
+      {uploadError && (
+        <p style={{ padding: '0.4rem 1rem', fontSize: '0.78rem', color: '#e05c6a', borderTop: '1px solid var(--color-divider)' }}>
+          {uploadError}
+        </p>
+      )}
       <EditorContent editor={editor} className="editor-content" />
     </div>
   );

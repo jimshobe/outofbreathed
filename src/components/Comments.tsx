@@ -8,6 +8,8 @@ import { auth, googleProvider, db } from '../lib/firebase';
 
 const ADMIN_UID = import.meta.env.PUBLIC_ADMIN_UID;
 
+type Role = 'pending' | 'member' | 'contributor' | 'admin' | 'banned';
+
 interface Comment {
   id: string;
   text: string;
@@ -27,7 +29,7 @@ function formatCommentDate(ts: Timestamp | null): string {
 export default function Comments({ postSlug }: { postSlug: string }) {
   const [user, setUser] = useState<User | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
-  const [role, setRole] = useState<string | null>(null);
+  const [role, setRole] = useState<Role | null>(null);
   const [roleLoading, setRoleLoading] = useState(false);
   const [text, setText] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -53,7 +55,7 @@ export default function Comments({ postSlug }: { postSlug: string }) {
     if (user.uid === ADMIN_UID) { setRole('admin'); return; }
     setRoleLoading(true);
     return onSnapshot(doc(db, 'users', user.uid), (snap) => {
-      if (snap.exists()) setRole(snap.data().role as string);
+      if (snap.exists()) setRole(snap.data().role as Role);
       else setRole('pending');
       setRoleLoading(false);
     });
