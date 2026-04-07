@@ -80,6 +80,10 @@ const canonicalUrl = Astro.url.href;
         </a>
       </footer>
     </div>
+    <script>
+      import { inject } from '@vercel/analytics';
+      inject();
+    </script>
   </body>
 </html>
 
