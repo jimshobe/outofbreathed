@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MASTODON_INSTANCE, MASTODON_USERNAME } from '../config';
+import { MASTODON_INSTANCE, MASTODON_USERNAME, BLUESKY_HANDLE } from '../config';
 
 interface BlogEntry {
   type: 'blog';
@@ -10,23 +10,24 @@ interface BlogEntry {
   mastodon_tag: string | null;
 }
 
-interface MastodonMedia {
+interface SocialMedia {
   url: string;
   previewUrl: string;
   alt: string;
   kind: 'image' | 'video';
 }
 
-interface MastodonEntry {
-  type: 'mastodon';
+interface SocialEntry {
+  type: 'social';
+  source: 'mastodon' | 'bluesky';
   id: string;
   date: string;
   content: string;
   url: string;
-  media: MastodonMedia[];
+  media: SocialMedia[];
 }
 
-type StreamEntry = BlogEntry | MastodonEntry;
+type StreamEntry = BlogEntry | SocialEntry;
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -41,7 +42,15 @@ function stripHtml(html: string): string {
   return html.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim();
 }
 
-function MastodonContent({ html }: { html: string }) {
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\n/g, '<br>');
+}
+
+function SocialContent({ html }: { html: string }) {
   return (
     <p
       className="mastodon-text"
@@ -91,7 +100,11 @@ function Lightbox({ url, alt, kind, onClose }: { url: string; alt: string; kind:
   );
 }
 
-function MastodonCard({ entry, index, onImageClick }: { entry: MastodonEntry; index: number; onImageClick: (url: string, alt: string, kind: 'image' | 'video') => void }) {
+function SocialCard({ entry, index, onMediaClick }: {
+  entry: SocialEntry;
+  index: number;
+  onMediaClick: (url: string, alt: string, kind: 'image' | 'video') => void;
+}) {
   const text = stripHtml(entry.content);
   if (!text) return null;
 
@@ -100,11 +113,11 @@ function MastodonCard({ entry, index, onImageClick }: { entry: MastodonEntry; in
   return (
     <article className="entry entry--mastodon" style={{ animationDelay: `${index * 40}ms` }}>
       <EntryDate iso={entry.date} />
-      <MastodonContent html={entry.content} />
+      <SocialContent html={entry.content} />
       {entry.media.length > 0 && (
         <div className={single ? 'entry-media entry-media--single' : 'entry-media'}>
           {entry.media.map((m) => (
-            <button key={m.url} className="entry-media-btn" onClick={() => onImageClick(m.url, m.alt, m.kind)} aria-label={m.kind === 'video' ? 'Play video' : 'View full size'}>
+            <button key={m.url} className="entry-media-btn" onClick={() => onMediaClick(m.url, m.alt, m.kind)} aria-label={m.kind === 'video' ? 'Play video' : 'View full size'}>
               {m.kind === 'video' ? (
                 <div className="entry-media-video-thumb">
                   {m.previewUrl && m.previewUrl !== m.url
@@ -134,6 +147,79 @@ function SkeletonEntry() {
   );
 }
 
+async function fetchMastodon(): Promise<SocialEntry[]> {
+  const accountRes = await fetch(
+    `https://${MASTODON_INSTANCE}/api/v1/accounts/lookup?acct=${MASTODON_USERNAME}`
+  );
+  if (!accountRes.ok) return [];
+
+  const account = await accountRes.json();
+  const statusRes = await fetch(
+    `https://${MASTODON_INSTANCE}/api/v1/accounts/${account.id}/statuses?limit=40&exclude_replies=true&exclude_reblogs=true`
+  );
+  if (!statusRes.ok) return [];
+
+  const statuses = await statusRes.json();
+  return statuses
+    .filter((s: any) => s.content && s.content.trim() !== '<p></p>')
+    .map((s: any) => ({
+      type: 'social' as const,
+      source: 'mastodon' as const,
+      id: s.id,
+      date: s.created_at,
+      content: s.content,
+      url: s.url,
+      media: (s.media_attachments ?? [])
+        .filter((m: any) => ['image', 'gifv', 'video'].includes(m.type))
+        .map((m: any) => ({
+          url: m.url,
+          previewUrl: m.preview_url ?? m.url,
+          alt: m.description ?? '',
+          kind: m.type === 'image' ? 'image' : 'video',
+        })),
+    }));
+}
+
+async function fetchBluesky(): Promise<SocialEntry[]> {
+  if (!BLUESKY_HANDLE) return [];
+
+  const res = await fetch(
+    `https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor=${BLUESKY_HANDLE}&limit=40&filter=posts_no_replies`
+  );
+  if (!res.ok) return [];
+
+  const data = await res.json();
+  return (data.feed ?? [])
+    .filter((item: any) => !item.reason && item.post?.record?.text?.trim())
+    .map((item: any) => {
+      const post = item.post;
+      const rkey = post.uri.split('/').pop();
+      const url = `https://bsky.app/profile/${BLUESKY_HANDLE}/post/${rkey}`;
+
+      const media: SocialMedia[] = [];
+      if (post.embed?.$type === 'app.bsky.embed.images#view') {
+        for (const img of post.embed.images) {
+          media.push({
+            url: img.fullsize,
+            previewUrl: img.thumb,
+            alt: img.alt ?? '',
+            kind: 'image',
+          });
+        }
+      }
+
+      return {
+        type: 'social' as const,
+        source: 'bluesky' as const,
+        id: post.uri,
+        date: post.record.createdAt,
+        content: escapeHtml(post.record.text),
+        url,
+        media,
+      };
+    });
+}
+
 export default function LifeStream() {
   const [entries, setEntries] = useState<StreamEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -143,45 +229,17 @@ export default function LifeStream() {
   useEffect(() => {
     async function load() {
       try {
-        const [postsRes, accountRes] = await Promise.all([
+        const [postsRes, mastodonEntries, blueskyEntries] = await Promise.all([
           fetch('/api/posts.json'),
-          fetch(`https://${MASTODON_INSTANCE}/api/v1/accounts/lookup?acct=${MASTODON_USERNAME}`),
+          fetchMastodon().catch(() => []),
+          fetchBluesky().catch(() => []),
         ]);
 
         if (!postsRes.ok) throw new Error('Failed to load posts');
 
         const blogPosts: BlogEntry[] = await postsRes.json();
 
-        let mastodonEntries: MastodonEntry[] = [];
-
-        if (accountRes.ok) {
-          const account = await accountRes.json();
-          const statusRes = await fetch(
-            `https://${MASTODON_INSTANCE}/api/v1/accounts/${account.id}/statuses?limit=40&exclude_replies=true&exclude_reblogs=true`
-          );
-          if (statusRes.ok) {
-            const statuses = await statusRes.json();
-            mastodonEntries = statuses
-              .filter((s: any) => s.content && s.content.trim() !== '<p></p>')
-              .map((s: any) => ({
-                type: 'mastodon' as const,
-                id: s.id,
-                date: s.created_at,
-                content: s.content,
-                url: s.url,
-                media: (s.media_attachments ?? [])
-                  .filter((m: any) => ['image', 'gifv', 'video'].includes(m.type))
-                  .map((m: any) => ({
-                    url: m.url,
-                    previewUrl: m.preview_url ?? m.url,
-                    alt: m.description ?? '',
-                    kind: m.type === 'image' ? 'image' : 'video',
-                  })),
-              }));
-          }
-        }
-
-        const merged: StreamEntry[] = [...blogPosts, ...mastodonEntries].sort(
+        const merged: StreamEntry[] = [...blogPosts, ...mastodonEntries, ...blueskyEntries].sort(
           (a, b) => new Date(b.date).valueOf() - new Date(a.date).valueOf()
         );
 
@@ -221,7 +279,7 @@ export default function LifeStream() {
         {entries.map((entry, i) =>
           entry.type === 'blog'
             ? <BlogCard key={`blog-${entry.slug}`} entry={entry} index={i} />
-            : <MastodonCard key={`mastodon-${entry.id}`} entry={entry} index={i} onImageClick={(url, alt, kind) => setLightbox({ url, alt, kind })} />
+            : <SocialCard key={`${entry.source}-${entry.id}`} entry={entry} index={i} onMediaClick={(url, alt, kind) => setLightbox({ url, alt, kind })} />
         )}
       </div>
     </>
