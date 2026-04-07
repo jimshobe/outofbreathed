@@ -51,7 +51,7 @@ if (post.mastodon_tag) {
 
 <Base
   title={post.title}
-  description={post.excerpt ?? stripHtml(post.content).slice(0, 160) || undefined}
+  description={(post.excerpt ?? stripHtml(post.content).slice(0, 160)) || undefined}
   ogType="article"
 >
   <article>
