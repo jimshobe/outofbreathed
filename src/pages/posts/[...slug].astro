@@ -49,7 +49,11 @@ if (post.mastodon_tag) {
 }
 ---
 
-<Base title={post.title}>
+<Base
+  title={post.title}
+  description={post.excerpt ?? stripHtml(post.content).slice(0, 160) || undefined}
+  ogType="article"
+>
   <article>
     <header class="post-header">
       <time class="post-date">{formatDate(postDate)}</time>
