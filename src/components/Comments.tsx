@@ -66,14 +66,26 @@ export default function Comments({ postSlug }: { postSlug: string }) {
     if (!user || !text.trim() || !canComment) return;
     setSubmitting(true);
     try {
+      const trimmed = text.trim();
       await addDoc(collection(db, 'comments', postSlug, 'entries'), {
-        text: text.trim(),
+        text: trimmed,
         authorName: user.displayName ?? 'Anonymous',
         authorPhoto: user.photoURL ?? '',
         authorUid: user.uid,
         createdAt: serverTimestamp(),
       });
       setText('');
+      fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'comment',
+          callerUid: user.uid,
+          postSlug,
+          commenterName: user.displayName ?? 'Anonymous',
+          text: trimmed,
+        }),
+      }).catch(() => {});
     } finally {
       setSubmitting(false);
     }

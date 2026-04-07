@@ -76,6 +76,16 @@ export default function AccountMenu() {
           firstSeen: serverTimestamp(),
         });
         setRole('pending');
+        fetch('/api/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'signup',
+            callerUid: user.uid,
+            userName: user.displayName ?? 'Anonymous',
+            userEmail: user.email ?? '',
+          }),
+        }).catch(() => {});
       } else {
         setRole(snap.data().role as Role);
       }
