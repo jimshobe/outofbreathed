@@ -46,8 +46,53 @@ function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/\n/g, '<br>');
+    .replace(/>/g, '&gt;');
+}
+
+// Bluesky uses UTF-8 byte offsets in facets, not character offsets
+function processBlueskyText(text: string, facets: any[]): string {
+  if (!facets || facets.length === 0) {
+    return escapeHtml(text).replace(/\n/g, '<br>');
+  }
+
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
+  const bytes = encoder.encode(text);
+
+  const sorted = [...facets].sort((a, b) => a.index.byteStart - b.index.byteStart);
+
+  let html = '';
+  let pos = 0;
+
+  for (const facet of sorted) {
+    const { byteStart, byteEnd } = facet.index;
+    if (byteStart > pos) {
+      html += escapeHtml(decoder.decode(bytes.slice(pos, byteStart)));
+    }
+
+    const segment = escapeHtml(decoder.decode(bytes.slice(byteStart, byteEnd)));
+    const tagFeature = facet.features?.find((f: any) => f.$type === 'app.bsky.richtext.facet#tag');
+    const linkFeature = facet.features?.find((f: any) => f.$type === 'app.bsky.richtext.facet#link');
+    const mentionFeature = facet.features?.find((f: any) => f.$type === 'app.bsky.richtext.facet#mention');
+
+    if (tagFeature) {
+      html += `<a href="https://bsky.app/hashtag/${encodeURIComponent(tagFeature.tag)}" target="_blank" rel="noopener noreferrer">${segment}</a>`;
+    } else if (linkFeature) {
+      html += `<a href="${escapeHtml(linkFeature.uri)}" target="_blank" rel="noopener noreferrer">${segment}</a>`;
+    } else if (mentionFeature) {
+      html += `<a href="https://bsky.app/profile/${encodeURIComponent(mentionFeature.did)}" target="_blank" rel="noopener noreferrer">${segment}</a>`;
+    } else {
+      html += segment;
+    }
+
+    pos = byteEnd;
+  }
+
+  if (pos < bytes.length) {
+    html += escapeHtml(decoder.decode(bytes.slice(pos)));
+  }
+
+  return html.replace(/\n/g, '<br>');
 }
 
 function SocialContent({ html }: { html: string }) {
@@ -213,7 +258,7 @@ async function fetchBluesky(): Promise<SocialEntry[]> {
         source: 'bluesky' as const,
         id: post.uri,
         date: post.record.createdAt,
-        content: escapeHtml(post.record.text),
+        content: processBlueskyText(post.record.text, post.record.facets ?? []),
         url,
         media,
       };
