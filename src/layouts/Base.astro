@@ -49,10 +49,15 @@ const canonicalUrl = Astro.url.href;
     <div class="layout">
       <header>
         <nav>
+          <a href="/" class="wordmark">out of<br><span>breathed<em>.</em></span></a>
           <div class="nav-links">
             <AccountMenu client:load />
           </div>
         </nav>
+        <div class="header-rule">
+          <div class="rule-accent"></div>
+          <div class="rule-line"></div>
+        </div>
       </header>
 
       <main>
@@ -94,13 +99,51 @@ const canonicalUrl = Astro.url.href;
   }
 
   header {
-    padding: 2.5rem 0 3rem;
+    padding: 2.5rem 0 0;
   }
 
   nav {
     display: flex;
-    align-items: baseline;
+    align-items: flex-end;
     justify-content: space-between;
+    margin-bottom: 1.25rem;
+  }
+
+  .wordmark {
+    font-size: 3.75rem;
+    font-weight: 300;
+    color: var(--color-text);
+    letter-spacing: -0.03em;
+    line-height: 1;
+    text-decoration: none;
+  }
+
+  .wordmark span {
+    color: var(--color-accent);
+  }
+
+  .wordmark em {
+    font-style: normal;
+    color: var(--color-accent);
+  }
+
+  .header-rule {
+    display: flex;
+    align-items: center;
+    margin-bottom: 2.5rem;
+  }
+
+  .rule-accent {
+    height: 2px;
+    width: 40px;
+    background: var(--color-accent);
+    flex-shrink: 0;
+  }
+
+  .rule-line {
+    height: 1px;
+    flex: 1;
+    background: var(--color-divider);
   }
 
   .nav-links {
