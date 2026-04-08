@@ -49,7 +49,6 @@ const canonicalUrl = Astro.url.href;
     <div class="layout">
       <header>
         <nav>
-          <a href="/" class="site-name">outofbreathed.com</a>
           <div class="nav-links">
             <AccountMenu client:load />
           </div>
@@ -102,17 +101,6 @@ const canonicalUrl = Astro.url.href;
     display: flex;
     align-items: baseline;
     justify-content: space-between;
-  }
-
-  .site-name {
-    font-size: 1rem;
-    font-weight: 500;
-    color: var(--color-text);
-    letter-spacing: -0.01em;
-  }
-
-  .site-name:hover {
-    color: var(--color-text);
   }
 
   .nav-links {
