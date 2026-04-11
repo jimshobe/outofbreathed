@@ -174,6 +174,25 @@ function Lightbox({ url, alt, kind, onClose }: { url: string; alt: string; kind:
   );
 }
 
+const SOURCE_ICONS: Record<SocialEntry['source'], { label: string; icon: React.ReactNode }> = {
+  mastodon: {
+    label: 'Mastodon',
+    icon: (
+      <svg width="13" height="13" viewBox="0 0 74 79" fill="currentColor" aria-hidden="true">
+        <path d="M73.7 17.5C72.7 10.6 66.8 5.2 59.8 4.1 58.6 3.9 53.8 3 42.6 3h-.1C31.4 3 28.9 3.9 27.7 4.1 20.9 5.1 14.7 9.9 13.1 16.8c-.8 3.5-.9 7.3-.7 10.9.3 5.2.4 10.5 1.2 15.7 .6 3.4 1.4 6.7 2.6 9.9 2.3 5.9 8 9.8 14.1 10.9 6.3 1.2 12.8.9 19-.6.7-.2 1.3-.4 2-.6.7-.3 1.5-.6 2.1-1.1l-.1-3.8c-.7.3-1.5.6-2.3.8-5.8 1.6-11.9 1.7-17.7.3-4.6-1.2-7.7-5.2-8.3-9.9 5.5 1.3 11.1 2 16.7 2 2.8 0 5.5-.1 8.3-.4 5.5-.6 10.9-1.9 15.5-4.9 4.9-3.2 8.1-8.3 8.7-14 .2-2 .5-4 .5-6.1 0-.8.3-5.6.2-6.5zM61 36.6H52v-11c0-5.3-2.3-8-6.9-8-5.1 0-7.6 3.3-7.6 9.8v5.4h-8.9v-5.4c0-6.5-2.6-9.8-7.7-9.8-4.5 0-6.8 2.7-6.8 8v11H6.5v-11.7c0-5.3 1.3-9.5 4-12.6 2.8-3.1 6.4-4.7 10.9-4.7 5.2 0 9.2 2 11.8 6l2.5 4.3 2.5-4.3c2.6-4 6.6-6 11.8-6 4.5 0 8.1 1.6 10.9 4.7 2.7 3.1 4 7.3 4 12.6V36.6z"/>
+      </svg>
+    ),
+  },
+  bluesky: {
+    label: 'Bluesky',
+    icon: (
+      <svg width="13" height="13" viewBox="0 0 568 501" fill="currentColor" aria-hidden="true">
+        <path d="M123.1 33.5C188.9 82.8 259.3 182.6 284 234.1c24.7-51.5 95.1-151.3 160.9-200.6C491.4.8 568-13 568 78.2c0 18.2-10.4 153-16.5 174.9-21.2 75.9-98.5 95.4-167.1 83.7 119.9 20.4 150.6 87.9 84.6 155.4C349.5 615.9 314.6 502.9 306 470.8c-1.5-5.2-2.2-7.6-2-5.5-.2-2.1-.9.3-2 5.5-8.6 32.1-43.5 145.1-163 21.4-66-67.5-35.3-135 84.6-155.4C154.9 348.5 77.6 329 56.4 253.1 50.4 231.2 40 96.2 40 78 40-13 116.4.8 123.1 33.5z"/>
+      </svg>
+    ),
+  },
+};
+
 function SocialCard({ entry, index, onMediaClick }: {
   entry: SocialEntry;
   index: number;
@@ -183,10 +202,23 @@ function SocialCard({ entry, index, onMediaClick }: {
   if (!text) return null;
 
   const single = entry.media.length === 1;
+  const source = SOURCE_ICONS[entry.source];
 
   return (
     <article className="entry entry--mastodon" style={{ animationDelay: `${index * 40}ms` }}>
-      <EntryDate iso={entry.date} />
+      <div className="social-card-header">
+        <EntryDate iso={entry.date} />
+        <a
+          href={entry.url}
+          className="social-source-badge"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`View on ${source.label}`}
+        >
+          {source.icon}
+          <span>{source.label}</span>
+        </a>
+      </div>
       <SocialContent html={entry.content} />
       {entry.media.length > 0 && (
         <div className={single ? 'entry-media entry-media--single' : 'entry-media'}>
