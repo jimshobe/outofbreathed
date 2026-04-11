@@ -43,19 +43,22 @@ export default function AccountMenu() {
     if (!user) { setRole(null); return; }
     if (user.uid === ADMIN_UID) { setRole('admin'); return; }
 
-    const userRef = doc(db, 'users', user.uid);
+    // Capture user in a local const so the async function below has a stable,
+    // non-nullable reference even if the state changes before it resolves.
+    const u = user;
+    const userRef = doc(db, 'users', u.uid);
 
     async function handleSignIn() {
       // Check for invite by email
-      if (user.email) {
-        const inviteRef = doc(db, 'invites', user.email.toLowerCase());
+      if (u.email) {
+        const inviteRef = doc(db, 'invites', u.email.toLowerCase());
         const inviteSnap = await getDoc(inviteRef);
         if (inviteSnap.exists()) {
           const invitedRole = inviteSnap.data().role as Role;
           await setDoc(userRef, {
-            name: user.displayName ?? 'Anonymous',
-            photo: user.photoURL ?? '',
-            email: user.email,
+            name: u.displayName ?? 'Anonymous',
+            photo: u.photoURL ?? '',
+            email: u.email,
             role: invitedRole,
             firstSeen: serverTimestamp(),
           }, { merge: true });
@@ -69,9 +72,9 @@ export default function AccountMenu() {
       const snap = await getDoc(userRef);
       if (!snap.exists()) {
         await setDoc(userRef, {
-          name: user.displayName ?? 'Anonymous',
-          photo: user.photoURL ?? '',
-          email: user.email ?? '',
+          name: u.displayName ?? 'Anonymous',
+          photo: u.photoURL ?? '',
+          email: u.email ?? '',
           role: 'pending',
           firstSeen: serverTimestamp(),
         });
@@ -81,9 +84,9 @@ export default function AccountMenu() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             type: 'signup',
-            callerUid: user.uid,
-            userName: user.displayName ?? 'Anonymous',
-            userEmail: user.email ?? '',
+            callerUid: u.uid,
+            userName: u.displayName ?? 'Anonymous',
+            userEmail: u.email ?? '',
           }),
         }).catch(() => {});
       } else {

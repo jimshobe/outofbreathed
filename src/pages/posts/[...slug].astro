@@ -1,8 +1,10 @@
 ---
 import Base from '../../layouts/Base.astro';
 import Comments from '../../components/Comments';
+import RouteMap from '../../components/travel/RouteMap';
 import '../../styles/stream.css';
 import '../../styles/comments.css';
+import '../../styles/travel.css';
 import { MASTODON_INSTANCE, MASTODON_USERNAME } from '../../config';
 import { getAdminDb } from '../../lib/firebase-admin';
 
@@ -27,6 +29,19 @@ function formatDate(d: Date) {
 
 function stripHtml(html: string) {
   return html.replace(/<[^>]+>/g, '').trim();
+}
+
+// Fetch route if linked
+let routeCoords: Array<{ lat: number; lng: number }> | null = null;
+if (post.routeId) {
+  try {
+    const routeSnap = await db.collection('routes').doc(post.routeId).get();
+    if (routeSnap.exists) {
+      routeCoords = (routeSnap.data() as any).coordinates ?? null;
+    }
+  } catch {
+    // silently skip
+  }
 }
 
 // Fetch trip-linked Mastodon posts if mastodon_tag is set
@@ -60,6 +75,12 @@ if (post.mastodon_tag) {
       <h1 class="post-title">{post.title}</h1>
     </header>
 
+    {routeCoords && routeCoords.length >= 2 && (
+      <div class="post-route">
+        <RouteMap coordinates={routeCoords} client:load />
+      </div>
+    )}
+
     <div class="prose" set:html={post.content} />
   </article>
 
@@ -92,6 +113,10 @@ if (post.mastodon_tag) {
 </Base>
 
 <style>
+  .post-route {
+    margin-bottom: 2.5rem;
+  }
+
   .post-header {
     margin-bottom: 2.5rem;
   }

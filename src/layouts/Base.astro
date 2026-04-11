@@ -1,5 +1,6 @@
 ---
 import '../styles/global.css';
+import '../styles/travel.css';
 import AccountMenu from '../components/AccountMenu';
 
 interface Props {
@@ -29,6 +30,7 @@ const canonicalUrl = Astro.url.href;
     <title>{fullTitle}</title>
     <link rel="canonical" href={canonicalUrl} />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css" />
     <link rel="alternate" type="application/rss+xml" title="outofbreathed.com" href="/rss.xml" />
 
     <!-- Open Graph -->

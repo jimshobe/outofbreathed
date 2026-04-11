@@ -1,5 +1,11 @@
 import { useState, useEffect } from 'react';
 import { MASTODON_INSTANCE, MASTODON_USERNAME, BLUESKY_HANDLE } from '../config';
+import { loadCategoryConfig, categorizeSocialPost } from '../lib/travel/categories';
+import { getPublishedTrips, getTripStops } from '../lib/travel/trips';
+import { DEFAULT_CATEGORIES } from '../types/categories';
+import type { Category, CategoryConfig } from '../types/categories';
+import type { TripJSON, TripStopJSON } from '../types/travel';
+import TravelMap from './travel/TravelMap';
 
 interface BlogEntry {
   type: 'blog';
@@ -8,6 +14,7 @@ interface BlogEntry {
   slug: string;
   excerpt: string | null;
   mastodon_tag: string | null;
+  categories: string[];
 }
 
 interface SocialMedia {
@@ -25,6 +32,7 @@ interface SocialEntry {
   content: string;
   url: string;
   media: SocialMedia[];
+  hashtags: string[];
 }
 
 type StreamEntry = BlogEntry | SocialEntry;
@@ -214,6 +222,7 @@ async function fetchMastodon(): Promise<SocialEntry[]> {
       date: s.created_at,
       content: s.content,
       url: s.url,
+      hashtags: (s.tags ?? []).map((t: any) => t.name.toLowerCase()),
       media: (s.media_attachments ?? [])
         .filter((m: any) => ['image', 'gifv', 'video'].includes(m.type))
         .map((m: any) => ({
@@ -253,6 +262,13 @@ async function fetchBluesky(): Promise<SocialEntry[]> {
         }
       }
 
+      const hashtags = (post.record.facets ?? [])
+        .flatMap((f: any) =>
+          (f.features ?? [])
+            .filter((feat: any) => feat.$type === 'app.bsky.richtext.facet#tag')
+            .map((feat: any) => feat.tag.toLowerCase())
+        );
+
       return {
         type: 'social' as const,
         source: 'bluesky' as const,
@@ -260,24 +276,55 @@ async function fetchBluesky(): Promise<SocialEntry[]> {
         date: post.record.createdAt,
         content: processBlueskyText(post.record.text, post.record.facets ?? []),
         url,
+        hashtags,
         media,
       };
     });
 }
 
+function toTripJSON(trip: any): TripJSON {
+  return {
+    id: trip.id,
+    name: trip.name,
+    description: trip.description ?? '',
+    startDate: trip.startDate?.toDate?.()?.toISOString() ?? '',
+    endDate: trip.endDate?.toDate?.()?.toISOString() ?? '',
+    published: trip.published,
+  };
+}
+
+function toStopJSON(stop: any): TripStopJSON {
+  return {
+    id: stop.id,
+    tripId: stop.tripId,
+    name: stop.name,
+    lat: stop.lat,
+    lng: stop.lng,
+    date: stop.date?.toDate?.()?.toISOString() ?? '',
+    order: stop.order,
+    notes: stop.notes ?? null,
+  };
+}
+
 export default function LifeStream() {
   const [entries, setEntries] = useState<StreamEntry[]>([]);
+  const [categoryConfig, setCategoryConfig] = useState<CategoryConfig>({ hashtags: {} });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<{ url: string; alt: string; kind: 'image' | 'video' } | null>(null);
+  const [activeFilter, setActiveFilter] = useState<Category | 'all'>('all');
+  const [travelTrips, setTravelTrips] = useState<TripJSON[]>([]);
+  const [travelStops, setTravelStops] = useState<TripStopJSON[]>([]);
+  const [travelLoading, setTravelLoading] = useState(false);
 
   useEffect(() => {
     async function load() {
       try {
-        const [postsRes, mastodonEntries, blueskyEntries] = await Promise.all([
+        const [postsRes, mastodonEntries, blueskyEntries, config] = await Promise.all([
           fetch('/api/posts.json'),
-          fetchMastodon().catch(() => []),
-          fetchBluesky().catch(() => []),
+          fetchMastodon().catch(() => [] as SocialEntry[]),
+          fetchBluesky().catch(() => [] as SocialEntry[]),
+          loadCategoryConfig().catch(() => ({ hashtags: {} } as CategoryConfig)),
         ]);
 
         if (!postsRes.ok) throw new Error('Failed to load posts');
@@ -288,6 +335,7 @@ export default function LifeStream() {
           (a, b) => new Date(b.date).valueOf() - new Date(a.date).valueOf()
         );
 
+        setCategoryConfig(config);
         setEntries(merged);
       } catch (e) {
         setError('Could not load the stream.');
@@ -298,6 +346,31 @@ export default function LifeStream() {
 
     load();
   }, []);
+
+  // Lazy-load travel map data when Travel filter is first activated
+  useEffect(() => {
+    if (activeFilter !== 'travel' || travelTrips.length > 0 || travelLoading) return;
+    setTravelLoading(true);
+    getPublishedTrips()
+      .then(async (trips) => {
+        const allStops = (await Promise.all(trips.map((t) => getTripStops(t.id)))).flat();
+        setTravelTrips(trips.map(toTripJSON));
+        setTravelStops(allStops.map(toStopJSON));
+      })
+      .catch(() => {})
+      .finally(() => setTravelLoading(false));
+  }, [activeFilter]);
+
+  function matchesFilter(entry: StreamEntry): boolean {
+    if (activeFilter === 'all') return true;
+    if (entry.type === 'blog') {
+      return (entry.categories ?? []).includes(activeFilter);
+    }
+    const computed = categorizeSocialPost(entry.hashtags, categoryConfig);
+    return computed.includes(activeFilter);
+  }
+
+  const filtered = entries.filter(matchesFilter);
 
   if (loading) {
     return (
@@ -311,22 +384,51 @@ export default function LifeStream() {
     return <p className="stream-error">{error}</p>;
   }
 
-  if (entries.length === 0) {
-    return <p className="stream-empty">Nothing here yet.</p>;
-  }
-
   return (
     <>
       {lightbox && (
         <Lightbox url={lightbox.url} alt={lightbox.alt} kind={lightbox.kind} onClose={() => setLightbox(null)} />
       )}
-      <div className="stream">
-        {entries.map((entry, i) =>
-          entry.type === 'blog'
-            ? <BlogCard key={`blog-${entry.slug}`} entry={entry} index={i} />
-            : <SocialCard key={`${entry.source}-${entry.id}`} entry={entry} index={i} onMediaClick={(url, alt, kind) => setLightbox({ url, alt, kind })} />
-        )}
-      </div>
+
+      <nav className="stream-filters" aria-label="Filter by category">
+        <button
+          className={`filter-pill${activeFilter === 'all' ? ' active' : ''}`}
+          onClick={() => setActiveFilter('all')}
+        >
+          All
+        </button>
+        {(categoryConfig.categories ?? DEFAULT_CATEGORIES).map((cat) => (
+          <button
+            key={cat.value}
+            className={`filter-pill${activeFilter === cat.value ? ' active' : ''}`}
+            onClick={() => setActiveFilter(cat.value)}
+          >
+            {cat.label}
+          </button>
+        ))}
+      </nav>
+
+      {activeFilter === 'travel' && (
+        <div className="travel-map-slot">
+          {travelLoading ? (
+            <div className="travel-map-loading">Loading map…</div>
+          ) : (
+            <TravelMap trips={travelTrips} stops={travelStops} />
+          )}
+        </div>
+      )}
+
+      {filtered.length === 0 ? (
+        <p className="stream-empty">Nothing here yet.</p>
+      ) : (
+        <div className="stream">
+          {filtered.map((entry, i) =>
+            entry.type === 'blog'
+              ? <BlogCard key={`blog-${entry.slug}`} entry={entry} index={i} />
+              : <SocialCard key={`${entry.source}-${entry.id}`} entry={entry} index={i} onMediaClick={(url, alt, kind) => setLightbox({ url, alt, kind })} />
+          )}
+        </div>
+      )}
     </>
   );
 }

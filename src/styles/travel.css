@@ -1,0 +1,219 @@
+/* Travel map */
+.travel-map-slot {
+  margin-bottom: 2rem;
+}
+
+.travel-map-wrap {
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--color-divider);
+}
+
+.travel-map-loading {
+  height: 420px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-muted);
+  font-size: 0.875rem;
+  background: #141414;
+  border: 1px solid var(--color-divider);
+  border-radius: 6px;
+}
+
+/* Map pin button */
+.map-pin {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  display: block;
+  transition: transform 0.15s;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.4));
+}
+
+.map-pin:hover {
+  transform: scale(1.15) translateY(-2px);
+}
+
+/* Location panel */
+.location-panel {
+  margin-top: 0.75rem;
+  background: #141414;
+  border: 1px solid var(--color-divider);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.location-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 1rem 1.1rem 0.75rem;
+  border-bottom: 1px solid var(--color-divider);
+}
+
+.location-panel-name {
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--color-text);
+  margin-bottom: 0.2rem;
+}
+
+.location-panel-meta {
+  font-size: 0.78rem;
+  color: var(--color-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.location-panel-sep {
+  opacity: 0.5;
+}
+
+.location-panel-close {
+  background: none;
+  border: none;
+  color: var(--color-muted);
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.1rem 0.2rem;
+  transition: color 0.15s;
+  flex-shrink: 0;
+}
+
+.location-panel-close:hover {
+  color: var(--color-text);
+}
+
+.location-panel-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--color-divider);
+}
+
+.location-panel-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--color-muted);
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+  transition: color 0.15s;
+  margin-bottom: -1px;
+}
+
+.location-panel-tab:hover {
+  color: var(--color-text);
+}
+
+.location-panel-tab.active {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
+}
+
+.location-panel-body {
+  padding: 1rem 1.1rem;
+  min-height: 120px;
+}
+
+/* Media gallery in panel */
+.panel-media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 0.5rem;
+}
+
+.panel-media-btn {
+  all: unset;
+  cursor: zoom-in;
+  display: block;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.panel-media-btn img,
+.panel-media-btn video {
+  width: 100%;
+  aspect-ratio: 4/3;
+  object-fit: cover;
+  display: block;
+  border-radius: 4px;
+}
+
+.panel-empty {
+  color: var(--color-muted);
+  font-size: 0.875rem;
+  padding: 1rem 0;
+}
+
+/* Social posts in panel */
+.panel-social-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.panel-social-post {
+  border-left: 2px solid var(--color-divider);
+  padding-left: 0.85rem;
+}
+
+.panel-social-date {
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  margin-bottom: 0.35rem;
+}
+
+.panel-social-text {
+  font-size: 0.9rem;
+  color: #c8c5bf;
+  line-height: 1.6;
+}
+
+.panel-social-text a {
+  color: var(--color-accent);
+}
+
+.panel-social-link {
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  margin-top: 0.4rem;
+  display: inline-block;
+}
+
+.panel-social-link:hover {
+  color: var(--color-text);
+}
+
+/* Blog links in panel */
+.panel-blog-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.panel-blog-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.panel-blog-title {
+  font-size: 0.925rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.panel-blog-title:hover {
+  color: var(--color-accent);
+}
+
+.panel-blog-date {
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}

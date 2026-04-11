@@ -1,0 +1,76 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAdmin() {
+      return request.auth != null && request.auth.uid == 'H4SpFj8353NqCh51PqsuBMvcufs1';
+    }
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Posts — public read (published only), contributor/admin write
+    match /posts/{postId} {
+      allow read: if resource.data.published == true || isAdmin();
+      allow write: if isAdmin()
+        || (isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['contributor']);
+    }
+
+    // Comments — public read, authenticated write, admin delete
+    match /comments/{postSlug}/entries/{entryId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow delete: if isAdmin()
+        || (isAuthenticated() && request.auth.uid == resource.data.authorUid);
+    }
+
+    // Users — own read/write, admin read all
+    match /users/{uid} {
+      allow read: if isAdmin() || (isAuthenticated() && request.auth.uid == uid);
+      allow write: if isAdmin() || (isAuthenticated() && request.auth.uid == uid);
+    }
+
+    // Invites — admin only
+    match /invites/{email} {
+      allow read, write: if isAdmin();
+    }
+
+    // Category config — admin only
+    match /config/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Trips and stops — public read if published, admin write
+    match /trips/{tripId} {
+      allow read: if resource.data.published == true || isAdmin();
+      allow write: if isAdmin();
+
+      match /stops/{stopId} {
+        allow read: if get(/databases/$(database)/documents/trips/$(tripId)).data.published == true || isAdmin();
+        allow write: if isAdmin();
+
+        match /media/{mediaId} {
+          allow read: if get(/databases/$(database)/documents/trips/$(tripId)).data.published == true || isAdmin();
+          allow write: if isAdmin();
+        }
+      }
+    }
+
+    // Standalone locations — public read, admin write
+    match /standalone_locations/{locationId} {
+      allow read: if true;
+      allow write: if isAdmin();
+
+      match /media/{mediaId} {
+        allow read: if true;
+        allow write: if isAdmin();
+      }
+    }
+
+    // Social links — admin only
+    match /social_links/{linkId} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

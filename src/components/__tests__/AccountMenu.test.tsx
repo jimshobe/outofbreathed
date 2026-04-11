@@ -53,16 +53,16 @@ describe('AccountMenu — invite redemption', () => {
     });
 
     // doc() returns INVITE_REF for 'invites' collection, USER_REF for 'users'
-    vi.mocked(doc).mockImplementation((_db: any, collection: string) => {
+    vi.mocked(doc).mockImplementation(((_db: any, collection: string) => {
       return collection === 'invites' ? INVITE_REF : USER_REF;
-    });
+    }) as any);
 
     // Invite exists with role 'member'
     vi.mocked(getDoc).mockImplementation((ref: any) => {
       if (ref === INVITE_REF) {
-        return Promise.resolve({ exists: () => true, data: () => ({ role: 'member' }) });
+        return Promise.resolve({ exists: () => true, data: () => ({ role: 'member' }) }) as any;
       }
-      return Promise.resolve({ exists: () => false });
+      return Promise.resolve({ exists: () => false }) as any;
     });
   });
 
@@ -110,9 +110,9 @@ describe('AccountMenu — new user with no invite', () => {
       return vi.fn();
     });
 
-    vi.mocked(doc).mockImplementation((_db: any, collection: string) => {
+    vi.mocked(doc).mockImplementation(((_db: any, collection: string) => {
       return collection === 'invites' ? INVITE_REF : USER_REF;
-    });
+    }) as any);
 
     // No invite, no existing user doc
     vi.mocked(getDoc).mockResolvedValue({ exists: () => false } as any);
@@ -149,16 +149,16 @@ describe('AccountMenu — returning user', () => {
       return vi.fn();
     });
 
-    vi.mocked(doc).mockImplementation((_db: any, collection: string) => {
+    vi.mocked(doc).mockImplementation(((_db: any, collection: string) => {
       return collection === 'invites' ? INVITE_REF : USER_REF;
-    });
+    }) as any);
 
     // No invite, but user doc exists with 'contributor' role
     vi.mocked(getDoc).mockImplementation((ref: any) => {
       if (ref === USER_REF) {
-        return Promise.resolve({ exists: () => true, data: () => ({ role: 'contributor' }) });
+        return Promise.resolve({ exists: () => true, data: () => ({ role: 'contributor' }) }) as any;
       }
-      return Promise.resolve({ exists: () => false });
+      return Promise.resolve({ exists: () => false }) as any;
     });
   });
 

@@ -3,6 +3,22 @@ import { render, screen, waitFor } from '@testing-library/react';
 
 vi.stubEnv('PUBLIC_ADMIN_UID', 'admin-uid');
 
+vi.mock('../../lib/firebase', () => ({
+  auth: {},
+  googleProvider: {},
+  db: {},
+}));
+
+vi.mock('../../lib/travel/trips', () => ({
+  getPublishedTrips: vi.fn().mockResolvedValue([]),
+  getTripStops: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock('../../lib/travel/categories', () => ({
+  loadCategoryConfig: vi.fn().mockResolvedValue({ hashtags: {} }),
+  categorizeSocialPost: vi.fn().mockReturnValue([]),
+}));
+
 const BLOG_POST_OLD: any = {
   type: 'blog',
   title: 'Old Post',
