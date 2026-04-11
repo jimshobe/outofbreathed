@@ -220,7 +220,7 @@ function PostForm({
       <div className="form-field">
         <label className="form-label">Content</label>
         <PostEditor content={content} onChange={setContent} postSlug={slug} />
-        <p className="form-hint">Images must be 5 MB or smaller.</p>
+        <p className="form-hint">Large images are automatically resized before upload.</p>
       </div>
 
       <div className="form-field">

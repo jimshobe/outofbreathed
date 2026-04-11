@@ -28,18 +28,51 @@ export default function PostEditor({ content, onChange, postSlug }: Props) {
 
   if (!editor) return null;
 
+  async function resizeIfNeeded(file: File): Promise<Blob> {
+    const LIMIT = 5 * 1024 * 1024;
+    if (file.size <= LIMIT) return file;
+
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        const MAX_DIM = 2000;
+        let { width, height } = img;
+        if (width > MAX_DIM || height > MAX_DIM) {
+          if (width > height) { height = Math.round(height * MAX_DIM / width); width = MAX_DIM; }
+          else { width = Math.round(width * MAX_DIM / height); height = MAX_DIM; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
+        // Try decreasing quality until under limit
+        let quality = 0.85;
+        const tryEncode = () => {
+          canvas.toBlob((blob) => {
+            if (!blob) return reject(new Error('Could not encode image'));
+            if (blob.size <= LIMIT || quality <= 0.4) return resolve(blob);
+            quality -= 0.1;
+            tryEncode();
+          }, 'image/jpeg', quality);
+        };
+        tryEncode();
+      };
+      img.onerror = reject;
+      img.src = objectUrl;
+    });
+  }
+
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file || !editor) return;
     setUploadError(null);
-    if (file.size > 5 * 1024 * 1024) {
-      setUploadError('Image must be 5 MB or smaller.');
-      e.target.value = '';
-      return;
-    }
     try {
-      const storageRef = ref(storage, `posts/${postSlug || 'draft'}/${Date.now()}-${file.name}`);
-      await uploadBytes(storageRef, file);
+      const blob = await resizeIfNeeded(file);
+      const name = file.name.replace(/\.[^.]+$/, '.jpg');
+      const storageRef = ref(storage, `posts/${postSlug || 'draft'}/${Date.now()}-${name}`);
+      await uploadBytes(storageRef, blob);
       const url = await getDownloadURL(storageRef);
       editor.chain().focus().setImage({ src: url }).run();
     } catch (err) {
