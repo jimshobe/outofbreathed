@@ -72,5 +72,25 @@ service cloud.firestore {
     match /social_links/{linkId} {
       allow read, write: if isAdmin();
     }
+
+    // Family app — families, tasks, events
+    function isInFamily(familyId) {
+      return request.auth != null
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.familyId == familyId;
+    }
+
+    match /families/{familyId} {
+      allow read, update: if isInFamily(familyId);
+      allow create: if request.auth != null
+        && request.resource.data.members[0].uid == request.auth.uid;
+
+      match /tasks/{taskId} {
+        allow read, write: if isInFamily(familyId);
+      }
+
+      match /events/{eventId} {
+        allow read, write: if isInFamily(familyId);
+      }
+    }
   }
 }
