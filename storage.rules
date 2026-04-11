@@ -1,0 +1,32 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isAdmin() {
+      return request.auth != null && request.auth.uid == 'H4SpFj8353NqCh51PqsuBMvcufs1';
+    }
+
+    function isContributor() {
+      return request.auth != null
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role in ['contributor', 'admin'];
+    }
+
+    // Post images — admin and contributors can upload, public can read
+    match /posts/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin() || isContributor();
+    }
+
+    // Travel media — admin only
+    match /travel/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // GPX routes — admin only
+    match /routes/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}

@@ -32,6 +32,11 @@ export default function PostEditor({ content, onChange, postSlug }: Props) {
     const file = e.target.files?.[0];
     if (!file || !editor) return;
     setUploadError(null);
+    if (file.size > 5 * 1024 * 1024) {
+      setUploadError('Image must be 5 MB or smaller.');
+      e.target.value = '';
+      return;
+    }
     try {
       const storageRef = ref(storage, `posts/${postSlug || 'draft'}/${Date.now()}-${file.name}`);
       await uploadBytes(storageRef, file);
