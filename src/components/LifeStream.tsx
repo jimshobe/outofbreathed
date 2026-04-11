@@ -15,6 +15,8 @@ interface BlogEntry {
   excerpt: string | null;
   mastodon_tag: string | null;
   categories: string[];
+  image: string | null;
+  readingTime: number;
 }
 
 interface SocialMedia {
@@ -119,16 +121,35 @@ function EntryDate({ iso }: { iso: string }) {
 function BlogCard({ entry, index }: { entry: BlogEntry; index: number }) {
   return (
     <article className="entry entry--blog" style={{ animationDelay: `${index * 40}ms` }}>
-      <EntryDate iso={entry.date} />
-      <h2 className="entry-title">
-        <a href={`/posts/${entry.slug}`}>{entry.title}</a>
-      </h2>
-      {entry.excerpt && (
-        <p className="entry-excerpt">{entry.excerpt}</p>
-      )}
-      <a href={`/posts/${entry.slug}`} className="read-more">
-        Read →
-      </a>
+      <div className="blog-card-inner">
+        <div className="blog-card-body">
+          <div className="blog-card-meta">
+            <EntryDate iso={entry.date} />
+            <span className="blog-reading-time">{entry.readingTime} min read</span>
+          </div>
+          {(entry.categories ?? []).length > 0 && (
+            <div className="blog-categories">
+              {(entry.categories ?? []).map((cat) => (
+                <span key={cat} className="blog-category-pill">{cat}</span>
+              ))}
+            </div>
+          )}
+          <h2 className="entry-title">
+            <a href={`/posts/${entry.slug}`}>{entry.title}</a>
+          </h2>
+          {entry.excerpt && (
+            <p className="entry-excerpt">{entry.excerpt}</p>
+          )}
+          <a href={`/posts/${entry.slug}`} className="read-more">
+            Read →
+          </a>
+        </div>
+        {entry.image && (
+          <a href={`/posts/${entry.slug}`} className="blog-card-thumb-link" tabIndex={-1} aria-hidden="true">
+            <img src={entry.image} alt="" className="blog-card-thumb" loading="lazy" />
+          </a>
+        )}
+      </div>
     </article>
   );
 }
