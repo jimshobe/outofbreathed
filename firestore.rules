@@ -36,9 +36,10 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
-    // Category config — admin only
+    // Category config — public read, admin write
     match /config/{docId} {
-      allow read, write: if isAdmin();
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     // Trips and stops — public read if published, admin write
