@@ -21,6 +21,7 @@ vi.mock('firebase/firestore', () => ({
   collectionGroup: vi.fn(() => ({})),
   query: vi.fn((ref) => ref),
   orderBy: vi.fn(),
+  where: vi.fn(),
   doc: vi.fn(() => ({})),
   getDocs: vi.fn(() => Promise.resolve({ docs: [] })),
   getDoc: vi.fn(),

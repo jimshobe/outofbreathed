@@ -12,7 +12,8 @@ service cloud.firestore {
 
     // Posts — public read (published only), contributor/admin write
     match /posts/{postId} {
-      allow read: if resource.data.published == true || isAdmin();
+      allow read: if resource.data.published == true || isAdmin()
+        || (isAuthenticated() && request.auth.uid == resource.data.authorUid);
       allow write: if isAdmin()
         || (isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['contributor']);
     }

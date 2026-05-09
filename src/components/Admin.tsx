@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   collection, doc, getDocs, getDoc, setDoc, deleteDoc, updateDoc,
-  query, orderBy, collectionGroup, Timestamp, serverTimestamp,
+  query, orderBy, where, collectionGroup, Timestamp, serverTimestamp,
 } from 'firebase/firestore';
 import { signInWithPopup, signOut, onAuthStateChanged, type User } from 'firebase/auth';
 import { auth, googleProvider, db } from '../lib/firebase';
@@ -79,10 +79,13 @@ function PostsList({
   const [deletePending, setDeletePending] = useState<string | null>(null);
 
   useEffect(() => {
-    getDocs(query(collection(db, 'posts'), orderBy('createdAt', 'desc')))
+    const q = isAdmin
+      ? query(collection(db, 'posts'), orderBy('createdAt', 'desc'))
+      : query(collection(db, 'posts'), where('authorUid', '==', currentUser.uid));
+    getDocs(q)
       .then((snap) => {
         let all = snap.docs.map((d) => ({ slug: d.id, ...d.data() } as Post));
-        if (!isAdmin) all = all.filter((p) => p.authorUid === currentUser.uid);
+        if (!isAdmin) all.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
         setPosts(all);
         setLoading(false);
       })
