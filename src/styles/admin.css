@@ -45,25 +45,6 @@
   background: #1a1a1a;
 }
 
-.admin-tz-bar {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 1.5rem;
-}
-
-.admin-tz-label {
-  font-family: var(--font-ui);
-  font-size: 0.78rem;
-  color: var(--color-muted);
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.admin-tz-select {
-  font-family: var(--font-ui);
-  font-size: 0.85rem;
-}
 
 .admin-body {
   padding-top: 0.5rem;

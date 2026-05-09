@@ -16,25 +16,6 @@ import type { Category, CategoryDef } from '../types/categories';
 
 const ADMIN_UID = import.meta.env.PUBLIC_ADMIN_UID;
 
-const TIMEZONES: { label: string; value: string }[] = [
-  { label: 'Sydney / Melbourne (AEDT/AEST)', value: 'Australia/Sydney' },
-  { label: 'Brisbane (AEST, no DST)', value: 'Australia/Brisbane' },
-  { label: 'Adelaide (ACDT/ACST)', value: 'Australia/Adelaide' },
-  { label: 'Perth (AWST)', value: 'Australia/Perth' },
-  { label: 'Auckland (NZDT/NZST)', value: 'Pacific/Auckland' },
-  { label: 'Singapore (SGT)', value: 'Asia/Singapore' },
-  { label: 'Tokyo (JST)', value: 'Asia/Tokyo' },
-  { label: 'London (GMT/BST)', value: 'Europe/London' },
-  { label: 'Paris / Berlin (CET/CEST)', value: 'Europe/Paris' },
-  { label: 'New York (ET)', value: 'America/New_York' },
-  { label: 'Chicago (CT)', value: 'America/Chicago' },
-  { label: 'Denver (MT)', value: 'America/Denver' },
-  { label: 'Los Angeles / Seattle (PT)', value: 'America/Los_Angeles' },
-  { label: 'Anchorage (AKT)', value: 'America/Anchorage' },
-  { label: 'Honolulu (HST)', value: 'Pacific/Honolulu' },
-  { label: 'UTC', value: 'UTC' },
-];
-
 type Role = 'pending' | 'member' | 'contributor' | 'admin' | 'banned';
 type Tab = 'posts' | 'comments' | 'users' | 'trips' | 'routes' | 'categories';
 
@@ -76,11 +57,9 @@ function slugify(title: string) {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
-function formatTs(ts: Timestamp | null, timezone: string) {
+function formatTs(ts: Timestamp | null) {
   if (!ts) return '—';
-  const opts: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'short', day: 'numeric' };
-  if (timezone) opts.timeZone = timezone;
-  return ts.toDate().toLocaleDateString('en-AU', opts);
+  return ts.toDate().toLocaleDateString('en-AU', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 // ── Posts List ──────────────────────────────────────────────────────────────
@@ -89,12 +68,10 @@ function PostsList({
   onEdit,
   currentUser,
   isAdmin,
-  timezone,
 }: {
   onEdit: (post: Post | 'new') => void;
   currentUser: User;
   isAdmin: boolean;
-  timezone: string;
 }) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
@@ -143,7 +120,7 @@ function PostsList({
                   <td>{p.title}</td>
                   {isAdmin && <td className="admin-muted">{p.authorName || '—'}</td>}
                   <td><span className={`status-badge ${p.published ? 'published' : 'draft'}`}>{p.published ? 'Published' : 'Draft'}</span></td>
-                  <td>{formatTs(p.createdAt, timezone)}</td>
+                  <td>{formatTs(p.createdAt)}</td>
                   <td className="admin-actions">
                     {canEdit && <button className="btn-sm" onClick={() => onEdit(p)}>Edit</button>}
                     {canEdit && <button className="btn-sm btn-danger" onClick={() => handleDelete(p.slug)}>Delete</button>}
@@ -302,7 +279,7 @@ function PostForm({
 
 // ── Comments Tab ─────────────────────────────────────────────────────────────
 
-function CommentsList({ timezone }: { timezone: string }) {
+function CommentsList() {
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -342,7 +319,7 @@ function CommentsList({ timezone }: { timezone: string }) {
                 <td>{c.authorName}</td>
                 <td><a href={`/posts/${c.postSlug}`} className="admin-link">{c.postSlug}</a></td>
                 <td className="comment-preview">{c.text.slice(0, 80)}{c.text.length > 80 ? '…' : ''}</td>
-                <td>{formatTs(c.createdAt, timezone)}</td>
+                <td>{formatTs(c.createdAt)}</td>
                 <td><button className="btn-sm btn-danger" onClick={() => handleDelete(c)}>Delete</button></td>
               </tr>
             ))}
@@ -508,16 +485,6 @@ export default function Admin({ adminUid }: { adminUid: string }) {
   const [tab, setTab] = useState<Tab>('posts');
   const [editingPost, setEditingPost] = useState<Post | 'new' | null>(null);
   const [availableCategories, setAvailableCategories] = useState<CategoryDef[]>(DEFAULT_CATEGORIES);
-  const [timezone, setTimezone] = useState<string | null>(null);
-  useEffect(() => {
-    setTimezone(localStorage.getItem('adminTimezone') ?? Intl.DateTimeFormat().resolvedOptions().timeZone);
-  }, []);
-
-  function handleTimezoneChange(tz: string) {
-    setTimezone(tz);
-    localStorage.setItem('adminTimezone', tz);
-  }
-
   const isAdmin = user?.uid === adminUid;
 
   useEffect(() => onAuthStateChanged(auth, setUser), []);
@@ -580,33 +547,13 @@ export default function Admin({ adminUid }: { adminUid: string }) {
         <button className="btn-sm admin-signout" onClick={() => signOut(auth)}>Sign out</button>
       </div>
 
-      <div className="admin-tz-bar">
-        <span className="admin-tz-label">Timezone</span>
-        {timezone ? (
-          <select
-            className="admin-tz-select"
-            value={timezone}
-            onChange={(e) => handleTimezoneChange(e.target.value)}
-          >
-            {!TIMEZONES.some((tz) => tz.value === timezone) && (
-              <option value={timezone}>{timezone}</option>
-            )}
-            {TIMEZONES.map((tz) => (
-              <option key={tz.value} value={tz.value}>{tz.label}</option>
-            ))}
-          </select>
-        ) : (
-          <span>—</span>
-        )}
-      </div>
-
       <div className="admin-body">
         {editingPost !== null ? (
           <PostForm post={editingPost} onDone={() => setEditingPost(null)} currentUser={user} availableCategories={availableCategories} />
         ) : tab === 'posts' ? (
-          <PostsList onEdit={setEditingPost} currentUser={user} isAdmin={isAdmin} timezone={timezone ?? ''} />
+          <PostsList onEdit={setEditingPost} currentUser={user} isAdmin={isAdmin} />
         ) : tab === 'comments' ? (
-          <CommentsList timezone={timezone ?? ''} />
+          <CommentsList />
         ) : tab === 'users' ? (
           <UsersList />
         ) : tab === 'trips' ? (
