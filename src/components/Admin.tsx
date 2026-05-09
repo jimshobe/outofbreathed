@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   collection, doc, getDocs, getDoc, setDoc, deleteDoc, updateDoc,
   query, orderBy, collectionGroup, Timestamp, serverTimestamp,
@@ -75,6 +75,7 @@ function PostsList({
 }) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deletePending, setDeletePending] = useState<string | null>(null);
 
   useEffect(() => {
     getDocs(query(collection(db, 'posts'), orderBy('createdAt', 'desc'))).then((snap) => {
@@ -86,7 +87,8 @@ function PostsList({
   }, []);
 
   async function handleDelete(slug: string) {
-    if (!confirm(`Delete "${slug}"? This cannot be undone.`)) return;
+    if (deletePending !== slug) { setDeletePending(slug); return; }
+    setDeletePending(null);
     await deleteDoc(doc(db, 'posts', slug));
     setPosts((p) => p.filter((post) => post.slug !== slug));
   }
@@ -122,8 +124,15 @@ function PostsList({
                   <td><span className={`status-badge ${p.published ? 'published' : 'draft'}`}>{p.published ? 'Published' : 'Draft'}</span></td>
                   <td>{formatTs(p.createdAt)}</td>
                   <td className="admin-actions">
-                    {canEdit && <button className="btn-sm" onClick={() => onEdit(p)}>Edit</button>}
-                    {canEdit && <button className="btn-sm btn-danger" onClick={() => handleDelete(p.slug)}>Delete</button>}
+                    {canEdit && <button className="btn-sm" onClick={() => { setDeletePending(null); onEdit(p); }}>Edit</button>}
+                    {canEdit && deletePending === p.slug ? (
+                      <>
+                        <button className="btn-sm btn-danger" onClick={() => handleDelete(p.slug)}>Confirm delete</button>
+                        <button className="btn-sm" onClick={() => setDeletePending(null)}>Cancel</button>
+                      </>
+                    ) : (
+                      canEdit && <button className="btn-sm btn-danger" onClick={() => handleDelete(p.slug)}>Delete</button>
+                    )}
                   </td>
                 </tr>
               );
@@ -149,6 +158,7 @@ function PostForm({
   availableCategories: CategoryDef[];
 }) {
   const isNew = post === 'new';
+  const isPublished = !isNew && (post as Post).published;
   const [title, setTitle] = useState(isNew ? '' : post.title);
   const [slug, setSlug] = useState(isNew ? '' : post.slug);
   const [slugEdited, setSlugEdited] = useState(false);
@@ -159,6 +169,15 @@ function PostForm({
   const [routeId, setRouteId] = useState<string | null>(isNew ? null : (post as Post).routeId ?? null);
   const [availableRoutes, setAvailableRoutes] = useState<{ id: string; name: string }[]>([]);
   const [saving, setSaving] = useState(false);
+  const [confirmBack, setConfirmBack] = useState(false);
+  const isDirty = useRef(false);
+
+  function markDirty() { isDirty.current = true; }
+
+  function handleBack() {
+    if (isDirty.current) { setConfirmBack(true); return; }
+    onDone();
+  }
 
   useEffect(() => {
     getRoutes().then((rs) => setAvailableRoutes(rs.map((r) => ({ id: r.id, name: r.name })))).catch(() => {});
@@ -203,34 +222,42 @@ function PostForm({
     <div>
       <div className="admin-section-header">
         <h2 className="admin-section-title">{isNew ? 'New post' : 'Edit post'}</h2>
-        <button className="btn-sm" onClick={onDone}>← Back</button>
+        {confirmBack ? (
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <span className="form-hint">Discard changes?</span>
+            <button className="btn-sm btn-danger" onClick={onDone}>Discard</button>
+            <button className="btn-sm" onClick={() => setConfirmBack(false)}>Keep editing</button>
+          </div>
+        ) : (
+          <button className="btn-sm" onClick={handleBack}>← Back</button>
+        )}
       </div>
 
       <div className="form-field">
         <label className="form-label">Title</label>
-        <input className="form-input" value={title} onChange={(e) => handleTitleChange(e.target.value)} placeholder="Post title" />
+        <input className="form-input" value={title} onChange={(e) => { markDirty(); handleTitleChange(e.target.value); }} placeholder="Post title" />
       </div>
 
       <div className="form-field">
         <label className="form-label">Slug (URL)</label>
-        <input className="form-input form-input--mono" value={slug} onChange={(e) => { setSlug(e.target.value); setSlugEdited(true); }} placeholder="my-post-slug" disabled={!isNew} />
+        <input className="form-input form-input--mono" value={slug} onChange={(e) => { markDirty(); setSlug(e.target.value); setSlugEdited(true); }} placeholder="my-post-slug" disabled={!isNew} />
         {!isNew && <p className="form-hint">Slug cannot be changed after creation.</p>}
       </div>
 
       <div className="form-field">
         <label className="form-label">Content</label>
-        <PostEditor content={content} onChange={setContent} postSlug={slug} />
+        <PostEditor content={content} onChange={(v) => { markDirty(); setContent(v); }} postSlug={slug} />
         <p className="form-hint">Large images are automatically resized before upload.</p>
       </div>
 
       <div className="form-field">
         <label className="form-label">Excerpt <span className="form-optional">(optional)</span></label>
-        <textarea className="form-input" rows={2} value={excerpt} onChange={(e) => setExcerpt(e.target.value)} placeholder="Short summary shown in the stream" />
+        <textarea className="form-input" rows={2} value={excerpt} onChange={(e) => { markDirty(); setExcerpt(e.target.value); }} placeholder="Short summary shown in the stream" />
       </div>
 
       <div className="form-field">
         <label className="form-label">Mastodon tag <span className="form-optional">(optional)</span></label>
-        <input className="form-input" value={mastodonTag} onChange={(e) => setMastodonTag(e.target.value)} placeholder="e.g. AustraliaMove2026" />
+        <input className="form-input" value={mastodonTag} onChange={(e) => { markDirty(); setMastodonTag(e.target.value); }} placeholder="e.g. AustraliaMove2026" />
       </div>
 
       <div className="form-field">
@@ -241,7 +268,7 @@ function PostForm({
               <input
                 type="checkbox"
                 checked={categories.includes(cat.value)}
-                onChange={() => toggleCategory(cat.value)}
+                onChange={() => { markDirty(); toggleCategory(cat.value); }}
               />
               {cat.label}
             </label>
@@ -255,7 +282,7 @@ function PostForm({
           <select
             className="form-input"
             value={routeId ?? ''}
-            onChange={(e) => setRouteId(e.target.value || null)}
+            onChange={(e) => { markDirty(); setRouteId(e.target.value || null); }}
           >
             <option value="">— none —</option>
             {availableRoutes.map((r) => (
@@ -267,10 +294,10 @@ function PostForm({
 
       <div className="form-actions">
         <button className="btn-primary" onClick={() => save(true)} disabled={saving || !title.trim()}>
-          {saving ? 'Saving…' : 'Publish'}
+          {saving ? 'Saving…' : isPublished ? 'Update' : 'Publish'}
         </button>
         <button className="btn-secondary" onClick={() => save(false)} disabled={saving || !title.trim()}>
-          {saving ? 'Saving…' : 'Save draft'}
+          {saving ? 'Saving…' : isPublished ? 'Unpublish' : 'Save draft'}
         </button>
       </div>
     </div>
@@ -538,7 +565,9 @@ export default function Admin({ adminUid }: { adminUid: string }) {
             <button
               key={t}
               className={`admin-tab${tab === t && !editingPost ? ' active' : ''}`}
-              onClick={() => { setTab(t); setEditingPost(null); }}
+              onClick={() => { if (!editingPost) setTab(t); }}
+              disabled={!!editingPost}
+              style={editingPost ? { opacity: 0.35, cursor: 'default' } : undefined}
             >
               {t.charAt(0).toUpperCase() + t.slice(1)}
             </button>
