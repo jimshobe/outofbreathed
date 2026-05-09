@@ -206,11 +206,13 @@ function PostForm({
   }
 
   async function save(published: boolean) {
-    if (!title.trim() || !slug.trim()) return;
+    if (published && !title.trim()) return;
+    const effectiveTitle = title.trim() || 'Untitled';
+    const effectiveSlug = slug.trim() || `draft-${Date.now()}`;
     setSaving(true);
     try {
       const data: Record<string, any> = {
-        title: title.trim(),
+        title: effectiveTitle,
         content,
         excerpt: excerpt.trim() || null,
         mastodon_tag: mastodonTag.trim() || null,
@@ -222,7 +224,7 @@ function PostForm({
         updatedAt: serverTimestamp(),
       };
       if (isNew) data.createdAt = serverTimestamp();
-      await setDoc(doc(db, 'posts', slug.trim()), data, { merge: true });
+      await setDoc(doc(db, 'posts', effectiveSlug), data, { merge: true });
       onDone();
     } finally {
       setSaving(false);
@@ -307,7 +309,7 @@ function PostForm({
         <button className="btn-primary" onClick={() => save(true)} disabled={saving || !title.trim()}>
           {saving ? 'Saving…' : isPublished ? 'Update' : 'Publish'}
         </button>
-        <button className="btn-secondary" onClick={() => save(false)} disabled={saving || !title.trim()}>
+        <button className="btn-secondary" onClick={() => save(false)} disabled={saving}>
           {saving ? 'Saving…' : isPublished ? 'Unpublish' : 'Save draft'}
         </button>
       </div>
