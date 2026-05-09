@@ -75,15 +75,21 @@ function PostsList({
 }) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [deletePending, setDeletePending] = useState<string | null>(null);
 
   useEffect(() => {
-    getDocs(query(collection(db, 'posts'), orderBy('createdAt', 'desc'))).then((snap) => {
-      let all = snap.docs.map((d) => ({ slug: d.id, ...d.data() } as Post));
-      if (!isAdmin) all = all.filter((p) => p.authorUid === currentUser.uid);
-      setPosts(all);
-      setLoading(false);
-    });
+    getDocs(query(collection(db, 'posts'), orderBy('createdAt', 'desc')))
+      .then((snap) => {
+        let all = snap.docs.map((d) => ({ slug: d.id, ...d.data() } as Post));
+        if (!isAdmin) all = all.filter((p) => p.authorUid === currentUser.uid);
+        setPosts(all);
+        setLoading(false);
+      })
+      .catch((err) => {
+        setLoadError(err?.message ?? String(err));
+        setLoading(false);
+      });
   }, []);
 
   async function handleDelete(slug: string) {
@@ -101,6 +107,8 @@ function PostsList({
       </div>
       {loading ? (
         <p className="admin-muted">Loading…</p>
+      ) : loadError ? (
+        <p className="admin-muted" style={{ color: '#e05c6a' }}>Error: {loadError}</p>
       ) : posts.length === 0 ? (
         <p className="admin-muted">No posts yet.</p>
       ) : (
