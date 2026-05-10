@@ -228,6 +228,8 @@ function PostForm({
       if (isNew) data.createdAt = serverTimestamp();
       console.log('[save]', { effectiveTitle, effectiveSlug, published, data });
       await setDoc(doc(db, 'posts', effectiveSlug), data, { merge: true });
+      const verify = await getDoc(doc(db, 'posts', effectiveSlug));
+      console.log('[verify]', verify.data());
       onDone();
     } catch (err: any) {
       setSaveError(err?.message ?? String(err));
