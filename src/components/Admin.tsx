@@ -80,12 +80,16 @@ function PostsList({
 
   useEffect(() => {
     const q = isAdmin
-      ? query(collection(db, 'posts'), orderBy('createdAt', 'desc'))
+      ? query(collection(db, 'posts'), orderBy('updatedAt', 'desc'))
       : query(collection(db, 'posts'), where('authorUid', '==', currentUser.uid));
     getDocs(q)
       .then((snap) => {
         let all = snap.docs.map((d) => ({ slug: d.id, ...d.data() } as Post));
-        if (!isAdmin) all.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
+        if (!isAdmin) all.sort((a, b) => {
+          const bTs = (b as any).updatedAt?.seconds ?? (b as any).createdAt?.seconds ?? 0;
+          const aTs = (a as any).updatedAt?.seconds ?? (a as any).createdAt?.seconds ?? 0;
+          return bTs - aTs;
+        });
         setPosts(all);
         setLoading(false);
       })
@@ -203,7 +207,7 @@ function PostForm({
 
   function handleTitleChange(v: string) {
     setTitle(v);
-    if (!slugEdited) setSlug(slugify(v));
+    if (isNew && !slugEdited) setSlug(slugify(v));
   }
 
   async function save(published: boolean) {
@@ -226,10 +230,7 @@ function PostForm({
         updatedAt: serverTimestamp(),
       };
       if (isNew) data.createdAt = serverTimestamp();
-      console.log('[save]', { effectiveTitle, effectiveSlug, published, data });
       await setDoc(doc(db, 'posts', effectiveSlug), data, { merge: true });
-      const verify = await getDoc(doc(db, 'posts', effectiveSlug));
-      console.log('[verify]', verify.data());
       onDone();
     } catch (err: any) {
       setSaveError(err?.message ?? String(err));
