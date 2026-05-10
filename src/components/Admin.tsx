@@ -180,6 +180,7 @@ function PostForm({
   const [routeId, setRouteId] = useState<string | null>(isNew ? null : (post as Post).routeId ?? null);
   const [availableRoutes, setAvailableRoutes] = useState<{ id: string; name: string }[]>([]);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [confirmBack, setConfirmBack] = useState(false);
   const isDirty = useRef(false);
 
@@ -210,6 +211,7 @@ function PostForm({
     const effectiveTitle = title.trim() || 'Untitled';
     const effectiveSlug = slug.trim() || `draft-${Date.now()}`;
     setSaving(true);
+    setSaveError(null);
     try {
       const data: Record<string, any> = {
         title: effectiveTitle,
@@ -226,6 +228,8 @@ function PostForm({
       if (isNew) data.createdAt = serverTimestamp();
       await setDoc(doc(db, 'posts', effectiveSlug), data, { merge: true });
       onDone();
+    } catch (err: any) {
+      setSaveError(err?.message ?? String(err));
     } finally {
       setSaving(false);
     }
@@ -313,6 +317,11 @@ function PostForm({
           {saving ? 'Saving…' : isPublished ? 'Unpublish' : 'Save draft'}
         </button>
       </div>
+      {saveError && (
+        <p style={{ color: '#e05c6a', fontSize: '0.82rem', marginTop: '0.5rem' }}>
+          Save failed: {saveError}
+        </p>
+      )}
     </div>
   );
 }
