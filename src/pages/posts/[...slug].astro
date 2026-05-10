@@ -94,7 +94,9 @@ if (post.mastodon_tag) {
   <Comments postSlug={slug} client:load />
 
   <div id="lb" aria-hidden="true">
+    <button id="lb-prev" aria-label="Previous">&#8249;</button>
     <img id="lb-img" src="" alt="" />
+    <button id="lb-next" aria-label="Next">&#8250;</button>
   </div>
 
   {tripPosts.length > 0 && (
@@ -216,6 +218,25 @@ if (post.mastodon_tag) {
     box-shadow: 0 8px 40px rgba(0,0,0,0.6);
   }
 
+  #lb-prev, #lb-next {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.7);
+    font-size: 3rem;
+    line-height: 1;
+    padding: 1rem;
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.15s;
+  }
+
+  #lb-prev { left: 0.5rem; }
+  #lb-next { right: 0.5rem; }
+  #lb-prev:hover, #lb-next:hover { color: #fff; }
+
   @keyframes lb-fade {
     from { opacity: 0; }
     to   { opacity: 1; }
@@ -225,16 +246,17 @@ if (post.mastodon_tag) {
 <script>
   const lb = document.getElementById('lb')!;
   const lbImg = document.getElementById('lb-img') as HTMLImageElement;
+  const imgs = Array.from(document.querySelectorAll<HTMLImageElement>('.prose img'));
+  let current = 0;
 
-  document.querySelectorAll<HTMLImageElement>('.prose img').forEach(img => {
-    img.addEventListener('click', () => {
-      lbImg.src = img.src;
-      lbImg.alt = img.alt;
-      lb.classList.add('open');
-      lb.setAttribute('aria-hidden', 'false');
-      document.body.style.overflow = 'hidden';
-    });
-  });
+  function openLb(index: number) {
+    current = index;
+    lbImg.src = imgs[current].src;
+    lbImg.alt = imgs[current].alt;
+    lb.classList.add('open');
+    lb.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+  }
 
   function closeLb() {
     lb.classList.remove('open');
@@ -242,6 +264,32 @@ if (post.mastodon_tag) {
     document.body.style.overflow = '';
   }
 
-  lb.addEventListener('click', closeLb);
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLb(); });
+  function navigate(dir: 1 | -1) {
+    current = (current + dir + imgs.length) % imgs.length;
+    lbImg.src = imgs[current].src;
+    lbImg.alt = imgs[current].alt;
+  }
+
+  imgs.forEach((img, i) => img.addEventListener('click', () => openLb(i)));
+
+  document.getElementById('lb-prev')!.addEventListener('click', e => { e.stopPropagation(); navigate(-1); });
+  document.getElementById('lb-next')!.addEventListener('click', e => { e.stopPropagation(); navigate(1); });
+
+  // Click overlay to close, but not if clicking the image itself
+  lb.addEventListener('click', e => { if (e.target === lb) closeLb(); });
+
+  document.addEventListener('keydown', e => {
+    if (!lb.classList.contains('open')) return;
+    if (e.key === 'Escape') closeLb();
+    if (e.key === 'ArrowRight') navigate(1);
+    if (e.key === 'ArrowLeft')  navigate(-1);
+  });
+
+  // Touch swipe
+  let touchStartX = 0;
+  lb.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, { passive: true });
+  lb.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    if (Math.abs(dx) > 50) navigate(dx < 0 ? 1 : -1);
+  });
 </script>
