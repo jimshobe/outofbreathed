@@ -226,6 +226,7 @@ function PostForm({
         updatedAt: serverTimestamp(),
       };
       if (isNew) data.createdAt = serverTimestamp();
+      console.log('[save]', { effectiveTitle, effectiveSlug, published, data });
       await setDoc(doc(db, 'posts', effectiveSlug), data, { merge: true });
       onDone();
     } catch (err: any) {
