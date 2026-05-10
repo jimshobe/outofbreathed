@@ -229,7 +229,7 @@ function PostForm({
         authorName: isNew ? (currentUser.displayName ?? '') : (post as Post).authorName || (currentUser.displayName ?? ''),
         updatedAt: serverTimestamp(),
       };
-      if (isNew) data.createdAt = serverTimestamp();
+      if (isNew || (post !== 'new' && !(post as Post).createdAt)) data.createdAt = serverTimestamp();
       await setDoc(doc(db, 'posts', effectiveSlug), data, { merge: true });
       onDone();
     } catch (err: any) {
