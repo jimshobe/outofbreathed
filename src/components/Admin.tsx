@@ -80,12 +80,12 @@ function PostsList({
 
   useEffect(() => {
     const q = isAdmin
-      ? query(collection(db, 'posts'), orderBy('updatedAt', 'desc'))
+      ? collection(db, 'posts')
       : query(collection(db, 'posts'), where('authorUid', '==', currentUser.uid));
     getDocs(q)
       .then((snap) => {
         let all = snap.docs.map((d) => ({ slug: d.id, ...d.data() } as Post));
-        if (!isAdmin) all.sort((a, b) => {
+        all.sort((a, b) => {
           const bTs = (b as any).updatedAt?.seconds ?? (b as any).createdAt?.seconds ?? 0;
           const aTs = (a as any).updatedAt?.seconds ?? (a as any).createdAt?.seconds ?? 0;
           return bTs - aTs;
