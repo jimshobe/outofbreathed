@@ -23,6 +23,9 @@ if (!post.published) return new Response(null, { status: 404 });
 
 const postDate = post.createdAt?.toDate?.() ?? new Date();
 
+// Add lazy loading to all images in post content
+const processedContent = (post.content as string).replace(/<img /g, '<img loading="lazy" ');
+
 function formatDate(d: Date) {
   return d.toLocaleDateString('en-AU', { year: 'numeric', month: 'long', day: 'numeric' });
 }
@@ -81,10 +84,14 @@ if (post.mastodon_tag) {
       </div>
     )}
 
-    <div class="prose" set:html={post.content} />
+    <div class="prose" set:html={processedContent} />
   </article>
 
   <Comments postSlug={slug} client:load />
+
+  <div id="lb" aria-hidden="true">
+    <img id="lb-img" src="" alt="" />
+  </div>
 
   {tripPosts.length > 0 && (
     <aside class="trip-stream">
@@ -154,4 +161,61 @@ if (post.mastodon_tag) {
     color: var(--color-muted);
     margin-bottom: 2rem;
   }
+
+  :global(.prose img) {
+    cursor: zoom-in;
+  }
+
+  #lb {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.92);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    cursor: zoom-out;
+    animation: lb-fade 0.15s ease;
+  }
+
+  #lb.open {
+    display: flex;
+  }
+
+  #lb img {
+    max-width: 95vw;
+    max-height: 95vh;
+    object-fit: contain;
+    border-radius: 2px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+  }
+
+  @keyframes lb-fade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
 </style>
+
+<script>
+  const lb = document.getElementById('lb')!;
+  const lbImg = document.getElementById('lb-img') as HTMLImageElement;
+
+  document.querySelectorAll<HTMLImageElement>('.prose img').forEach(img => {
+    img.addEventListener('click', () => {
+      lbImg.src = img.src;
+      lbImg.alt = img.alt;
+      lb.classList.add('open');
+      lb.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+    });
+  });
+
+  function closeLb() {
+    lb.classList.remove('open');
+    lb.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+  }
+
+  lb.addEventListener('click', closeLb);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLb(); });
+</script>
