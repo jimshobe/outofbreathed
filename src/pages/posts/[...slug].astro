@@ -26,9 +26,8 @@ const postDate = post.createdAt?.toDate?.() ?? new Date();
 // Add lazy loading to all images in post content
 let processedContent = (post.content as string).replace(/<img /g, '<img loading="lazy" ');
 
-// Wrap runs of 2+ consecutive image-only paragraphs in a gallery grid
-const imgPara = '<p><img [^>]+><\\/p>';
-const galleryRe = new RegExp(`(${imgPara})(\\s*${imgPara})+`, 'g');
+// Wrap runs of 2+ consecutive bare <img> tags in a gallery grid
+const galleryRe = /(<img [^>]+>)(\s*<img [^>]+>)+/g;
 processedContent = processedContent.replace(galleryRe, m => `<div class="prose-gallery">${m}</div>`);
 
 function formatDate(d: Date) {
@@ -178,24 +177,18 @@ if (post.mastodon_tag) {
     margin: 2rem 0;
   }
 
-  :global(.prose-gallery p) {
-    margin: 0;
-  }
-
   :global(.prose-gallery img) {
     width: 100%;
     aspect-ratio: 4 / 3;
     object-fit: cover;
     margin: 0;
     border-radius: 2px;
+    cursor: zoom-in;
   }
 
-  /* Last image spans full width if it would sit alone on a row */
-  :global(.prose-gallery p:last-child:nth-child(odd)) {
+  /* Last image spans full width when it would sit alone on a row */
+  :global(.prose-gallery img:last-child:nth-child(odd)) {
     grid-column: 1 / -1;
-  }
-
-  :global(.prose-gallery p:last-child:nth-child(odd) img) {
     aspect-ratio: 16 / 9;
   }
 
