@@ -75,9 +75,10 @@ export default function PostEditor({ content, onChange, postSlug }: Props) {
       await uploadBytes(storageRef, blob);
       const url = await getDownloadURL(storageRef);
       editor.chain().focus().setImage({ src: url }).run();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Image upload failed', err);
-      setUploadError('Image upload failed. Check Storage rules and try again.');
+      const detail = err?.code ?? err?.message ?? String(err);
+      setUploadError(`Image upload failed: ${detail}`);
     }
     e.target.value = '';
   }
