@@ -24,7 +24,12 @@ if (!post.published) return new Response(null, { status: 404 });
 const postDate = post.createdAt?.toDate?.() ?? new Date();
 
 // Add lazy loading to all images in post content
-const processedContent = (post.content as string).replace(/<img /g, '<img loading="lazy" ');
+let processedContent = (post.content as string).replace(/<img /g, '<img loading="lazy" ');
+
+// Wrap runs of 2+ consecutive image-only paragraphs in a gallery grid
+const imgPara = '<p><img [^>]+><\\/p>';
+const galleryRe = new RegExp(`(${imgPara})(\\s*${imgPara})+`, 'g');
+processedContent = processedContent.replace(galleryRe, m => `<div class="prose-gallery">${m}</div>`);
 
 function formatDate(d: Date) {
   return d.toLocaleDateString('en-AU', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -164,6 +169,34 @@ if (post.mastodon_tag) {
 
   :global(.prose img) {
     cursor: zoom-in;
+  }
+
+  :global(.prose-gallery) {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.4rem;
+    margin: 2rem 0;
+  }
+
+  :global(.prose-gallery p) {
+    margin: 0;
+  }
+
+  :global(.prose-gallery img) {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    margin: 0;
+    border-radius: 2px;
+  }
+
+  /* Last image spans full width if it would sit alone on a row */
+  :global(.prose-gallery p:last-child:nth-child(odd)) {
+    grid-column: 1 / -1;
+  }
+
+  :global(.prose-gallery p:last-child:nth-child(odd) img) {
+    aspect-ratio: 16 / 9;
   }
 
   #lb {
