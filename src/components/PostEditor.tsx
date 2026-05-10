@@ -1,6 +1,6 @@
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import Image from '@tiptap/extension-image';
+import TipTapImage from '@tiptap/extension-image';
 import Link from '@tiptap/extension-link';
 import { useRef, useState } from 'react';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -19,7 +19,7 @@ export default function PostEditor({ content, onChange, postSlug }: Props) {
   const editor = useEditor({
     extensions: [
       StarterKit,
-      Image.configure({ inline: false }),
+      TipTapImage.configure({ inline: false }),
       Link.configure({ openOnClick: false }),
     ],
     content,
