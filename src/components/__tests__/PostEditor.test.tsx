@@ -62,7 +62,7 @@ describe('PostEditor — image upload error', () => {
     await user.upload(fileInput, file);
 
     await waitFor(() => {
-      expect(screen.getByText(/image upload failed/i)).toBeInTheDocument();
+      expect(screen.getByText(/upload failed/i)).toBeInTheDocument();
     });
   });
 });

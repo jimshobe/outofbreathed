@@ -1,9 +1,25 @@
 import { useEditor, EditorContent } from '@tiptap/react';
+import { Node } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import TipTapImage from '@tiptap/extension-image';
 import { useRef, useState } from 'react';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../lib/firebase';
+
+const Video = Node.create({
+  name: 'video',
+  group: 'block',
+  atom: true,
+  addAttributes() {
+    return { src: { default: null } };
+  },
+  parseHTML() {
+    return [{ tag: 'video[src]' }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ['video', { controls: true, playsinline: true, ...HTMLAttributes }];
+  },
+});
 
 interface Props {
   content: string;
@@ -19,6 +35,7 @@ export default function PostEditor({ content, onChange, postSlug }: Props) {
     extensions: [
       StarterKit.configure({ link: { openOnClick: false } }),
       TipTapImage.configure({ inline: false }),
+      Video,
     ],
     content,
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
@@ -45,7 +62,6 @@ export default function PostEditor({ content, onChange, postSlug }: Props) {
         canvas.width = width;
         canvas.height = height;
         canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
-        // Try decreasing quality until under limit
         let quality = 0.85;
         const tryEncode = () => {
           canvas.toBlob((blob) => {
@@ -62,21 +78,26 @@ export default function PostEditor({ content, onChange, postSlug }: Props) {
     });
   }
 
-  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file || !editor) return;
     setUploadError(null);
+    const isVideo = file.type.startsWith('video/');
     try {
-      const blob = await resizeIfNeeded(file);
-      const name = file.name.replace(/\.[^.]+$/, '.jpg');
+      const blob = isVideo ? file : await resizeIfNeeded(file);
+      const name = isVideo ? file.name : file.name.replace(/\.[^.]+$/, '.jpg');
       const storageRef = ref(storage, `posts/${postSlug || 'draft'}/${Date.now()}-${name}`);
       await uploadBytes(storageRef, blob);
       const url = await getDownloadURL(storageRef);
-      editor.chain().focus().setImage({ src: url }).run();
+      if (isVideo) {
+        editor.chain().focus().insertContent({ type: 'video', attrs: { src: url } }).run();
+      } else {
+        editor.chain().focus().setImage({ src: url }).run();
+      }
     } catch (err: any) {
-      console.error('Image upload failed', err);
+      console.error('Upload failed', err);
       const detail = err?.code ?? err?.message ?? String(err);
-      setUploadError(`Image upload failed: ${detail}`);
+      setUploadError(`Upload failed: ${detail}`);
     }
     e.target.value = '';
   }
@@ -105,8 +126,8 @@ export default function PostEditor({ content, onChange, postSlug }: Props) {
         <button type="button" className={`tb-btn${editor.isActive('blockquote') ? ' active' : ''}`} onClick={() => editor.chain().focus().toggleBlockquote().run()} title="Blockquote">"</button>
         <span className="tb-sep" />
         <button type="button" className={`tb-btn${editor.isActive('link') ? ' active' : ''}`} onClick={setLink} title="Link">↗</button>
-        <button type="button" className="tb-btn" onClick={() => fileInputRef.current?.click()} title="Insert image">IMG</button>
-        <input ref={fileInputRef} type="file" accept="image/*,video/*" style={{ display: 'none' }} onChange={handleImageUpload} />
+        <button type="button" className="tb-btn" onClick={() => fileInputRef.current?.click()} title="Insert image or video">IMG</button>
+        <input ref={fileInputRef} type="file" accept="image/*,video/*" style={{ display: 'none' }} onChange={handleUpload} />
         <span className="tb-sep" />
         <button type="button" className="tb-btn" onClick={() => editor.chain().focus().undo().run()} title="Undo">↩</button>
         <button type="button" className="tb-btn" onClick={() => editor.chain().focus().redo().run()} title="Redo">↪</button>

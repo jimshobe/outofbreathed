@@ -81,6 +81,14 @@ img {
   border-radius: 2px;
 }
 
+.prose video {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 2rem 0;
+  border-radius: 2px;
+}
+
 .prose blockquote {
   border-left: 2px solid var(--color-accent);
   padding-left: 1.25rem;
