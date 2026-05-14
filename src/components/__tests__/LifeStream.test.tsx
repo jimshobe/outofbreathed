@@ -9,11 +9,6 @@ vi.mock('../../lib/firebase', () => ({
   db: {},
 }));
 
-vi.mock('../../lib/travel/trips', () => ({
-  getPublishedTrips: vi.fn().mockResolvedValue([]),
-  getTripStops: vi.fn().mockResolvedValue([]),
-}));
-
 vi.mock('../../lib/travel/categories', () => ({
   loadCategoryConfig: vi.fn().mockResolvedValue({ hashtags: {} }),
   categorizeSocialPost: vi.fn().mockReturnValue([]),

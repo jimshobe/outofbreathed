@@ -6,18 +6,15 @@ import {
 import { signInWithPopup, signOut, onAuthStateChanged, type User } from 'firebase/auth';
 import { auth, googleProvider, db } from '../lib/firebase';
 import PostEditor from './PostEditor';
-import TripAdmin from './travel/admin/TripAdmin';
-import RouteAdmin from './travel/admin/RouteAdmin';
 import CategoryConfig from './travel/admin/CategoryConfig';
 import { loadCategoryConfig } from '../lib/travel/categories';
-import { getRoutes } from '../lib/travel/trips';
 import { DEFAULT_CATEGORIES } from '../types/categories';
 import type { Category, CategoryDef } from '../types/categories';
 
 const ADMIN_UID = import.meta.env.PUBLIC_ADMIN_UID;
 
 type Role = 'pending' | 'member' | 'contributor' | 'admin' | 'banned';
-type Tab = 'posts' | 'comments' | 'users' | 'trips' | 'routes' | 'categories';
+type Tab = 'posts' | 'comments' | 'users' | 'categories';
 
 interface Post {
   slug: string;
@@ -30,10 +27,6 @@ interface Post {
   authorName: string;
   createdAt: Timestamp | null;
   categories: Category[];
-  tripId: string | null;
-  stopId: string | null;
-  locationId: string | null;
-  routeId: string | null;
 }
 
 interface Comment {
@@ -181,8 +174,6 @@ function PostForm({
   const [excerpt, setExcerpt] = useState(isNew ? '' : post.excerpt ?? '');
   const [mastodonTag, setMastodonTag] = useState(isNew ? '' : post.mastodon_tag ?? '');
   const [categories, setCategories] = useState<Category[]>(isNew ? [] : (post.categories ?? []));
-  const [routeId, setRouteId] = useState<string | null>(isNew ? null : (post as Post).routeId ?? null);
-  const [availableRoutes, setAvailableRoutes] = useState<{ id: string; name: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [confirmBack, setConfirmBack] = useState(false);
@@ -194,10 +185,6 @@ function PostForm({
     if (isDirty.current) { setConfirmBack(true); return; }
     onDone();
   }
-
-  useEffect(() => {
-    getRoutes().then((rs) => setAvailableRoutes(rs.map((r) => ({ id: r.id, name: r.name })))).catch(() => {});
-  }, []);
 
   function toggleCategory(cat: Category) {
     setCategories((prev) =>
@@ -223,7 +210,6 @@ function PostForm({
         excerpt: excerpt.trim() || null,
         mastodon_tag: mastodonTag.trim() || null,
         categories,
-        routeId: routeId || null,
         published,
         authorUid: isNew ? currentUser.uid : (post as Post).authorUid || currentUser.uid,
         authorName: isNew ? (currentUser.displayName ?? '') : (post as Post).authorName || (currentUser.displayName ?? ''),
@@ -297,21 +283,7 @@ function PostForm({
         </div>
       </div>
 
-      {availableRoutes.length > 0 && (
-        <div className="form-field">
-          <label className="form-label">Route <span className="form-optional">(optional)</span></label>
-          <select
-            className="form-input"
-            value={routeId ?? ''}
-            onChange={(e) => { markDirty(); setRouteId(e.target.value || null); }}
-          >
-            <option value="">— none —</option>
-            {availableRoutes.map((r) => (
-              <option key={r.id} value={r.id}>{r.name}</option>
-            ))}
-          </select>
-        </div>
-      )}
+
 
       <div className="form-actions">
         <button className="btn-primary" onClick={() => save(true)} disabled={saving || !title.trim()}>
@@ -580,7 +552,7 @@ export default function Admin({ adminUid }: { adminUid: string }) {
   }
 
   const tabs: Tab[] = isAdmin
-    ? ['posts', 'comments', 'users', 'trips', 'routes', 'categories']
+    ? ['posts', 'comments', 'users', 'categories']
     : ['posts'];
 
   return (
@@ -611,10 +583,6 @@ export default function Admin({ adminUid }: { adminUid: string }) {
           <CommentsList />
         ) : tab === 'users' ? (
           <UsersList />
-        ) : tab === 'trips' ? (
-          <TripAdmin />
-        ) : tab === 'routes' ? (
-          <RouteAdmin />
         ) : (
           <CategoryConfig />
         )}

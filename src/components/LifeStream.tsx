@@ -1,11 +1,8 @@
 import { useState, useEffect } from 'react';
 import { MASTODON_INSTANCE, MASTODON_USERNAME, BLUESKY_HANDLE } from '../config';
 import { loadCategoryConfig, categorizeSocialPost } from '../lib/travel/categories';
-import { getPublishedTrips, getTripStops } from '../lib/travel/trips';
 import { DEFAULT_CATEGORIES } from '../types/categories';
 import type { Category, CategoryConfig } from '../types/categories';
-import type { TripJSON, TripStopJSON } from '../types/travel';
-import TravelMap from './travel/TravelMap';
 
 interface BlogEntry {
   type: 'blog';
@@ -335,30 +332,6 @@ async function fetchBluesky(): Promise<SocialEntry[]> {
     });
 }
 
-function toTripJSON(trip: any): TripJSON {
-  return {
-    id: trip.id,
-    name: trip.name,
-    description: trip.description ?? '',
-    startDate: trip.startDate?.toDate?.()?.toISOString() ?? '',
-    endDate: trip.endDate?.toDate?.()?.toISOString() ?? '',
-    published: trip.published,
-  };
-}
-
-function toStopJSON(stop: any): TripStopJSON {
-  return {
-    id: stop.id,
-    tripId: stop.tripId,
-    name: stop.name,
-    lat: stop.lat,
-    lng: stop.lng,
-    date: stop.date?.toDate?.()?.toISOString() ?? '',
-    order: stop.order,
-    notes: stop.notes ?? null,
-  };
-}
-
 export default function LifeStream() {
   const [entries, setEntries] = useState<StreamEntry[]>([]);
   const [categoryConfig, setCategoryConfig] = useState<CategoryConfig>({ hashtags: {} });
@@ -366,9 +339,6 @@ export default function LifeStream() {
   const [error, setError] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<{ url: string; alt: string; kind: 'image' | 'video' } | null>(null);
   const [activeFilter, setActiveFilter] = useState<Category | 'all'>('all');
-  const [travelTrips, setTravelTrips] = useState<TripJSON[]>([]);
-  const [travelStops, setTravelStops] = useState<TripStopJSON[]>([]);
-  const [travelLoading, setTravelLoading] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -399,20 +369,6 @@ export default function LifeStream() {
 
     load();
   }, []);
-
-  // Lazy-load travel map data when Travel filter is first activated
-  useEffect(() => {
-    if (activeFilter !== 'travel' || travelTrips.length > 0 || travelLoading) return;
-    setTravelLoading(true);
-    getPublishedTrips()
-      .then(async (trips) => {
-        const allStops = (await Promise.all(trips.map((t) => getTripStops(t.id)))).flat();
-        setTravelTrips(trips.map(toTripJSON));
-        setTravelStops(allStops.map(toStopJSON));
-      })
-      .catch(() => {})
-      .finally(() => setTravelLoading(false));
-  }, [activeFilter]);
 
   function matchesFilter(entry: StreamEntry): boolean {
     if (activeFilter === 'all') return true;
@@ -460,16 +416,6 @@ export default function LifeStream() {
           </button>
         ))}
       </nav>
-
-      {activeFilter === 'travel' && (
-        <div className="travel-map-slot">
-          {travelLoading ? (
-            <div className="travel-map-loading">Loading map…</div>
-          ) : (
-            <TravelMap trips={travelTrips} stops={travelStops} />
-          )}
-        </div>
-      )}
 
       {filtered.length === 0 ? (
         <p className="stream-empty">Nothing here yet.</p>

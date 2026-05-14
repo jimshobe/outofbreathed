@@ -43,38 +43,6 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Trips and stops — public read if published, admin write
-    match /trips/{tripId} {
-      allow read: if resource.data.published == true || isAdmin();
-      allow write: if isAdmin();
-
-      match /stops/{stopId} {
-        allow read: if get(/databases/$(database)/documents/trips/$(tripId)).data.published == true || isAdmin();
-        allow write: if isAdmin();
-
-        match /media/{mediaId} {
-          allow read: if get(/databases/$(database)/documents/trips/$(tripId)).data.published == true || isAdmin();
-          allow write: if isAdmin();
-        }
-      }
-    }
-
-    // Standalone locations — public read, admin write
-    match /standalone_locations/{locationId} {
-      allow read: if true;
-      allow write: if isAdmin();
-
-      match /media/{mediaId} {
-        allow read: if true;
-        allow write: if isAdmin();
-      }
-    }
-
-    // Social links — admin only
-    match /social_links/{linkId} {
-      allow read, write: if isAdmin();
-    }
-
     // Family app — families, tasks, events
     function isInFamily(familyId) {
       return request.auth != null
