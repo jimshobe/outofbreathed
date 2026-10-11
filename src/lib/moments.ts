@@ -24,17 +24,23 @@ export interface MomentView {
   /** The ~100 m map spot it belongs to (see Place). */
   spot_lat: number | null;
   spot_lng: number | null;
+  /** Inside a privacy zone: place and position are the zone's suburb. */
+  zoned: number;
 }
 
+// Viewer-facing queries read moments_public (see migrations/0010_zones.sql): zoned moments show their
+// zone's suburb name, and exact lat/lng aren't available at all.
+const PUBLIC = 'moments_public AS moments';
+
 const MOMENT_COLUMNS = `id, kind, taken_at, place_name, category, caption, media_key, thumb_key, youtube_id, source, width, height, set_id,
-  display_lat, display_lng, round(display_lat, 3) AS spot_lat, round(display_lng, 3) AS spot_lng,
+  display_lat, display_lng, round(display_lat, 3) AS spot_lat, round(display_lng, 3) AS spot_lng, zoned,
   (SELECT group_concat(category) FROM moment_categories WHERE moment_id = moments.id) AS categories`;
 
 /** Newest first; or every moment of one set, oldest first. */
 export async function listMoments(opts: { limit?: number; setId?: string } = {}): Promise<MomentView[]> {
   const stmt = opts.setId
-    ? env.DB.prepare(`SELECT ${MOMENT_COLUMNS} FROM moments WHERE set_id = ? ORDER BY taken_at`).bind(opts.setId)
-    : env.DB.prepare(`SELECT ${MOMENT_COLUMNS} FROM moments ORDER BY taken_at DESC LIMIT ?`).bind(opts.limit ?? 200);
+    ? env.DB.prepare(`SELECT ${MOMENT_COLUMNS} FROM ${PUBLIC} WHERE set_id = ? ORDER BY taken_at`).bind(opts.setId)
+    : env.DB.prepare(`SELECT ${MOMENT_COLUMNS} FROM ${PUBLIC} ORDER BY taken_at DESC LIMIT ?`).bind(opts.limit ?? 200);
   return withCategories((await stmt.all<Row>()).results);
 }
 
@@ -97,12 +103,12 @@ export async function timelinePage(opts: { before?: string; category?: string })
   if (!boundaryFrom) return { entries: [], older: null };
   const boundary = monthStart(boundaryFrom);
 
-  const { results: page } = await env.DB.prepare(`SELECT ${MOMENT_COLUMNS} FROM moments ${where('AND taken_at >= ?')} ORDER BY taken_at DESC`)
+  const { results: page } = await env.DB.prepare(`SELECT ${MOMENT_COLUMNS} FROM ${PUBLIC} ${where('AND taken_at >= ?')} ORDER BY taken_at DESC`)
     .bind(before, boundary, ...args()).all<Row>();
   const setIds = [...new Set(page.map((m) => m.set_id).filter((x): x is string => !!x))];
   const [members, sets, more] = await Promise.all([
     setIds.length
-      ? env.DB.prepare(`SELECT ${MOMENT_COLUMNS} FROM moments WHERE set_id IN (${setIds.map(() => '?').join(',')})`).bind(...setIds).all<Row>().then((r) => r.results)
+      ? env.DB.prepare(`SELECT ${MOMENT_COLUMNS} FROM ${PUBLIC} WHERE set_id IN (${setIds.map(() => '?').join(',')})`).bind(...setIds).all<Row>().then((r) => r.results)
       : Promise.resolve([] as Row[]),
     setIds.length
       ? env.DB.prepare(`SELECT id, title, caption, cover_id FROM sets WHERE id IN (${setIds.map(() => '?').join(',')})`).bind(...setIds).all<SetInfo>().then((r) => r.results)
@@ -127,7 +133,7 @@ export async function yearIndex(category?: string): Promise<string[]> {
  * photos from the same beach or restaurant share a pin. Pinned at their average position and named
  * after their most common place name.
  */
-export interface Place { spot_lat: number; spot_lng: number; lat: number; lng: number; n: number; name: string | null; latest: string }
+export interface Place { spot_lat: number; spot_lng: number; lat: number; lng: number; n: number; name: string | null; latest: string; zoned: number }
 
 // The spot key is computed by SQLite's round() everywhere (here and in MOMENT_COLUMNS), so it always
 // matches; compare with a hair of tolerance rather than exact floats.
@@ -136,18 +142,18 @@ const SPOT = 'abs(round(display_lat, 3) - ?) < 1e-9 AND abs(round(display_lng, 3
 export async function listPlaces(): Promise<Place[]> {
   const { results } = await env.DB.prepare(
     `SELECT round(display_lat, 3) AS spot_lat, round(display_lng, 3) AS spot_lng,
-            round(avg(display_lat), 5) AS lat, round(avg(display_lng), 5) AS lng, count(*) AS n, max(taken_at) AS latest,
-            (SELECT place_name FROM moments p
+            round(avg(display_lat), 5) AS lat, round(avg(display_lng), 5) AS lng, count(*) AS n, max(taken_at) AS latest, max(zoned) AS zoned,
+            (SELECT place_name FROM moments_public p
               WHERE round(p.display_lat, 3) = round(m.display_lat, 3) AND round(p.display_lng, 3) = round(m.display_lng, 3) AND p.place_name IS NOT NULL
               GROUP BY place_name ORDER BY count(*) DESC LIMIT 1) AS name
-       FROM moments m WHERE display_lat IS NOT NULL GROUP BY spot_lat, spot_lng`,
+       FROM moments_public m WHERE display_lat IS NOT NULL GROUP BY spot_lat, spot_lng`,
   ).all<Place>();
   return results;
 }
 
 /** Moments at one spot, newest first, with the titles of any sets they're in. */
 export async function placeMoments(spotLat: number, spotLng: number) {
-  const { results } = await env.DB.prepare(`SELECT ${MOMENT_COLUMNS} FROM moments WHERE ${SPOT} ORDER BY taken_at DESC LIMIT 300`)
+  const { results } = await env.DB.prepare(`SELECT ${MOMENT_COLUMNS} FROM ${PUBLIC} WHERE ${SPOT} ORDER BY taken_at DESC LIMIT 300`)
     .bind(spotLat, spotLng).all<Row>();
   const moments = withCategories(results);
   const setIds = [...new Set(moments.map((m) => m.set_id).filter((x): x is string => !!x))];
@@ -157,9 +163,9 @@ export async function placeMoments(spotLat: number, spotLng: number) {
   return { moments, sets };
 }
 
-/** Average position of a spot's photos: where to look the place up on OpenStreetMap/Wikipedia. */
+/** Where to look a spot up on OpenStreetMap/Wikipedia: its shown position (a zone's suburb centre, never the address). */
 export async function spotLookupPoint(spotLat: number, spotLng: number): Promise<{ lat: number; lng: number } | null> {
-  const r = await env.DB.prepare(`SELECT avg(lat) AS lat, avg(lng) AS lng FROM moments WHERE ${SPOT} AND lat IS NOT NULL`)
+  const r = await env.DB.prepare(`SELECT avg(display_lat) AS lat, avg(display_lng) AS lng FROM moments WHERE ${SPOT}`)
     .bind(spotLat, spotLng).first<{ lat: number | null; lng: number | null }>();
   return r?.lat != null && r.lng != null ? { lat: r.lat, lng: r.lng } : null;
 }

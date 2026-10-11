@@ -1,6 +1,8 @@
 import { env } from 'cloudflare:workers';
 import { readJpegMeta, stripJpegMeta } from './exif';
-import { mapPosition, placeName, geocodePlace } from './geo';
+import { placeName, geocodePlace } from './geo';
+import { displayFor } from './zone-math';
+import { zoneAreas } from './zones';
 
 import { parseCategories, type Category } from './categories';
 
@@ -159,18 +161,19 @@ export async function ingest(file: File | null, f: UploadFields): Promise<{ id: 
     const hit = place_name ? await geocodePlace(place_name) : null;
     if (hit) ({ lat, lng } = hit);
   }
-  const shown = lat != null && lng != null ? mapPosition(lat, lng) : null;
+  // Inside a privacy zone the map shows the zone's suburb centre instead (see zones.ts).
+  const shown = lat != null && lng != null ? displayFor(lat, lng, await zoneAreas()) : null;
 
   await Promise.all(puts.map(([key, body, contentType]) => env.MEDIA.put(key, body, { httpMetadata: { contentType } })));
   try {
     // One batch = one transaction: the moment and its categories land together or not at all.
     await env.DB.batch([env.DB.prepare(
       `INSERT INTO moments (id, kind, taken_at, lat, lng, display_lat, display_lng, place_name, category, caption,
-                            source, media_key, youtube_id, thumb_key, width, height, source_ref, set_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                            source, media_key, youtube_id, thumb_key, width, height, source_ref, set_id, zone_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
       id, kind, taken_at, lat, lng, shown?.display_lat ?? null, shown?.display_lng ?? null, place_name, category,
-      f.caption?.trim() || null, source, media_key, youtube_id, thumb_key, width, height, f.source_ref ?? null, f.set_id ?? null,
+      f.caption?.trim() || null, source, media_key, youtube_id, thumb_key, width, height, f.source_ref ?? null, f.set_id ?? null, shown?.zone_id ?? null,
     ), ...categories.map((c) => env.DB.prepare('INSERT INTO moment_categories (moment_id, category) VALUES (?, ?)').bind(id, c))]);
   } catch (e) {
     await Promise.all(puts.map(([key]) => env.MEDIA.delete(key)));

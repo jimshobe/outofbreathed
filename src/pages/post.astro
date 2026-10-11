@@ -2,9 +2,12 @@
 // Owner-only (enforced in middleware): upload from a browser, and edit or delete recent moments.
 import Base from '../layouts/Base.astro';
 import { listMoments, listSets, setCounts, mediaUrl } from '../lib/moments';
+import { listZones, shownDistanceM } from '../lib/zones';
 import { CATEGORIES } from '../lib/categories';
 
-const [recent, sets, counts] = await Promise.all([listMoments({ limit: 60 }), listSets(), setCounts()]);
+const [recent, sets, counts, zones] = await Promise.all([listMoments({ limit: 60 }), listSets(), setCounts(), listZones()]);
+const RADII = [200, 300, 500, 1000, 2000];
+const km = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`);
 const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
 ---
 
@@ -36,6 +39,28 @@ const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
       <div class="row"><span></span><button type="submit">[ post ]</button></div>
       <pre id="log" aria-live="polite"></pre>
     </form>
+
+    <section class="zones">
+      <div class="cmd">&gt; <b>privacy zones</b> <span>{zones.length}</span></div>
+      <p class="note">// photos taken inside a zone show only its suburb, on the map and the timeline. zones are never shown to visitors.</p>
+      {zones.map((z) => (
+        <div class="zonerow" data-zone={z.id}>
+          <input class="zlabel" type="text" value={z.label} maxlength="40" aria-label="zone label" />
+          <span class="zaddr">{z.address}</span>
+          <select class="zradius" aria-label="radius">{RADII.map((r) => <option value={r} selected={r === z.radius_m}>{km(r)}</option>)}</select>
+          <span class="zshown">shown as {(z.area_name ?? 'the suburb').toLowerCase()} ({km(shownDistanceM(z))} away) · {z.photos} {z.photos === 1 ? 'photo' : 'photos'}</span>
+          <button class="zrm" type="button">[remove]</button>
+          <span class="status"></span>
+        </div>
+      ))}
+      <form id="zone-add" class="zoneadd" autocomplete="off">
+        <input name="label" type="text" placeholder="label (e.g. home)" maxlength="40" required />
+        <input name="address" type="text" placeholder="address, suburb, state" maxlength="200" required />
+        <select name="radius_m" aria-label="radius">{RADII.map((r) => <option value={r} selected={r === 300}>{km(r)}</option>)}</select>
+        <button type="submit">[ add zone ]</button>
+        <span class="status"></span>
+      </form>
+    </section>
 
     {sets.length > 0 && (
       <section class="sets">
@@ -217,6 +242,36 @@ const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
     pick<HTMLElement>(form, '.set-caption').hidden = !t || existingTitles.has(t);
   });
 
+  // Privacy zones: add (looked up from the address), relabel, change radius, remove.
+  const zoneForm = document.getElementById('zone-add') as HTMLFormElement;
+  zoneForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const status = pick<HTMLElement>(zoneForm, '.status');
+    const fd = new FormData(zoneForm);
+    status.textContent = 'looking up address…';
+    const res = await fetch('/api/zones', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label: fd.get('label'), address: fd.get('address'), radius_m: Number(fd.get('radius_m')) }) });
+    if (res.ok) location.reload(); else status.textContent = (await body(res)).error ?? 'error';
+  });
+  (document.querySelectorAll('.zonerow') as unknown as HTMLElement[]).forEach((row) => {
+    const id = row.dataset.zone!;
+    const status = pick<HTMLElement>(row, '.status');
+    const patch = async (edit: Record<string, unknown>, reload = false) => {
+      status.textContent = '…';
+      const res = await fetch(`/api/zones/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(edit) });
+      if (res.ok && reload) return location.reload();
+      status.textContent = res.ok ? 'saved' : ((await body(res)).error ?? 'error');
+    };
+    pick<HTMLElement>(row, '.zlabel').addEventListener('change', (e) => patch({ label: (e.target as HTMLInputElement).value }));
+    // A new radius moves photos in or out of the zone, so reload to show the new count.
+    pick<HTMLElement>(row, '.zradius').addEventListener('change', (e) => patch({ radius_m: Number((e.target as HTMLSelectElement).value) }, true));
+    pick<HTMLElement>(row, '.zrm').addEventListener('click', async () => {
+      if (!confirm('Remove this zone? Photos inside it will show their exact location again.')) return;
+      const res = await fetch(`/api/zones/${id}`, { method: 'DELETE' });
+      if (res.ok) location.reload(); else status.textContent = 'remove failed';
+    });
+  });
+
   // Set management: rename, caption, ungroup.
   (document.querySelectorAll('.setrow') as unknown as HTMLElement[]).forEach((row) => {
     const id = row.dataset.set!;
@@ -307,7 +362,14 @@ const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
   input[type='date'] { font: inherit; color: var(--fg); background: #000; border: 0; border-bottom: 1px solid var(--faint); padding: 6px 0; color-scheme: dark; width: auto; }
   .hint { color: #ffb547; margin: 0 0 14px; }
   .hint b { font-weight: 500; }
-  .recent, .sets { margin-top: 40px; border-top: 1px solid var(--faint); }
+  .recent, .sets, .zones { margin-top: 40px; border-top: 1px solid var(--faint); }
+  .zonerow { display: grid; grid-template-columns: 110px minmax(0, 1fr) auto; gap: 4px 14px; align-items: center; padding: 8px 0; border-bottom: 1px solid #111; color: var(--dim); }
+  .zaddr { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg); }
+  .zshown { grid-column: 1 / 3; }
+  .zrm { color: var(--dim); justify-self: end; }
+  .zrm:hover { color: #ff6b6b; }
+  .zoneadd { display: grid; grid-template-columns: 140px minmax(0, 1fr) auto auto; gap: 8px 14px; align-items: center; margin-top: 12px; }
+  .zoneadd .status { grid-column: 1 / -1; color: var(--dim); }
   .setrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto auto auto; gap: 8px 14px; align-items: center; padding: 8px 0; border-bottom: 1px solid #111; color: var(--dim); }
   .setrow a { color: var(--dim); }
   .ungroup { color: var(--dim); }
@@ -335,6 +397,11 @@ const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
     .picked :global(span:nth-child(2)) { display: none; }
     .thumb { width: 64px; height: 64px; }
     .setrow { grid-template-columns: 1fr auto auto; }
+    .zonerow { grid-template-columns: 1fr auto; }
+    .zaddr { grid-column: 1 / -1; grid-row: 2; }
+    .zshown { grid-column: 1 / -1; }
+    .zoneadd { grid-template-columns: 1fr auto; }
+    .zoneadd [name=address] { grid-column: 1 / -1; grid-row: 2; }
     .setrow .scaption { grid-column: 1 / -1; grid-row: 2; }
   }
 </style>

@@ -86,7 +86,7 @@ The whole site sits behind a login. There is no per-post privacy setting: I only
 - Every moment shows where it was actually taken, so travel and food posts show the exact beach, lookout or restaurant. Place names include the venue when OpenStreetMap knows it ("Burleigh Beach Pavillion, Burleigh Heads").
 - On the map, photos within ~100 m share one pin (a "place"); the Wikipedia "about" panel describes the surrounding suburb or town.
 - GPS and other metadata are still stripped from the image files people view and download, since files can be forwarded beyond the site.
-- display\_lat/lng stay separate from lat/lng so a position could be shown differently later (e.g. a home zone).
+- **Privacy zones** (owner-only, managed on `/post`): addresses such as home, each with a radius (200 m – 2 km). Photos taken inside a zone are shown at the surrounding suburb's centre with only the suburb's name, on the map (dashed marker, "general area") and the timeline. Zones are never sent to visitors; exact positions stay stored, so adding, resizing or removing a zone recalculates instantly.
 
 **Known limit:** no site can stop an allowed viewer from screenshotting. The real control is who gets invited and what gets posted.
 

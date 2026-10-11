@@ -1,16 +1,10 @@
 // Map positions and place names.
 //
-// The map shows where each photo was actually taken. display_lat/lng are kept separate from the
-// stored lat/lng so a position can be shown differently later (e.g. a home zone) without losing the
-// original. Location metadata is still stripped from the image files themselves (see exif.ts).
+// The map shows where each photo was actually taken, except inside privacy zones (zone-math.ts), where
+// it shows the surrounding suburb. Location metadata is always stripped from image files (exif.ts).
 
 // Nominatim's usage policy asks for an identifying User-Agent.
 const NOMINATIM_HEADERS = { 'User-Agent': 'outofbreathed.com family photo site' };
-
-/** Map position for a stored position: the same place, to ~1 m. */
-export function mapPosition(lat: number, lng: number) {
-  return { display_lat: Math.round(lat * 1e5) / 1e5, display_lng: Math.round(lng * 1e5) / 1e5 };
-}
 
 // The nearest OSM object's name is a venue ("Burleigh Beach Pavillion") unless it's a road or an area.
 const NOT_VENUES = new Set(['highway', 'place', 'boundary', 'landuse', 'railway', 'route']);

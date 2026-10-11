@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readJpegMeta, stripJpegMeta } from '../exif';
-import { mapPosition } from '../geo';
+import { displayFor } from '../zone-math';
 import { jpegWithGps } from './fixtures';
 
 const text = (b: Uint8Array) => new TextDecoder('latin1').decode(b);
@@ -40,7 +40,7 @@ describe('JPEG metadata', () => {
 });
 
 describe('map position', () => {
-  it('is the real position, to about a metre', () => {
-    expect(mapPosition(-28.0884312, 153.4521987)).toEqual({ display_lat: -28.08843, display_lng: 153.4522 });
+  it('is the real position, to about a metre, outside any zone', () => {
+    expect(displayFor(-28.0884312, 153.4521987, [])).toEqual({ display_lat: -28.08843, display_lng: 153.4522, zone_id: null });
   });
 });

@@ -8,7 +8,7 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { openLightbox, initLightbox, type LbItem } from './lightbox';
 
-interface Place { spot_lat: number; spot_lng: number; lat: number; lng: number; n: number; name: string | null; latest: string }
+interface Place { spot_lat: number; spot_lng: number; lat: number; lng: number; n: number; name: string | null; latest: string; zoned: number }
 interface PlaceMoment extends LbItem { thumb: string | null; date: string; set: { id: string; title: string } | null }
 interface About {
   title: string; description: string | null; extract: string; url: string;
@@ -121,7 +121,7 @@ function drawMarks() {
       return `<div class="mk group" style="${style}" data-keys="${c.members.map((o) => key(o.p)).join(';')}"><span class="n">${n}</span></div>`;
     }
     const p = c.members[0].p, k = key(p);
-    return `<div class="mk${p === newest ? ' here' : ''}${c.nolabel ? ' nolabel' : ''}" style="${style}" data-keys="${k}">
+    return `<div class="mk${p === newest ? ' here' : ''}${p.zoned ? ' approx' : ''}${c.nolabel ? ' nolabel' : ''}" style="${style}" data-keys="${k}">
       <span class="sq"></span><span class="lbl"><span class="nm">${esc(label(p))} ${p.n}</span><button class="i" data-info="${k}" aria-label="About ${esc(label(p))}">[i]</button></span></div>`;
   }).join('');
 }
@@ -159,7 +159,7 @@ function head(p: Place, mode: string) {
   const tab = (m: string, text: string) => `<button data-mode="${m}" class="${mode === m ? 'on' : ''}">${text}</button>`;
   return `<button class="x" aria-label="Close">[esc]</button>
     <div class="cmd">&gt; <b>${esc(label(p))}</b></div>
-    <div class="sub">${p.n} ${p.n === 1 ? 'item' : 'items'}</div>
+    <div class="sub">${p.n} ${p.n === 1 ? 'item' : 'items'}${p.zoned ? ' · general area' : ''}</div>
     <div class="tabs">${tab('photos', 'photos')}${tab('about', '[i] about')}</div>`;
 }
 

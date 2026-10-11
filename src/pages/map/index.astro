@@ -38,6 +38,7 @@ const json = JSON.stringify(places).replace(/</g, '\\u003c');
   /* Anchor on the 7px square, not the whole marker: the label beside it would otherwise shift it left. */
   #marks :global(.mk) { position: absolute; transform: translate(-3.5px, -50%); pointer-events: auto; cursor: pointer; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
   #marks :global(.sq) { width: 7px; height: 7px; background: var(--fg); flex: none; }
+  #marks :global(.approx .sq) { background: transparent; outline: 1px dashed var(--fg); outline-offset: 1px; }
   #marks :global(.mk:hover .sq) { box-shadow: 0 0 0 3px #000, 0 0 0 4px var(--fg); }
   #marks :global(.lbl) { color: var(--dim); opacity: 0; transition: opacity .2s; display: flex; gap: 8px; align-items: center; }
   #marks :global(.mk:hover .lbl), #marks:global(.labels) :global(.mk:not(.nolabel) .lbl) { opacity: 1; }

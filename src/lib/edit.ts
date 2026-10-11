@@ -1,7 +1,9 @@
 import { env } from 'cloudflare:workers';
 import { ISO_LOCAL, UploadError } from './ingest';
 import { parseCategories, type Category } from './categories';
-import { mapPosition, geocodePlace } from './geo';
+import { geocodePlace } from './geo';
+import { displayFor } from './zone-math';
+import { zoneAreas } from './zones';
 
 export interface MomentEdit {
   caption?: string | null;
@@ -29,8 +31,8 @@ export async function updateMoment(id: string, e: MomentEdit): Promise<boolean> 
     if (row.lat == null && place) {
       const hit = await geocodePlace(place);
       if (hit) {
-        const g = mapPosition(hit.lat, hit.lng);
-        set('lat', hit.lat); set('lng', hit.lng); set('display_lat', g.display_lat); set('display_lng', g.display_lng);
+        const g = displayFor(hit.lat, hit.lng, await zoneAreas());
+        set('lat', hit.lat); set('lng', hit.lng); set('display_lat', g.display_lat); set('display_lng', g.display_lng); set('zone_id', g.zone_id);
       }
     }
   }
