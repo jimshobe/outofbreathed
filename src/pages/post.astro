@@ -20,10 +20,6 @@ const recent = await listMoments(60);
         <span>category</span>
         <div class="cats">{CATEGORIES.map((c) => <label><input type="checkbox" name="category" value={c} checked={c === 'misc'} /> {c}</label>)}</div>
       </div>
-      <label class="row food" hidden>
-        <span>food</span>
-        <select name="food_type"><option value="">-</option><option value="home">home</option><option value="out">out</option></select>
-      </label>
       <label class="row"><span>caption</span><input type="text" name="caption" maxlength="300" /></label>
       <label class="row"><span>place</span><input type="text" name="place_name" placeholder="optional; looked up from the photo's location" /></label>
       <div class="row"><span></span><button type="submit">[ post ]</button></div>
@@ -48,11 +44,6 @@ const recent = await listMoments(60);
             </div>
             <div class="controls">
               <span class="cats">{CATEGORIES.map((c) => <label><input type="checkbox" class="cat" value={c} checked={m.categories.includes(c)} /> {c}</label>)}</span>
-              <select class="food_type" hidden={!m.categories.includes('food')}>
-                <option value="">-</option>
-                <option value="home" selected={m.food_type === 'home'}>home</option>
-                <option value="out" selected={m.food_type === 'out'}>out</option>
-              </select>
               <button class="rm" type="button">[rm]</button>
               <span class="status"></span>
             </div>
@@ -70,14 +61,9 @@ const recent = await listMoments(60);
   const form = document.getElementById('up') as HTMLFormElement;
   const log = document.getElementById('log')!;
   const say = (line: string) => { log.textContent += line + '\n'; };
-  const foodRow = form.querySelector('.food') as HTMLElement;
   const checked = (root: { querySelectorAll(sel: string): unknown }, sel: string) =>
     Array.from(root.querySelectorAll(sel) as unknown as HTMLInputElement[]).filter((i) => i.checked).map((i) => i.value);
 
-  // Food shows the home/out choice.
-  form.querySelectorAll('[name=category]').forEach((box) => box.addEventListener('change', () => {
-    foodRow.hidden = !checked(form, '[name=category]').includes('food');
-  }));
 
   type ApiResult = { error?: string; created?: boolean };
   const body = async (res: Response) => (await res.json().catch(() => ({}))) as ApiResult;
@@ -126,7 +112,6 @@ const recent = await listMoments(60);
   (document.querySelectorAll('.item') as unknown as HTMLElement[]).forEach((item) => {
     const id = item.dataset.id!;
     const status = pick<HTMLElement>(item, '.status');
-    const food = pick<HTMLSelectElement>(item, '.food_type');
     const save = async (edit: Record<string, unknown>) => {
       status.textContent = '…';
       const res = await fetch(`/api/moments/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(edit) });
@@ -144,10 +129,8 @@ const recent = await listMoments(60);
     item.querySelectorAll('.cat').forEach((box) => box.addEventListener('change', (e) => {
       const cats = checked(item, '.cat');
       if (!cats.length) { (e.target as HTMLInputElement).checked = true; return; } // at least one
-      food.hidden = !cats.includes('food');
-      save({ categories: cats, food_type: food.value || null });
+      save({ categories: cats });
     }));
-    food.addEventListener('change', () => save({ food_type: food.value || null }));
     pick<HTMLElement>(item, '.rm').addEventListener('click', async () => {
       if (!confirm('Delete this moment and its files? This cannot be undone.')) return;
       const res = await fetch(`/api/moments/${id}`, { method: 'DELETE' });

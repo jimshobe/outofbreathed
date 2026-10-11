@@ -32,15 +32,11 @@ action right after it, named X.
 
 1. **List** with the items `misc`, `family`, `travel`, `moto`, `food`.
 2. **Choose from List** (prompt: `Category`, **Select Multiple on**) → Variable **Category** (set to *Selected Items*). A post can have several categories; the Shortcut sends them one per line.
-3. **If** *Category* **contains** `food`
-   - **Choose from List** on a **List** of `home`, `out` (prompt: `Made at home or ate out?`) → Variable **FoodType**.
-   - **Otherwise**: **Text** (leave it empty) → Variable **FoodType**.
-   - **End If**
-4. **Ask for Input**: Text, prompt `Caption (optional)` → Variable **Caption**.
+3. **Ask for Input**: Text, prompt `Caption (optional)` → Variable **Caption**.
 
 ### Then once per photo or video
 
-5. **Repeat with Each** item in **Shortcut Input**. Everything below goes inside the repeat:
+4. **Repeat with Each** item in **Shortcut Input**. Everything below goes inside the repeat:
    1. **Get Details of Images**: **Date Taken** of *Repeat Item* → **Format Date**: Date Format **ISO 8601**, **Include ISO 8601 Time** on → Variable **TakenAt**.
    2. **Get Details of Images**: **Location** of *Repeat Item* → Variable **Loc**.
    3. **Get Details of Locations**: **Latitude** of *Loc* → Variable **Lat**.
@@ -62,7 +58,6 @@ action right after it, named X.
         | --- | --- |
         | `file` | *File* (type **File**) |
         | `category` | *Category* |
-        | `food_type` | *FoodType* |
         | `caption` | *Caption* |
         | `taken_at` | *TakenAt* |
         | `lat` | *Lat* |
@@ -70,7 +65,7 @@ action right after it, named X.
         | `source_ref` | *Ref* |
    9. **Get Dictionary Value** for key `error` in *Contents of URL*.
    10. **If** *Dictionary Value* **has any value** → **Show Notification** *Name*`: `*Dictionary Value* → **End If**.
-6. **End Repeat**, then **Show Notification** `Posted to outofbreathed.com`.
+5. **End Repeat**, then **Show Notification** `Posted to outofbreathed.com`.
 
 ## Using it
 

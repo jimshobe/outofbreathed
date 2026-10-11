@@ -7,7 +7,7 @@ Oct 11, 2026 · @Jim Shobe
 A private, visual website for sharing our family's photos and videos with friends and family. It replaces the old blog on my existing domain. Older photos from previous years will be backfilled, so the site covers our whole life, not one chapter of it.
 
 - **Audience:** invited friends and family only. No public access, no monetizing, no growth goals.
-- **Content:** kids, motorcycle trips, travel, everyday scenes, and food (home-cooked and eating out).
+- **Content:** kids, motorcycle trips, travel, everyday scenes, and food.
 - **Writing:** a sentence or two per post at most. This is not a blog.
 
 Guiding principles:
@@ -40,7 +40,6 @@ Every photo or video is a **moment** with a date, a place, a category, an option
 **Category lenses**
 
 - Filters that work on both views: misc, family, travel, moto, food.
-- Food gets its own grid with a "made at home" or "ate out" badge. Eating-out posts also appear on the map.
 
 **Extras (later)**
 
@@ -115,7 +114,6 @@ One main table of moments in D1, with media files in R2. A starting sketch for C
 | display\_lat, display\_lng | number | What the map shows: always rounded to ~2 km |
 | place\_name | text | Suburb or place, looked up once on upload |
 | category | text | Primary category: misc, family, travel, moto, food. All of a moment's categories (it can have several) live in `moment_categories`. |
-| food\_type | text | home or out (food only) |
 | caption | text | Optional, a sentence or two |
 | visibility | text | Unused (always everyone); kept in case audience levels are wanted later |
 | source | text | site or youtube |

@@ -19,7 +19,6 @@ export class UploadError extends Error {
 export interface UploadFields {
   categories?: string[];
   caption?: string;
-  food_type?: string;
   taken_at?: string;
   /** Used only when neither the uploader nor the file says when it was taken (the uploader's local "now"). */
   fallback_taken_at?: string;
@@ -97,7 +96,6 @@ export async function ingest(file: File | null, f: UploadFields): Promise<{ id: 
   }
   if (!categories.length) categories = ['misc'];
   const category = categories[0]; // primary
-  const food_type = categories.includes('food') && (f.food_type === 'home' || f.food_type === 'out') ? f.food_type : null;
   if (f.taken_at && !ISO_LOCAL.test(f.taken_at)) throw new UploadError('taken_at must be ISO 8601, e.g. 2026-10-10T09:12:00+10:00');
   const fallbackTakenAt = f.fallback_taken_at && ISO_LOCAL.test(f.fallback_taken_at) ? f.fallback_taken_at : new Date().toISOString();
   if ((f.lat == null) !== (f.lng == null) || (f.lat != null && (Math.abs(f.lat) > 90 || Math.abs(f.lng!) > 180))) {
@@ -167,11 +165,11 @@ export async function ingest(file: File | null, f: UploadFields): Promise<{ id: 
   try {
     // One batch = one transaction: the moment and its categories land together or not at all.
     await env.DB.batch([env.DB.prepare(
-      `INSERT INTO moments (id, kind, taken_at, lat, lng, display_lat, display_lng, place_name, category, food_type, caption,
+      `INSERT INTO moments (id, kind, taken_at, lat, lng, display_lat, display_lng, place_name, category, caption,
                             source, media_key, youtube_id, thumb_key, width, height, source_ref)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
-      id, kind, taken_at, lat, lng, shown?.display_lat ?? null, shown?.display_lng ?? null, place_name, category, food_type,
+      id, kind, taken_at, lat, lng, shown?.display_lat ?? null, shown?.display_lng ?? null, place_name, category,
       f.caption?.trim() || null, source, media_key, youtube_id, thumb_key, width, height, f.source_ref ?? null,
     ), ...categories.map((c) => env.DB.prepare('INSERT INTO moment_categories (moment_id, category) VALUES (?, ?)').bind(id, c))]);
   } catch (e) {
@@ -198,7 +196,6 @@ export function fieldsFromForm(form: FormData): UploadFields {
   return {
     categories: form.getAll('category').filter((v): v is string => typeof v === 'string'),
     caption: s('caption'),
-    food_type: s('food_type'),
     taken_at: s('taken_at'),
     fallback_taken_at: s('fallback_taken_at'),
     lat: n('lat'),

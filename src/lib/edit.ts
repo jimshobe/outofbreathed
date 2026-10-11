@@ -5,19 +5,12 @@ import { parseCategories, type Category } from './categories';
 export interface MomentEdit {
   caption?: string | null;
   categories?: string[];
-  food_type?: string | null;
   place_name?: string | null;
   taken_at?: string;
 }
 
-interface Row { categories: string | null }
-
 export async function updateMoment(id: string, e: MomentEdit): Promise<boolean> {
-  const row = await env.DB.prepare(
-    `SELECT (SELECT group_concat(category) FROM moment_categories WHERE moment_id = moments.id) AS categories
-       FROM moments WHERE id = ?`,
-  ).bind(id).first<Row>();
-  if (!row) return false;
+  if (!(await env.DB.prepare('SELECT 1 FROM moments WHERE id = ?').bind(id).first())) return false;
 
   const sets: string[] = [];
   const vals: unknown[] = [];
@@ -38,11 +31,6 @@ export async function updateMoment(id: string, e: MomentEdit): Promise<boolean> 
     }
     if (!newCategories.length) throw new UploadError('pick at least one category');
     set('category', newCategories[0]);
-  }
-  const categories = newCategories ?? parseCategories([row.categories]);
-  if (e.food_type !== undefined || e.categories !== undefined) {
-    const ft = e.food_type ?? null;
-    set('food_type', categories.includes('food') && (ft === 'home' || ft === 'out') ? ft : null);
   }
   const statements = sets.length ? [env.DB.prepare(`UPDATE moments SET ${sets.join(', ')} WHERE id = ?`).bind(...vals, id)] : [];
   if (newCategories) {

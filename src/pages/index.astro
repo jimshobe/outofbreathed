@@ -13,7 +13,6 @@ const months = groupByMonth(await listMoments());
         <div class="mh"><b>{g.label}</b><span>{g.items.length}</span></div>
         {g.items.map((m) => {
           const ratio = m.width && m.height ? Math.max(m.width / m.height, 0.8) : 4 / 5;
-          const tags = [m.food_type].filter(Boolean).map((t) => `[${t}]`).join(' ');
           return (
             <article class="mo" id={`m-${m.id}`}>
               {m.source === 'youtube' && m.youtube_id && (
@@ -32,7 +31,7 @@ const months = groupByMonth(await listMoments());
               <div class="line">
                 <span class="d">{fmtDay(m.taken_at)}</span>
                 <span class="pl">{m.place_name?.toLowerCase()}</span>
-                <span class="c">{m.caption}{tags && <span class="t">{tags}</span>}</span>
+                <span class="c">{m.caption}</span>
               </div>
             </article>
           );
@@ -54,9 +53,8 @@ const months = groupByMonth(await listMoments());
   .media { width: 100%; background: #0d0d0d; overflow: hidden; }
   .media img, .media video, .media iframe { width: 100%; height: 100%; object-fit: cover; display: block; border: 0; }
   .line { margin-top: 10px; display: grid; grid-template-columns: 64px minmax(0, max-content) 1fr; gap: 0 14px; align-items: baseline; }
-  .d, .pl, .t { color: var(--dim); }
+  .d, .pl { color: var(--dim); }
   .pl { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .t { margin-left: 8px; }
   .end { margin-top: 60px; color: var(--dim); }
   .end::before { content: '$ '; }
   .end i { display: inline-block; width: 8px; height: 15px; background: var(--fg); vertical-align: -2px; margin-left: 2px; animation: blink 1.1s steps(1) infinite; }
