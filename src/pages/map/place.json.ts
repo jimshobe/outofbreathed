@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { placeMoments, lbItem, fmtDay } from '../../lib/moments';
 
-// Viewer endpoint: the moments in one map cell (?lat=&lng= are the public, rounded cell position).
+// Viewer endpoint: the moments at one map spot (?lat=&lng= is the spot key from listPlaces).
 export const GET: APIRoute = async ({ url }) => {
   const lat = Number(url.searchParams.get('lat')), lng = Number(url.searchParams.get('lng'));
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return Response.json({ error: 'lat and lng required' }, { status: 400 });

@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:workers';
 import { readJpegMeta, stripJpegMeta } from './exif';
-import { generalLocation, placeName, geocodePlace } from './geo';
+import { mapPosition, placeName, geocodePlace } from './geo';
 
 import { parseCategories, type Category } from './categories';
 
@@ -154,12 +154,12 @@ export async function ingest(file: File | null, f: UploadFields): Promise<{ id: 
   if (lat != null && lng != null) {
     place_name = typedPlace ?? (await placeName(lat, lng));
   } else {
-    // No GPS: look up the typed place so the post still lands on the map (at ~2 km, like everything else).
+    // No GPS: look up the typed place so the post still lands on the map.
     place_name = typedPlace ?? fallbackPlace;
     const hit = place_name ? await geocodePlace(place_name) : null;
     if (hit) ({ lat, lng } = hit);
   }
-  const shown = lat != null && lng != null ? generalLocation(lat, lng) : null;
+  const shown = lat != null && lng != null ? mapPosition(lat, lng) : null;
 
   await Promise.all(puts.map(([key, body, contentType]) => env.MEDIA.put(key, body, { httpMetadata: { contentType } })));
   try {

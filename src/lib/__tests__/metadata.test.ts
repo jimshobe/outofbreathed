@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readJpegMeta, stripJpegMeta } from '../exif';
-import { generalLocation } from '../geo';
+import { mapPosition } from '../geo';
 import { jpegWithGps } from './fixtures';
 
 const text = (b: Uint8Array) => new TextDecoder('latin1').decode(b);
@@ -39,23 +39,8 @@ describe('JPEG metadata', () => {
   });
 });
 
-describe('general location', () => {
-  const metres = (aLat: number, aLng: number, bLat: number, bLng: number) => {
-    const r = Math.PI / 180;
-    const h = Math.sin(((bLat - aLat) * r) / 2) ** 2 + Math.cos(aLat * r) * Math.cos(bLat * r) * Math.sin(((bLng - aLng) * r) / 2) ** 2;
-    return 2 * 6371000 * Math.asin(Math.sqrt(h));
-  };
-
-  it('never returns the exact position, and stays within the same ~2 km area', () => {
-    for (const [lat, lng] of [[-28.088, 153.452], [47.447, -122.46], [-31.95, 115.861]]) {
-      const d = generalLocation(lat, lng);
-      const moved = metres(lat, lng, d.display_lat, d.display_lng);
-      expect(moved).toBeGreaterThan(0);
-      expect(moved).toBeLessThan(2000);
-    }
-  });
-
-  it('puts nearby points in the same cell, so a house cannot be triangulated from several photos', () => {
-    expect(generalLocation(-28.1151, 153.4651)).toEqual(generalLocation(-28.1189, 153.4629));
+describe('map position', () => {
+  it('is the real position, to about a metre', () => {
+    expect(mapPosition(-28.0884312, 153.4521987)).toEqual({ display_lat: -28.08843, display_lng: 153.4522 });
   });
 });

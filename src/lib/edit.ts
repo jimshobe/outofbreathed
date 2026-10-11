@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:workers';
 import { ISO_LOCAL, UploadError } from './ingest';
 import { parseCategories, type Category } from './categories';
-import { generalLocation, geocodePlace } from './geo';
+import { mapPosition, geocodePlace } from './geo';
 
 export interface MomentEdit {
   caption?: string | null;
@@ -29,7 +29,7 @@ export async function updateMoment(id: string, e: MomentEdit): Promise<boolean> 
     if (row.lat == null && place) {
       const hit = await geocodePlace(place);
       if (hit) {
-        const g = generalLocation(hit.lat, hit.lng);
+        const g = mapPosition(hit.lat, hit.lng);
         set('lat', hit.lat); set('lng', hit.lng); set('display_lat', g.display_lat); set('display_lng', g.display_lng);
       }
     }

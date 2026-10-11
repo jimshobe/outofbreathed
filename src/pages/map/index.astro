@@ -2,7 +2,7 @@
 import Base from '../../layouts/Base.astro';
 import { listPlaces } from '../../lib/moments';
 
-// Only public, rounded (~2 km) cell positions and names are embedded; never exact coordinates.
+// Every place (a ~100 m spot with photos) is embedded; panels load their photos on demand.
 const places = await listPlaces();
 const json = JSON.stringify(places).replace(/</g, '\\u003c');
 ---

@@ -14,7 +14,7 @@ Guiding principles:
 
 1. **Visual first.** Media is the content; text is a caption.
 2. **Post from the iPhone in seconds.** If posting needs a laptop, it won't happen.
-3. **Only post what everyone invited may see.** Locations are shown at suburb level, never an address.
+3. **Only post what's fine for everyone who can see the site.** Locations are exact.
 4. **Free or nearly free to run**, with low maintenance. It's a hobby.
 
 ## Look and feel
@@ -81,11 +81,12 @@ The whole site sits behind a login. There is no per-post privacy setting: I only
 - An allow-list of invited emails. The site is marked `noindex` so search engines skip it.
 - Media files are served only through the site after checking the viewer is signed in. A copied file link doesn't work outside the login.
 
-**Location: general area only**
+**Location: exact**
 
-- Every moment shows its suburb name and a map position rounded to a ~2 km grid, never an exact pin or address.
-- The exact position is kept in the database (owner only) so the rounding can change later, but it is never sent to viewers.
-- GPS and other metadata are stripped from the copies people view and download.
+- Every moment shows where it was actually taken, so travel and food posts show the exact beach, lookout or restaurant. Place names include the venue when OpenStreetMap knows it ("Burleigh Beach Pavillion, Burleigh Heads").
+- On the map, photos within ~100 m share one pin (a "place"); the Wikipedia "about" panel describes the surrounding suburb or town.
+- GPS and other metadata are still stripped from the image files people view and download, since files can be forwarded beyond the site.
+- display\_lat/lng stay separate from lat/lng so a position could be shown differently later (e.g. a home zone).
 
 **Known limit:** no site can stop an allowed viewer from screenshotting. The real control is who gets invited and what gets posted.
 
@@ -94,7 +95,7 @@ The whole site sits behind a login. There is no per-post privacy setting: I only
 All videos live on YouTube as **Unlisted** uploads and are embedded; the site stores no video files.
 
 - Free, no length or storage limits, adaptive quality on slow connections. No paid streaming service.
-- Post a video by pasting its YouTube link on `/post`, with a date and a typed place (e.g. "Springbrook, QLD"). The place is looked up on OpenStreetMap so the video still appears on the map at ~2 km.
+- Post a video by pasting its YouTube link on `/post`, with a date and a typed place (e.g. "Springbrook, QLD"). The place is looked up on OpenStreetMap so the video still appears on the map.
 - Embeds use privacy-enhanced mode (`youtube-nocookie.com`), play inline, and limit end-of-video suggestions to the same channel.
 - Use Unlisted, not Private, or embeds won't play. Unlisted links can be forwarded by anyone who has them, so only post videos that are fine to leak.
 - The upload API rejects video files with a pointer to YouTube.
@@ -108,8 +109,8 @@ One main table of moments in D1, with media files in R2. A starting sketch for C
 | id | text | Unique id |
 | kind | text | photo or video |
 | taken\_at | datetime | From the photo's metadata |
-| lat, lng | number | Exact location, owner only; never sent to viewers |
-| display\_lat, display\_lng | number | What the map shows: always rounded to ~2 km |
+| lat, lng | number | Exact location as recorded |
+| display\_lat, display\_lng | number | What the map shows: currently the exact position |
 | place\_name | text | Suburb or place, looked up once on upload |
 | category | text | Primary category: misc, family, travel, moto, food. All of a moment's categories (it can have several) live in `moment_categories`. |
 | caption | text | Optional, a sentence or two |
@@ -175,8 +176,8 @@ Build in five phases, each ending with something usable. Phase 2 is the most imp
    - Done when: the site is worth sending to family.
 4. **Map view and privacy**
    - Globe map with clustering, place panels (my photos + cached Wikipedia "about").
-   - Done when: the map works on phone and desktop and never shows anything finer than the ~2 km area.
-   - Built: places are ~2 km cells named after their most common suburb; globe from the prototype; panel with photos (lightbox) and [i] about (Wikipedia article found via OpenStreetMap's own wikipedia/wikidata tags, Commons photos, edge-cached a week); timeline place names link to `/map#@lat,lng`. Wikipedia overrides (`place_info`) not built yet.
+   - Done when: the map works on phone and desktop.
+   - Built: places are ~100 m spots (exact positions grouped), named after their most common place name (venue or suburb); globe from the prototype; panel with photos (lightbox) and [i] about (Wikipedia article found via OpenStreetMap's own wikipedia/wikidata tags, Commons photos, edge-cached a week); timeline place names link to `/map#@lat,lng`. Wikipedia overrides (`place_info`) not built yet.
 5. **Video and extras**
    - YouTube embeds, ride routes, On this day.
    - Then: move the domain over and invite everyone.

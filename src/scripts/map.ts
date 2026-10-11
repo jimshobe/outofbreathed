@@ -1,6 +1,6 @@
 // The globe map (approved prototype: mocks/index.html), on real places.
 //
-// Places are ~2 km cells with moments (see listPlaces), embedded in the page as JSON. Markers are an
+// Places are ~100 m spots with photos (see listPlaces), embedded in the page as JSON. Markers are an
 // HTML overlay positioned each frame and grouped by on-screen distance: small white squares, "[n]" for
 // groups, names with [i] when zoomed in. A place opens a panel with its photos (lightbox) or "about"
 // (Wikipedia, via /map/about.json). #@lat,lng (optionally /about) in the URL opens a place directly.
@@ -8,7 +8,7 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { openLightbox, initLightbox, type LbItem } from './lightbox';
 
-interface Place { lat: number; lng: number; n: number; name: string | null; latest: string }
+interface Place { spot_lat: number; spot_lng: number; lat: number; lng: number; n: number; name: string | null; latest: string }
 interface PlaceMoment extends LbItem { thumb: string | null; date: string; set: { id: string; title: string } | null }
 interface About {
   title: string; description: string | null; extract: string; url: string;
@@ -20,7 +20,7 @@ interface About {
 type El = HTMLElement;
 const $ = (sel: string, root: { querySelector(s: string): unknown } = document) => root.querySelector(sel) as El;
 const esc = (t: string) => t.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
-const key = (p: { lat: number; lng: number }) => `${p.lat},${p.lng}`;
+const key = (p: Place) => `${p.spot_lat},${p.spot_lng}`;
 const label = (p: Place) => (p.name ?? 'unnamed').toLowerCase();
 
 const places: Place[] = JSON.parse($('#places').textContent ?? '[]');
@@ -159,7 +159,7 @@ function head(p: Place, mode: string) {
   const tab = (m: string, text: string) => `<button data-mode="${m}" class="${mode === m ? 'on' : ''}">${text}</button>`;
   return `<button class="x" aria-label="Close">[esc]</button>
     <div class="cmd">&gt; <b>${esc(label(p))}</b></div>
-    <div class="sub">${p.n} ${p.n === 1 ? 'item' : 'items'} · area only</div>
+    <div class="sub">${p.n} ${p.n === 1 ? 'item' : 'items'}</div>
     <div class="tabs">${tab('photos', 'photos')}${tab('about', '[i] about')}</div>`;
 }
 
@@ -175,7 +175,7 @@ async function openPanel(p: Place, mode: 'photos' | 'about', fly = true) {
   if (mode === 'photos') {
     let items = photoCache.get(key(p));
     if (!items) {
-      const res = await fetch(`/map/place.json?lat=${p.lat}&lng=${p.lng}`);
+      const res = await fetch(`/map/place.json?lat=${p.spot_lat}&lng=${p.spot_lng}`);
       items = res.ok ? ((await res.json()) as { moments: PlaceMoment[] }).moments : [];
       photoCache.set(key(p), items);
     }
@@ -183,7 +183,7 @@ async function openPanel(p: Place, mode: 'photos' | 'about', fly = true) {
   } else {
     let about = aboutCache.get(key(p));
     if (!about) {
-      const res = await fetch(`/map/about.json?lat=${p.lat}&lng=${p.lng}&name=${encodeURIComponent(p.name ?? '')}`);
+      const res = await fetch(`/map/about.json?lat=${p.spot_lat}&lng=${p.spot_lng}&name=${encodeURIComponent(p.name ?? '')}`);
       about = (await res.json().catch(() => ({ error: 'no response' }))) as About;
       if (!about.error) aboutCache.set(key(p), about);
     }

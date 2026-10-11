@@ -109,12 +109,12 @@ async function build(lat: number, lng: number, name: string | null): Promise<Abo
 }
 
 /**
- * About content for a map cell, from the edge cache when fresh. `lookup` is where to look the place up
- * (the cell's average exact position, server-only); the cache is keyed by the public cell position.
+ * About content for a map spot, from the edge cache when fresh. `lookup` is where to look the place up
+ * (the spot's average position); the cache is keyed by the spot.
  * (The Cache API only works on a custom domain; on workers.dev every call fetches fresh.)
  */
-export async function aboutPlace(cell: { lat: number; lng: number }, lookup: { lat: number; lng: number }, name: string | null): Promise<Response> {
-  const key = new Request(`https://cache.outofbreathed.internal/about/v1/${cell.lat},${cell.lng}`);
+export async function aboutPlace(spot: { lat: number; lng: number }, lookup: { lat: number; lng: number }, name: string | null): Promise<Response> {
+  const key = new Request(`https://cache.outofbreathed.internal/about/v1/${spot.lat},${spot.lng}`);
   const cache = (caches as unknown as { default: Cache }).default;
   const hit = await cache.match(key);
   if (hit) return hit;

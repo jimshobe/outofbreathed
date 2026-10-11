@@ -22,8 +22,8 @@ const ratio = m.width && m.height ? Math.max(m.width / m.height, 0.8) : 4 / 5;
   )}
   <div class="line">
     <span class="d">{fmtDay(m.taken_at)}</span>
-    {m.display_lat != null && m.display_lng != null
-      ? <a class="pl" href={`/map#@${m.display_lat},${m.display_lng}`}>{m.place_name?.toLowerCase() ?? 'map'}</a>
+    {m.spot_lat != null && m.spot_lng != null
+      ? <a class="pl" href={`/map#@${m.spot_lat},${m.spot_lng}`}>{m.place_name?.toLowerCase() ?? 'map'}</a>
       : <span class="pl">{m.place_name?.toLowerCase()}</span>}
     <span class="c">{m.caption}</span>
   </div>
