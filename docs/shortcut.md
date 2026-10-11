@@ -1,4 +1,6 @@
-# "Post to family site" iOS Shortcut
+# "Post to outofbreathed" iOS Shortcut
+
+Posts photos and videos to outofbreathed.com only. Unrelated to the family app at family.outofbreathed.com.
 
 Built by hand in the Shortcuts app; Shortcuts can't be generated from code. Posting the same photo
 twice is harmless: the site recognises the `source_ref` and skips it. So if a run fails halfway on a
@@ -14,7 +16,7 @@ The Client ID is `78bdc8e5d24427384911194c0c6e0c02.access`.
 
 ## Shortcut settings
 
-1. Shortcuts app → **+** → name it **Post to family site**.
+1. Shortcuts app → **+** → name it **Post to outofbreathed**.
 2. Tap the **ⓘ** (details) button:
    - Turn on **Show in Share Sheet**.
    - Set the Share Sheet types to **Images** and **Media** only.
@@ -80,7 +82,7 @@ action right after it, named X.
 
 ## Using it
 
-Photos → select one or more → **Share** → **Post to family site**. Pick a category, add a caption
+Photos → select one or more → **Share** → **Post to outofbreathed**. Pick a category, add a caption
 (or leave it blank), and the photos appear on the timeline within seconds.
 
 ## Limits

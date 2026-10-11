@@ -50,7 +50,7 @@ Every photo or video is a **moment** with a date, a place, a category, an option
 
 Posting happens from the Photos app share sheet through an iOS Shortcut, with a private post page as backup. Both are free; no App Store app or Apple developer account is needed.
 
-**Main flow: "Post to family site" Shortcut**
+**Main flow: "Post to outofbreathed" Shortcut** (posts to outofbreathed.com only; unrelated to the family app)
 
 1. Select one or more photos or videos in Photos, tap Share, choose the Shortcut.
 2. The Shortcut reads each item's date and GPS location directly from the photo. This matters because iPhones often strip location when uploading through a web page.
