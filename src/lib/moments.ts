@@ -7,6 +7,8 @@ export interface MomentView {
   taken_at: string;
   place_name: string | null;
   category: string;
+  /** All categories, primary first. */
+  categories: string[];
   food_type: 'home' | 'out' | null;
   caption: string | null;
   visibility: string;
@@ -20,10 +22,14 @@ export interface MomentView {
 
 export async function listMoments(limit = 200): Promise<MomentView[]> {
   const { results } = await env.DB.prepare(
-    `SELECT id, kind, taken_at, place_name, category, food_type, caption, visibility, media_key, thumb_key, youtube_id, source, width, height
+    `SELECT id, kind, taken_at, place_name, category, food_type, caption, visibility, media_key, thumb_key, youtube_id, source, width, height,
+            (SELECT group_concat(category) FROM moment_categories WHERE moment_id = moments.id) AS categories
        FROM moments ORDER BY taken_at DESC LIMIT ?`,
-  ).bind(limit).all<MomentView>();
-  return results;
+  ).bind(limit).all<Omit<MomentView, 'categories'> & { categories: string | null }>();
+  return results.map((m) => ({
+    ...m,
+    categories: [m.category, ...(m.categories ?? '').split(',').filter((c) => c && c !== m.category)],
+  }));
 }
 
 // taken_at is the camera's local wall-clock time with its offset (e.g. 2026-10-10T09:12:00+10:00).

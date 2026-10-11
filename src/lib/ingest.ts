@@ -3,8 +3,7 @@ import { readJpegMeta, stripJpegMeta } from './exif';
 import { readVideoMeta, blankVideoLocation } from './quicktime';
 import { displayLocation, placeName, type Zone } from './geo';
 
-export const CATEGORIES = ['misc', 'family', 'travel', 'moto', 'food'] as const;
-export type Category = (typeof CATEGORIES)[number];
+import { parseCategories, type Category } from './categories';
 
 // Photos are resized here, so the original can be large. Videos are kept as uploaded (compressed on
 // the phone), and must fit in Worker memory alongside the parsed form, so they get a lower cap.
@@ -18,7 +17,7 @@ export class UploadError extends Error {
 }
 
 export interface UploadFields {
-  category?: string;
+  categories?: string[];
   caption?: string;
   private?: boolean;
   food_type?: string;
@@ -96,11 +95,17 @@ export async function ingest(file: File | null, f: UploadFields): Promise<{ id: 
   const already = await existingBySourceRef(f.source_ref);
   if (already) return { id: already, created: false };
 
-  const category = (f.category ?? 'misc').toLowerCase();
-  if (!CATEGORIES.includes(category as Category)) throw new UploadError(`category must be one of ${CATEGORIES.join(', ')}`);
+  let categories: Category[];
+  try {
+    categories = parseCategories(f.categories ?? []);
+  } catch (e) {
+    throw new UploadError((e as Error).message);
+  }
+  if (!categories.length) categories = ['misc'];
+  const category = categories[0]; // primary
   // Family (which includes the kids) is private unless the uploader says otherwise.
-  const visibility = (f.private ?? category === 'family') ? 'private' : 'everyone';
-  const food_type = category === 'food' && (f.food_type === 'home' || f.food_type === 'out') ? f.food_type : null;
+  const visibility = (f.private ?? categories.includes('family')) ? 'private' : 'everyone';
+  const food_type = categories.includes('food') && (f.food_type === 'home' || f.food_type === 'out') ? f.food_type : null;
   if (f.taken_at && !ISO_LOCAL.test(f.taken_at)) throw new UploadError('taken_at must be ISO 8601, e.g. 2026-10-10T09:12:00+10:00');
   const fallbackTakenAt = f.fallback_taken_at && ISO_LOCAL.test(f.fallback_taken_at) ? f.fallback_taken_at : new Date().toISOString();
   if ((f.lat == null) !== (f.lng == null) || (f.lat != null && (Math.abs(f.lat) > 90 || Math.abs(f.lng!) > 180))) {
@@ -169,14 +174,15 @@ export async function ingest(file: File | null, f: UploadFields): Promise<{ id: 
 
   await Promise.all(puts.map(([key, body, contentType]) => env.MEDIA.put(key, body, { httpMetadata: { contentType } })));
   try {
-    await env.DB.prepare(
+    // One batch = one transaction: the moment and its categories land together or not at all.
+    await env.DB.batch([env.DB.prepare(
       `INSERT INTO moments (id, kind, taken_at, lat, lng, display_lat, display_lng, place_name, category, food_type, caption,
                             visibility, source, media_key, youtube_id, thumb_key, width, height, source_ref)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
       id, kind, taken_at, lat, lng, shown?.display_lat ?? null, shown?.display_lng ?? null, place_name, category, food_type,
       f.caption?.trim() || null, visibility, source, media_key, youtube_id, thumb_key, width, height, f.source_ref ?? null,
-    ).run();
+    ), ...categories.map((c) => env.DB.prepare('INSERT INTO moment_categories (moment_id, category) VALUES (?, ?)').bind(id, c))]);
   } catch (e) {
     await Promise.all(puts.map(([key]) => env.MEDIA.delete(key)));
     // Two retries raced: the other one won, so return its moment.
@@ -200,7 +206,7 @@ export function fieldsFromForm(form: FormData): UploadFields {
   };
   const priv = s('private')?.toLowerCase();
   return {
-    category: s('category'),
+    categories: form.getAll('category').filter((v): v is string => typeof v === 'string'),
     caption: s('caption'),
     private: priv == null ? undefined : ['1', 'true', 'yes', 'on'].includes(priv),
     food_type: s('food_type'),

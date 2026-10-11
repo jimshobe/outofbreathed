@@ -2,7 +2,7 @@
 // Owner-only (enforced in middleware): upload from a browser, and edit or delete recent moments.
 import Base from '../layouts/Base.astro';
 import { listMoments, mediaUrl } from '../lib/moments';
-import { CATEGORIES } from '../lib/ingest';
+import { CATEGORIES } from '../lib/categories';
 
 const recent = await listMoments(60);
 ---
@@ -16,10 +16,10 @@ const recent = await listMoments(60);
         <input type="file" name="file" accept="image/*,video/*" multiple />
       </label>
       <label class="row"><span>or youtube</span><input type="url" name="youtube" placeholder="https://youtu.be/…" /></label>
-      <label class="row">
+      <div class="row">
         <span>category</span>
-        <select name="category">{CATEGORIES.map((c) => <option value={c} selected={c === 'misc'}>{c}</option>)}</select>
-      </label>
+        <div class="cats">{CATEGORIES.map((c) => <label><input type="checkbox" name="category" value={c} checked={c === 'misc'} /> {c}</label>)}</div>
+      </div>
       <label class="row food" hidden>
         <span>food</span>
         <select name="food_type"><option value="">-</option><option value="home">home</option><option value="out">out</option></select>
@@ -48,8 +48,8 @@ const recent = await listMoments(60);
               <input class="place" type="text" value={m.place_name ?? ''} placeholder="place" maxlength="80" />
             </div>
             <div class="controls">
-              <select class="category">{CATEGORIES.map((c) => <option value={c} selected={c === m.category}>{c}</option>)}</select>
-              <select class="food_type" hidden={m.category !== 'food'}>
+              <span class="cats">{CATEGORIES.map((c) => <label><input type="checkbox" class="cat" value={c} checked={m.categories.includes(c)} /> {c}</label>)}</span>
+              <select class="food_type" hidden={!m.categories.includes('food')}>
                 <option value="">-</option>
                 <option value="home" selected={m.food_type === 'home'}>home</option>
                 <option value="out" selected={m.food_type === 'out'}>out</option>
@@ -72,13 +72,17 @@ const recent = await listMoments(60);
   const form = document.getElementById('up') as HTMLFormElement;
   const log = document.getElementById('log')!;
   const say = (line: string) => { log.textContent += line + '\n'; };
-  const category = pick<HTMLSelectElement>(form, '[name=category]');
   const priv = pick<HTMLInputElement>(form, '[name=private]');
   const foodRow = form.querySelector('.food') as HTMLElement;
+  const checked = (root: { querySelectorAll(sel: string): unknown }, sel: string) =>
+    Array.from(root.querySelectorAll(sel) as unknown as HTMLInputElement[]).filter((i) => i.checked).map((i) => i.value);
 
-  // Family defaults to private; changing category resets the default but the checkbox stays editable.
-  const syncCategory = () => { priv.checked = category.value === 'family'; foodRow.hidden = category.value !== 'food'; };
-  category.addEventListener('change', syncCategory);
+  // Ticking family turns private on (it can still be unticked); food shows home/out.
+  form.querySelectorAll('[name=category]').forEach((box) => box.addEventListener('change', () => {
+    const cats = checked(form, '[name=category]');
+    priv.checked = cats.includes('family');
+    foodRow.hidden = !cats.includes('food');
+  }));
 
   type ApiResult = { error?: string; created?: boolean };
   const body = async (res: Response) => (await res.json().catch(() => ({}))) as ApiResult;
@@ -143,11 +147,12 @@ const recent = await listMoments(60);
       const v = input.value.length === 16 ? input.value + ':00' : input.value;
       if (v) save({ taken_at: v + (input.dataset.offset ?? '') });
     });
-    pick<HTMLElement>(item, '.category').addEventListener('change', (e) => {
-      const c = (e.target as HTMLSelectElement).value;
-      food.hidden = c !== 'food';
-      save({ category: c, food_type: food.value || null });
-    });
+    item.querySelectorAll('.cat').forEach((box) => box.addEventListener('change', (e) => {
+      const cats = checked(item, '.cat');
+      if (!cats.length) { (e.target as HTMLInputElement).checked = true; return; } // at least one
+      food.hidden = !cats.includes('food');
+      save({ categories: cats, food_type: food.value || null });
+    }));
     food.addEventListener('change', () => save({ food_type: food.value || null }));
     pick<HTMLElement>(item, '.private').addEventListener('change', (e) => save({ visibility: (e.target as HTMLInputElement).checked ? 'private' : 'everyone' }));
     pick<HTMLElement>(item, '.rm').addEventListener('click', async () => {
@@ -183,6 +188,9 @@ const recent = await listMoments(60);
   .thumb { width: 88px; height: 88px; background: #0d0d0d; display: grid; place-items: center; color: var(--dim); overflow: hidden; }
   .thumb img { width: 100%; height: 100%; object-fit: cover; }
   .meta { color: var(--dim); }
+  .cats { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--fg); }
+  .cats label { white-space: nowrap; }
+  .controls .cats { color: var(--dim); }
   .when { display: flex; gap: 12px; margin-top: 6px; }
   .when .taken { width: auto; color-scheme: dark; font: inherit; color: var(--fg); background: #000; border: 0; border-bottom: 1px solid var(--faint); padding: 6px 0; }
   .when .place { flex: 1; }

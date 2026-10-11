@@ -1,20 +1,24 @@
 import { env } from 'cloudflare:workers';
-import { CATEGORIES, ISO_LOCAL, UploadError, type Category } from './ingest';
+import { ISO_LOCAL, UploadError } from './ingest';
+import { parseCategories, type Category } from './categories';
 import { displayLocation, type Zone } from './geo';
 
 export interface MomentEdit {
   caption?: string | null;
-  category?: string;
+  categories?: string[];
   food_type?: string | null;
   visibility?: string;
   place_name?: string | null;
   taken_at?: string;
 }
 
-interface Row { lat: number | null; lng: number | null; category: string; source: string; visibility: string }
+interface Row { lat: number | null; lng: number | null; source: string; visibility: string; categories: string | null }
 
 export async function updateMoment(id: string, e: MomentEdit): Promise<boolean> {
-  const row = await env.DB.prepare('SELECT lat, lng, category, source, visibility FROM moments WHERE id = ?').bind(id).first<Row>();
+  const row = await env.DB.prepare(
+    `SELECT lat, lng, source, visibility, (SELECT group_concat(category) FROM moment_categories WHERE moment_id = moments.id) AS categories
+       FROM moments WHERE id = ?`,
+  ).bind(id).first<Row>();
   if (!row) return false;
 
   const sets: string[] = [];
@@ -27,14 +31,20 @@ export async function updateMoment(id: string, e: MomentEdit): Promise<boolean> 
     if (!ISO_LOCAL.test(e.taken_at)) throw new UploadError('taken_at must be ISO 8601, e.g. 2026-10-10T09:12:00+10:00');
     set('taken_at', e.taken_at);
   }
-  const category = e.category ?? row.category;
-  if (e.category !== undefined) {
-    if (!CATEGORIES.includes(category as Category)) throw new UploadError(`category must be one of ${CATEGORIES.join(', ')}`);
-    set('category', category);
+  let newCategories: Category[] | undefined;
+  if (e.categories !== undefined) {
+    try {
+      newCategories = parseCategories(e.categories);
+    } catch (err) {
+      throw new UploadError((err as Error).message);
+    }
+    if (!newCategories.length) throw new UploadError('pick at least one category');
+    set('category', newCategories[0]);
   }
-  if (e.food_type !== undefined || e.category !== undefined) {
+  const categories = newCategories ?? parseCategories([row.categories]);
+  if (e.food_type !== undefined || e.categories !== undefined) {
     const ft = e.food_type ?? null;
-    set('food_type', category === 'food' && (ft === 'home' || ft === 'out') ? ft : null);
+    set('food_type', categories.includes('food') && (ft === 'home' || ft === 'out') ? ft : null);
   }
   if (e.visibility !== undefined) {
     if (!['everyone', 'private'].includes(e.visibility)) throw new UploadError('visibility must be everyone or private');
@@ -48,15 +58,22 @@ export async function updateMoment(id: string, e: MomentEdit): Promise<boolean> 
       set('display_lng', d.display_lng);
     }
   }
-  if (!sets.length) return true;
-  await env.DB.prepare(`UPDATE moments SET ${sets.join(', ')} WHERE id = ?`).bind(...vals, id).run();
+  const statements = sets.length ? [env.DB.prepare(`UPDATE moments SET ${sets.join(', ')} WHERE id = ?`).bind(...vals, id)] : [];
+  if (newCategories) {
+    statements.push(env.DB.prepare('DELETE FROM moment_categories WHERE moment_id = ?').bind(id));
+    for (const c of newCategories) statements.push(env.DB.prepare('INSERT INTO moment_categories (moment_id, category) VALUES (?, ?)').bind(id, c));
+  }
+  if (statements.length) await env.DB.batch(statements);
   return true;
 }
 
 export async function deleteMoment(id: string): Promise<boolean> {
   const row = await env.DB.prepare('SELECT media_key, thumb_key FROM moments WHERE id = ?').bind(id).first<{ media_key: string | null; thumb_key: string | null }>();
   if (!row) return false;
-  await env.DB.prepare('DELETE FROM moments WHERE id = ?').bind(id).run();
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM moment_categories WHERE moment_id = ?').bind(id),
+    env.DB.prepare('DELETE FROM moments WHERE id = ?').bind(id),
+  ]);
   const keys = [row.media_key, row.thumb_key].filter((k): k is string => !!k);
   if (keys.length) await env.MEDIA.delete(keys);
   return true;

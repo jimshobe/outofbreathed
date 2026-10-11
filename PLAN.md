@@ -125,7 +125,7 @@ One main table of moments in D1, with media files in R2. A starting sketch for C
 | lat, lng | number | Exact location, never sent to viewers for private or zoned moments |
 | display\_lat, display\_lng | number | What the map shows (rounded when needed) |
 | place\_name | text | Suburb or place, looked up once on upload |
-| category | text | misc, family, travel, moto, food |
+| category | text | Primary category: misc, family, travel, moto, food. All of a moment's categories (it can have several) live in `moment_categories`. |
 | food\_type | text | home or out (food only) |
 | caption | text | Optional, a sentence or two |
 | visibility | text | everyone or private now; family and just\_us later |
