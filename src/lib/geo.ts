@@ -1,27 +1,15 @@
 // Location privacy and place names.
+//
+// Viewers only ever see a general location: every moment's map position is snapped to the centre of
+// a ~2 km grid cell (suburb level, never a street or a house). The exact position is kept in the
+// database so the rounding can be changed later, but it is never sent to viewers.
 
-export interface Zone { lat: number; lng: number; radius_m: number }
-
-const R_EARTH_M = 6371000;
-export function distanceM(aLat: number, aLng: number, bLat: number, bLng: number): number {
-  const r = Math.PI / 180;
-  const dLat = (bLat - aLat) * r, dLng = (bLng - aLng) * r;
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(aLat * r) * Math.cos(bLat * r) * Math.sin(dLng / 2) ** 2;
-  return 2 * R_EARTH_M * Math.asin(Math.sqrt(h));
-}
-
-/** About 2 km: coarse enough to say "this suburb", never "this street". */
+/** About 2 km. */
 const GRID_DEG = 0.02;
 const snap = (v: number) => Math.round((Math.floor(v / GRID_DEG) + 0.5) * GRID_DEG * 1e4) / 1e4;
 
-/**
- * What the map may show. Private moments, and anything inside a private zone, are snapped to the
- * centre of a ~2 km grid cell. Everything else keeps its exact position.
- */
-export function displayLocation(lat: number, lng: number, isPrivate: boolean, zones: Zone[]) {
-  const zoned = zones.some((z) => distanceM(lat, lng, z.lat, z.lng) <= z.radius_m);
-  if (!isPrivate && !zoned) return { display_lat: lat, display_lng: lng, rounded: false };
-  return { display_lat: snap(lat), display_lng: snap(lng), rounded: true };
+export function generalLocation(lat: number, lng: number) {
+  return { display_lat: snap(lat), display_lng: snap(lng) };
 }
 
 /**

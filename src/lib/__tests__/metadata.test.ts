@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readJpegMeta, stripJpegMeta } from '../exif';
 import { readVideoMeta, blankVideoLocation } from '../quicktime';
-import { displayLocation, distanceM } from '../geo';
+import { generalLocation } from '../geo';
 import { jpegWithGps, movWithGps } from './fixtures';
 
 const text = (b: Uint8Array) => new TextDecoder('latin1').decode(b);
@@ -65,26 +65,23 @@ describe('video metadata', () => {
   });
 });
 
-describe('display location', () => {
-  const zones = [{ lat: -28.115, lng: 153.465, radius_m: 1500 }];
+describe('general location', () => {
+  const metres = (aLat: number, aLng: number, bLat: number, bLng: number) => {
+    const r = Math.PI / 180;
+    const h = Math.sin(((bLat - aLat) * r) / 2) ** 2 + Math.cos(aLat * r) * Math.cos(bLat * r) * Math.sin(((bLng - aLng) * r) / 2) ** 2;
+    return 2 * 6371000 * Math.asin(Math.sqrt(h));
+  };
 
-  it('keeps public moments outside zones exact', () => {
-    expect(displayLocation(-28.088, 153.452, false, zones)).toEqual({ display_lat: -28.088, display_lng: 153.452, rounded: false });
-  });
-
-  it('rounds private moments and anything inside a zone to ~2 km', () => {
-    for (const [lat, lng, priv] of [[-28.088, 153.452, true], [-28.116, 153.466, false]] as const) {
-      const d = displayLocation(lat, lng, priv, zones);
-      expect(d.rounded).toBe(true);
-      const moved = distanceM(lat, lng, d.display_lat, d.display_lng);
+  it('never returns the exact position, and stays within the same ~2 km area', () => {
+    for (const [lat, lng] of [[-28.088, 153.452], [47.447, -122.46], [-31.95, 115.861]]) {
+      const d = generalLocation(lat, lng);
+      const moved = metres(lat, lng, d.display_lat, d.display_lng);
       expect(moved).toBeGreaterThan(0);
       expect(moved).toBeLessThan(2000);
     }
   });
 
-  it('rounds nearby points to the same cell, so home cannot be triangulated', () => {
-    const a = displayLocation(-28.1151, 153.4651, true, []);
-    const b = displayLocation(-28.1189, 153.4629, true, []);
-    expect([a.display_lat, a.display_lng]).toEqual([b.display_lat, b.display_lng]);
+  it('puts nearby points in the same cell, so a house cannot be triangulated from several photos', () => {
+    expect(generalLocation(-28.1151, 153.4651)).toEqual(generalLocation(-28.1189, 153.4629));
   });
 });

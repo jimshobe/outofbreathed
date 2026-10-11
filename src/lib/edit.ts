@@ -1,22 +1,20 @@
 import { env } from 'cloudflare:workers';
 import { ISO_LOCAL, UploadError } from './ingest';
 import { parseCategories, type Category } from './categories';
-import { displayLocation, type Zone } from './geo';
 
 export interface MomentEdit {
   caption?: string | null;
   categories?: string[];
   food_type?: string | null;
-  visibility?: string;
   place_name?: string | null;
   taken_at?: string;
 }
 
-interface Row { lat: number | null; lng: number | null; source: string; visibility: string; categories: string | null }
+interface Row { categories: string | null }
 
 export async function updateMoment(id: string, e: MomentEdit): Promise<boolean> {
   const row = await env.DB.prepare(
-    `SELECT lat, lng, source, visibility, (SELECT group_concat(category) FROM moment_categories WHERE moment_id = moments.id) AS categories
+    `SELECT (SELECT group_concat(category) FROM moment_categories WHERE moment_id = moments.id) AS categories
        FROM moments WHERE id = ?`,
   ).bind(id).first<Row>();
   if (!row) return false;
@@ -45,18 +43,6 @@ export async function updateMoment(id: string, e: MomentEdit): Promise<boolean> 
   if (e.food_type !== undefined || e.categories !== undefined) {
     const ft = e.food_type ?? null;
     set('food_type', categories.includes('food') && (ft === 'home' || ft === 'out') ? ft : null);
-  }
-  if (e.visibility !== undefined) {
-    if (!['everyone', 'private'].includes(e.visibility)) throw new UploadError('visibility must be everyone or private');
-    if (e.visibility === 'private' && row.source === 'youtube') throw new UploadError("a YouTube video can't be private; private moments stay on the site");
-    set('visibility', e.visibility);
-    // Recompute what the map shows from the exact position we kept.
-    if (row.lat != null && row.lng != null) {
-      const { results: zones } = await env.DB.prepare('SELECT lat, lng, radius_m FROM private_zones').all<Zone>();
-      const d = displayLocation(row.lat, row.lng, e.visibility === 'private', zones);
-      set('display_lat', d.display_lat);
-      set('display_lng', d.display_lng);
-    }
   }
   const statements = sets.length ? [env.DB.prepare(`UPDATE moments SET ${sets.join(', ')} WHERE id = ?`).bind(...vals, id)] : [];
   if (newCategories) {

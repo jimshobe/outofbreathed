@@ -11,7 +11,6 @@ export interface MomentView {
   categories: string[];
   food_type: 'home' | 'out' | null;
   caption: string | null;
-  visibility: string;
   media_key: string | null;
   thumb_key: string | null;
   youtube_id: string | null;
@@ -22,7 +21,7 @@ export interface MomentView {
 
 export async function listMoments(limit = 200): Promise<MomentView[]> {
   const { results } = await env.DB.prepare(
-    `SELECT id, kind, taken_at, place_name, category, food_type, caption, visibility, media_key, thumb_key, youtube_id, source, width, height,
+    `SELECT id, kind, taken_at, place_name, category, food_type, caption, media_key, thumb_key, youtube_id, source, width, height,
             (SELECT group_concat(category) FROM moment_categories WHERE moment_id = moments.id) AS categories
        FROM moments ORDER BY taken_at DESC LIMIT ?`,
   ).bind(limit).all<Omit<MomentView, 'categories'> & { categories: string | null }>();

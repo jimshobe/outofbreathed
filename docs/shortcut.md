@@ -6,8 +6,8 @@ Built by hand in the Shortcuts app; Shortcuts can't be generated from code. Post
 twice is harmless: the site recognises the `source_ref` and skips it. So if a run fails halfway on a
 weak connection, just run it again.
 
-The site reads the date and location from what the Shortcut sends. It still strips all location data
-from the copies people view.
+The site reads the date and location from what the Shortcut sends. Viewers only ever see the suburb
+and a ~2 km map area, and all location data is stripped from the copies people view.
 
 ## Before you start
 
@@ -37,17 +37,10 @@ action right after it, named X.
    - **Otherwise**: **Text** (leave it empty) → Variable **FoodType**.
    - **End If**
 4. **Ask for Input**: Text, prompt `Caption (optional)` → Variable **Caption**.
-5. **If** *Category* **contains** `family`
-   - **Text** `1` → Variable **Private**.
-   - **Otherwise**: **Choose from Menu** with prompt `Private?` and options **No** / **Yes**.
-     - Under **No**: **Text** `0` → Variable **Private**.
-     - Under **Yes**: **Text** `1` → Variable **Private**.
-     - **End Menu**
-   - **End If**
 
 ### Then once per photo or video
 
-6. **Repeat with Each** item in **Shortcut Input**. Everything below goes inside the repeat:
+5. **Repeat with Each** item in **Shortcut Input**. Everything below goes inside the repeat:
    1. **Get Details of Images**: **Date Taken** of *Repeat Item* → **Format Date**: Date Format **ISO 8601**, **Include ISO 8601 Time** on → Variable **TakenAt**.
    2. **Get Details of Images**: **Location** of *Repeat Item* → Variable **Loc**.
    3. **Get Details of Locations**: **Latitude** of *Loc* → Variable **Lat**.
@@ -71,14 +64,13 @@ action right after it, named X.
         | `category` | *Category* |
         | `food_type` | *FoodType* |
         | `caption` | *Caption* |
-        | `private` | *Private* |
         | `taken_at` | *TakenAt* |
         | `lat` | *Lat* |
         | `lng` | *Lng* |
         | `source_ref` | *Ref* |
    9. **Get Dictionary Value** for key `error` in *Contents of URL*.
    10. **If** *Dictionary Value* **has any value** → **Show Notification** *Name*`: `*Dictionary Value* → **End If**.
-7. **End Repeat**, then **Show Notification** `Posted to outofbreathed.com`.
+6. **End Repeat**, then **Show Notification** `Posted to outofbreathed.com`.
 
 ## Using it
 
@@ -89,4 +81,3 @@ Photos → select one or more → **Share** → **Post to outofbreathed**. Pick 
 
 - Videos must be **under 50 MB** after encoding; a 720p clip of about 2 minutes is fine. For longer
   moto rides, upload to YouTube as **Unlisted** and paste the link on the `/post` page.
-- Private moments can't be YouTube links; the site refuses them.

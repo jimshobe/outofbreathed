@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:workers';
 import { readJpegMeta, stripJpegMeta } from './exif';
 import { readVideoMeta, blankVideoLocation } from './quicktime';
-import { displayLocation, placeName, type Zone } from './geo';
+import { generalLocation, placeName } from './geo';
 
 import { parseCategories, type Category } from './categories';
 
@@ -19,7 +19,6 @@ export class UploadError extends Error {
 export interface UploadFields {
   categories?: string[];
   caption?: string;
-  private?: boolean;
   food_type?: string;
   taken_at?: string;
   /** Used only when neither the uploader nor the file says when it was taken (the uploader's local "now"). */
@@ -79,11 +78,6 @@ const newId = () => {
   return Date.now().toString(36) + rand.slice(0, 10);
 };
 
-async function zones(): Promise<Zone[]> {
-  const { results } = await env.DB.prepare('SELECT lat, lng, radius_m FROM private_zones').all<Zone>();
-  return results;
-}
-
 export async function existingBySourceRef(ref: string | undefined): Promise<string | null> {
   if (!ref) return null;
   const row = await env.DB.prepare('SELECT id FROM moments WHERE source_ref = ?').bind(ref).first<{ id: string }>();
@@ -103,8 +97,6 @@ export async function ingest(file: File | null, f: UploadFields): Promise<{ id: 
   }
   if (!categories.length) categories = ['misc'];
   const category = categories[0]; // primary
-  // Family (which includes the kids) is private unless the uploader says otherwise.
-  const visibility = (f.private ?? categories.includes('family')) ? 'private' : 'everyone';
   const food_type = categories.includes('food') && (f.food_type === 'home' || f.food_type === 'out') ? f.food_type : null;
   if (f.taken_at && !ISO_LOCAL.test(f.taken_at)) throw new UploadError('taken_at must be ISO 8601, e.g. 2026-10-10T09:12:00+10:00');
   const fallbackTakenAt = f.fallback_taken_at && ISO_LOCAL.test(f.fallback_taken_at) ? f.fallback_taken_at : new Date().toISOString();
@@ -122,7 +114,6 @@ export async function ingest(file: File | null, f: UploadFields): Promise<{ id: 
   const puts: [string, Uint8Array, string][] = [];
 
   if (f.youtube && !file) {
-    if (visibility === 'private') throw new UploadError('private moments stay on the site; upload the video instead of a YouTube link');
     youtube_id = youtubeId(f.youtube);
     if (!youtube_id) throw new UploadError('not a YouTube link');
     kind = 'video';
@@ -169,7 +160,7 @@ export async function ingest(file: File | null, f: UploadFields): Promise<{ id: 
   // Values sent by the uploader (the Shortcut reads them from Photos) win over what's in the file.
   const lat = f.lat ?? meta.lat ?? null, lng = f.lng ?? meta.lng ?? null;
   const taken_at = f.taken_at ?? meta.takenAt ?? fallbackTakenAt;
-  const shown = lat != null && lng != null ? displayLocation(lat, lng, visibility === 'private', await zones()) : null;
+  const shown = lat != null && lng != null ? generalLocation(lat, lng) : null;
   const place_name = f.place_name?.trim() || (lat != null && lng != null ? await placeName(lat, lng) : null);
 
   await Promise.all(puts.map(([key, body, contentType]) => env.MEDIA.put(key, body, { httpMetadata: { contentType } })));
@@ -177,11 +168,11 @@ export async function ingest(file: File | null, f: UploadFields): Promise<{ id: 
     // One batch = one transaction: the moment and its categories land together or not at all.
     await env.DB.batch([env.DB.prepare(
       `INSERT INTO moments (id, kind, taken_at, lat, lng, display_lat, display_lng, place_name, category, food_type, caption,
-                            visibility, source, media_key, youtube_id, thumb_key, width, height, source_ref)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                            source, media_key, youtube_id, thumb_key, width, height, source_ref)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
       id, kind, taken_at, lat, lng, shown?.display_lat ?? null, shown?.display_lng ?? null, place_name, category, food_type,
-      f.caption?.trim() || null, visibility, source, media_key, youtube_id, thumb_key, width, height, f.source_ref ?? null,
+      f.caption?.trim() || null, source, media_key, youtube_id, thumb_key, width, height, f.source_ref ?? null,
     ), ...categories.map((c) => env.DB.prepare('INSERT INTO moment_categories (moment_id, category) VALUES (?, ?)').bind(id, c))]);
   } catch (e) {
     await Promise.all(puts.map(([key]) => env.MEDIA.delete(key)));
@@ -204,11 +195,9 @@ export function fieldsFromForm(form: FormData): UploadFields {
     const v = s(k)?.replace(',', '.');
     return v != null && Number.isFinite(Number(v)) ? Number(v) : undefined;
   };
-  const priv = s('private')?.toLowerCase();
   return {
     categories: form.getAll('category').filter((v): v is string => typeof v === 'string'),
     caption: s('caption'),
-    private: priv == null ? undefined : ['1', 'true', 'yes', 'on'].includes(priv),
     food_type: s('food_type'),
     taken_at: s('taken_at'),
     fallback_taken_at: s('fallback_taken_at'),

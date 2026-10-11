@@ -26,7 +26,6 @@ const recent = await listMoments(60);
       </label>
       <label class="row"><span>caption</span><input type="text" name="caption" maxlength="300" /></label>
       <label class="row"><span>place</span><input type="text" name="place_name" placeholder="optional; looked up from the photo's location" /></label>
-      <label class="row check"><span>private</span><input type="checkbox" name="private" /> <em>stays on the site, map shows the area only</em></label>
       <div class="row"><span></span><button type="submit">[ post ]</button></div>
       <pre id="log" aria-live="polite"></pre>
     </form>
@@ -41,7 +40,7 @@ const recent = await listMoments(60);
               : <span>{m.kind}</span>}
           </a>
           <div class="fields">
-            <div class="meta">{m.place_name ? '' : 'no location in file · '}{m.kind}{m.source === 'youtube' ? ' · youtube' : ''}{m.visibility === 'private' ? ' · map shows area only' : ''}</div>
+            <div class="meta">{m.place_name ? '' : 'no location in file · '}{m.kind}{m.source === 'youtube' ? ' · youtube' : ''}</div>
             <input class="caption" type="text" value={m.caption ?? ''} placeholder="caption" maxlength="300" />
             <div class="when">
               <input class="taken" type="datetime-local" step="1" value={m.taken_at.slice(0, 19)} data-offset={m.taken_at.slice(19).replace(/^\.\d+/, '')} />
@@ -54,7 +53,6 @@ const recent = await listMoments(60);
                 <option value="home" selected={m.food_type === 'home'}>home</option>
                 <option value="out" selected={m.food_type === 'out'}>out</option>
               </select>
-              <label><input class="private" type="checkbox" checked={m.visibility === 'private'} disabled={m.source === 'youtube'} /> private</label>
               <button class="rm" type="button">[rm]</button>
               <span class="status"></span>
             </div>
@@ -72,16 +70,13 @@ const recent = await listMoments(60);
   const form = document.getElementById('up') as HTMLFormElement;
   const log = document.getElementById('log')!;
   const say = (line: string) => { log.textContent += line + '\n'; };
-  const priv = pick<HTMLInputElement>(form, '[name=private]');
   const foodRow = form.querySelector('.food') as HTMLElement;
   const checked = (root: { querySelectorAll(sel: string): unknown }, sel: string) =>
     Array.from(root.querySelectorAll(sel) as unknown as HTMLInputElement[]).filter((i) => i.checked).map((i) => i.value);
 
-  // Ticking family turns private on (it can still be unticked); food shows home/out.
+  // Food shows the home/out choice.
   form.querySelectorAll('[name=category]').forEach((box) => box.addEventListener('change', () => {
-    const cats = checked(form, '[name=category]');
-    priv.checked = cats.includes('family');
-    foodRow.hidden = !cats.includes('food');
+    foodRow.hidden = !checked(form, '[name=category]').includes('food');
   }));
 
   type ApiResult = { error?: string; created?: boolean };
@@ -107,7 +102,6 @@ const recent = await listMoments(60);
     if (!files.length && !youtube) return say('$ choose files or paste a youtube link');
     const base = new FormData(form);
     base.delete('file');
-    base.set('private', priv.checked ? '1' : '0');
     // If a file has no date (Safari often strips it), date it "now" in this device's time zone, not UTC.
     const now = new Date(), off = -now.getTimezoneOffset();
     const pad = (n: number) => String(Math.abs(n)).padStart(2, '0');
@@ -154,7 +148,6 @@ const recent = await listMoments(60);
       save({ categories: cats, food_type: food.value || null });
     }));
     food.addEventListener('change', () => save({ food_type: food.value || null }));
-    pick<HTMLElement>(item, '.private').addEventListener('change', (e) => save({ visibility: (e.target as HTMLInputElement).checked ? 'private' : 'everyone' }));
     pick<HTMLElement>(item, '.rm').addEventListener('click', async () => {
       if (!confirm('Delete this moment and its files? This cannot be undone.')) return;
       const res = await fetch(`/api/moments/${id}`, { method: 'DELETE' });
@@ -168,8 +161,6 @@ const recent = await listMoments(60);
   .cmd { color: var(--dim); margin: 24px 0 14px; }
   .cmd b { color: var(--fg); font-weight: 500; }
   .row { display: grid; grid-template-columns: 110px 1fr; align-items: center; gap: 12px; margin-bottom: 10px; color: var(--dim); }
-  .row.check { grid-template-columns: 110px auto 1fr; }
-  .row em { font-style: normal; color: var(--dim); }
   input[type='text'], input[type='url'], select {
     font: inherit; color: var(--fg); background: #000; border: 0; border-bottom: 1px solid var(--faint); padding: 6px 0; border-radius: 0; width: 100%;
   }
@@ -201,7 +192,6 @@ const recent = await listMoments(60);
   @media (max-width: 700px) {
     .post { padding: 56px 16px 60px; }
     .row { grid-template-columns: 1fr; gap: 4px; }
-    .row.check { grid-template-columns: auto auto 1fr; }
     .item { grid-template-columns: 64px 1fr; }
     .thumb { width: 64px; height: 64px; }
   }

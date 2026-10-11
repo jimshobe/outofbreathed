@@ -14,7 +14,7 @@ Guiding principles:
 
 1. **Visual first.** Media is the content; text is a caption.
 2. **Post from the iPhone in seconds.** If posting needs a laptop, it won't happen.
-3. **Private by default for the kids.** Nothing sensitive leaves the site.
+3. **Only post what everyone invited may see.** Locations are shown at suburb level, never an address.
 4. **Free or nearly free to run**, with low maintenance. It's a hobby.
 
 ## Look and feel
@@ -54,7 +54,7 @@ Posting happens from the Photos app share sheet through an iOS Shortcut, with a 
 
 1. Select one or more photos or videos in Photos, tap Share, choose the Shortcut.
 2. The Shortcut reads each item's date and GPS location directly from the photo. This matters because iPhones often strip location when uploading through a web page.
-3. It asks for a category, an optional caption, and Private (on by default for family, which includes the kids).
+3. It asks for one or more categories and an optional caption.
 4. For a long ride video, it asks for an optional YouTube link instead of uploading the file.
 5. It compresses videos on the phone (Encode Media), then uploads each file straight to storage, retrying on a weak connection.
 6. The moment appears on the site immediately; no rebuild step.
@@ -71,45 +71,34 @@ Posting happens from the Photos app share sheet through an iOS Shortcut, with a 
 
 ## Privacy and access
 
-The whole site sits behind a login, and a Private flag keeps sensitive moments, especially of the kids, entirely on the site.
+The whole site sits behind a login. There is no per-post privacy setting: I only publish what I'm comfortable with every invited person seeing.
 
 **Login for everyone**
 
 - Cloudflare Access in front of the whole site. Visitors enter their email and get a one-time code; no passwords.
 - An allow-list of invited emails. The site is marked `noindex` so search engines skip it.
-
-**The Private flag**
-
-- A checkbox on every moment, ticked by default for the family category.
-- Private files are always stored on the site, never on YouTube or any other service.
 - Media files are served only through the site after checking the viewer is signed in. A copied file link doesn't work outside the login.
 
-**Location protection**
+**Location: general area only**
 
-- Private moments show only a rough area (suburb), never an exact pin.
-- "Private zones" around home, the kids' school and regular spots: anything inside is rounded automatically, even if not marked Private.
+- Every moment shows its suburb name and a map position rounded to a ~2 km grid, never an exact pin or address.
+- The exact position is kept in the database (owner only) so the rounding can change later, but it is never sent to viewers.
 - GPS and other metadata are stripped from the copies people view and download.
 
-**Later: audience levels**
-
-- Replace the checkbox with levels: **Everyone** (all invited), **Family** (a smaller list), **Just us** (our household).
-- The data model stores a visibility field from day one so this needs no rework.
-
-**Known limit:** no site can stop an allowed viewer from screenshotting. Hiding download buttons and blocking right-click saves stop casual copying; the real control is who gets invited.
+**Known limit:** no site can stop an allowed viewer from screenshotting. The real control is who gets invited and what gets posted.
 
 ## Video strategy
 
-Short clips and anything private live on the site; long ride videos can live on YouTube as unlisted embeds. Visitors never leave the site either way.
+Short clips live on the site; long ride videos can live on YouTube as unlisted embeds. Visitors never leave the site either way.
 
 | Video type | Where it lives | Why |
 | --- | --- | --- |
-| Private (kids, home) | On the site, always | Locked behind the login; never leaves |
 | Short clips (under \~2 min) | On the site | Small after compression; plays like a photo |
 | Long ride videos | Unlisted YouTube, embedded | Free unlimited storage, smooth 4K, adapts to slow connections |
 
 - Each video has a source setting: **site** or **YouTube**. The player looks the same to visitors.
 - YouTube embeds use privacy-enhanced mode (`youtube-nocookie.com`) and play inline. Use Unlisted, not Private, or embeds won't play.
-- Unlisted links can be shared by anyone who has them, so never use YouTube for kids' videos. The Private flag blocks it.
+- Unlisted links can be shared by anyone who has them, so only use YouTube for videos that are fine to leak.
 - On-site videos are compressed to 1080p or 720p on the phone before upload. Originals stay in iCloud.
 - No paid streaming service (such as Cloudflare Stream); MP4 files served from storage are enough for family clips.
 
@@ -122,13 +111,13 @@ One main table of moments in D1, with media files in R2. A starting sketch for C
 | id | text | Unique id |
 | kind | text | photo or video |
 | taken\_at | datetime | From the photo's metadata |
-| lat, lng | number | Exact location, never sent to viewers for private or zoned moments |
-| display\_lat, display\_lng | number | What the map shows (rounded when needed) |
+| lat, lng | number | Exact location, owner only; never sent to viewers |
+| display\_lat, display\_lng | number | What the map shows: always rounded to ~2 km |
 | place\_name | text | Suburb or place, looked up once on upload |
 | category | text | Primary category: misc, family, travel, moto, food. All of a moment's categories (it can have several) live in `moment_categories`. |
 | food\_type | text | home or out (food only) |
 | caption | text | Optional, a sentence or two |
-| visibility | text | everyone or private now; family and just\_us later |
+| visibility | text | Unused (always everyone); kept in case audience levels are wanted later |
 | source | text | site or youtube |
 | media\_key | text | R2 file path (site media) |
 | youtube\_id | text | For YouTube videos |
@@ -137,7 +126,7 @@ One main table of moments in D1, with media files in R2. A starting sketch for C
 | trip\_id | text | Optional, groups a ride or trip |
 | created\_at | datetime | When posted |
 
-Supporting tables (later): **trips** (name, dates, GPX route), **private\_zones** (center and radius), **place\_info** (my overrides only: chosen Wikipedia article title and hidden Commons photos per place; the Wikipedia content itself lives in the edge cache).
+Supporting tables (later): **trips** (name, dates, GPX route), **place\_info** (my overrides only: chosen Wikipedia article title and hidden Commons photos per place; the Wikipedia content itself lives in the edge cache).
 
 ## Costs
 
@@ -188,10 +177,10 @@ Build in five phases, each ending with something usable. Phase 2 is the most imp
    - Month-grouped scroll, category filters, photo and video viewer.
    - Done when: the site is worth sending to family.
 4. **Map view and privacy**
-   - Globe map with clustering, place panels (my photos + cached Wikipedia "about"), private zones, location rounding.
-   - Done when: no private or zoned moment shows an exact location.
+   - Globe map with clustering, place panels (my photos + cached Wikipedia "about").
+   - Done when: the map works on phone and desktop and never shows anything finer than the ~2 km area.
 5. **Video and extras**
-   - YouTube embeds, ride routes, On this day, audience levels.
+   - YouTube embeds, ride routes, On this day.
    - Then: move the domain over and invite everyone.
 
 ## Getting started in Claude Code

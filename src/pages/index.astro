@@ -13,7 +13,7 @@ const months = groupByMonth(await listMoments());
         <div class="mh"><b>{g.label}</b><span>{g.items.length}</span></div>
         {g.items.map((m) => {
           const ratio = m.width && m.height ? Math.max(m.width / m.height, 0.8) : 4 / 5;
-          const tags = [m.visibility === 'private' && 'private', m.food_type].filter(Boolean).map((t) => `[${t}]`).join(' ');
+          const tags = [m.food_type].filter(Boolean).map((t) => `[${t}]`).join(' ');
           return (
             <article class="mo" id={`m-${m.id}`}>
               {m.source === 'youtube' && m.youtube_id && (
