@@ -90,18 +90,13 @@ The whole site sits behind a login. There is no per-post privacy setting: I only
 
 ## Video strategy
 
-Short clips live on the site; long ride videos can live on YouTube as unlisted embeds. Visitors never leave the site either way.
+All videos live on YouTube as **Unlisted** uploads and are embedded; the site stores no video files.
 
-| Video type | Where it lives | Why |
-| --- | --- | --- |
-| Short clips (under \~2 min) | On the site | Small after compression; plays like a photo |
-| Long ride videos | Unlisted YouTube, embedded | Free unlimited storage, smooth 4K, adapts to slow connections |
-
-- Each video has a source setting: **site** or **YouTube**. The player looks the same to visitors.
-- YouTube embeds use privacy-enhanced mode (`youtube-nocookie.com`) and play inline. Use Unlisted, not Private, or embeds won't play.
-- Unlisted links can be shared by anyone who has them, so only use YouTube for videos that are fine to leak.
-- On-site videos are compressed to 1080p or 720p on the phone before upload. Originals stay in iCloud.
-- No paid streaming service (such as Cloudflare Stream); MP4 files served from storage are enough for family clips.
+- Free, no length or storage limits, adaptive quality on slow connections. No paid streaming service.
+- Post a video by pasting its YouTube link on `/post`, with a date and a typed place (e.g. "Springbrook, QLD"). The place is looked up on OpenStreetMap so the video still appears on the map at ~2 km.
+- Embeds use privacy-enhanced mode (`youtube-nocookie.com`), play inline, and limit end-of-video suggestions to the same channel.
+- Use Unlisted, not Private, or embeds won't play. Unlisted links can be forwarded by anyone who has them, so only post videos that are fine to leak.
+- The upload API rejects video files with a pointer to YouTube.
 
 ## Data model
 

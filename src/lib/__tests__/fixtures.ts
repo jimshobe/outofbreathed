@@ -1,4 +1,4 @@
-// Builds tiny but structurally valid JPEG and MP4 files with known metadata.
+// Builds a tiny but structurally valid JPEG with known metadata.
 
 const enc = (s: string) => new TextEncoder().encode(s);
 const concat = (...parts: Uint8Array[]) => {
@@ -58,34 +58,5 @@ export function jpegWithGps(opts: Parameters<typeof tiff>[0]) {
     segment(0xdb, new Uint8Array(65)), // quantisation table
     segment(0xda, new Uint8Array([1, 1, 0, 0, 63, 0])),
     new Uint8Array([0x12, 0x34, 0x56, 0xff, 0xd9]), // "image data" + EOI
-  );
-}
-
-const box = (type: string, ...children: Uint8Array[]) => {
-  const body = concat(...children);
-  const head = new Uint8Array(8);
-  new DataView(head.buffer).setUint32(0, body.length + 8);
-  head.set(Uint8Array.from(type, (c) => c.charCodeAt(0)), 4); // box types are raw bytes ('©' is 0xA9)
-  return concat(head, body);
-};
-
-/** ftyp + moov(tkhd with a 90° rotation, udta location, meta creationdate) + mdat. */
-export function movWithGps(opts: { iso6709: string; created: string; w: number; h: number; rotated: boolean }) {
-  const tkhd = new Uint8Array(84); // version 0 payload after the 8-byte header
-  const dv = new DataView(tkhd.buffer);
-  const m = 40; // matrix offset within payload: 84 - 36 - 8
-  const one = 0x10000;
-  if (opts.rotated) { dv.setInt32(m, 0); dv.setInt32(m + 4, one); dv.setInt32(m + 12, -one); dv.setInt32(m + 16, 0); }
-  else { dv.setInt32(m, one); dv.setInt32(m + 16, one); }
-  dv.setInt32(m + 32, 0x40000000);
-  dv.setUint32(76, opts.w * one); dv.setUint32(80, opts.h * one);
-  return concat(
-    box('ftyp', enc('qt  \0\0\0\0qt  ')),
-    box('moov',
-      box('trak', box('tkhd', tkhd)),
-      box('udta', box('\xa9xyz', new Uint8Array([0, opts.iso6709.length, 0x15, 0xc7]), enc(opts.iso6709))),
-      box('meta', enc('com.apple.quicktime.location.ISO6709'), enc(opts.iso6709), enc('com.apple.quicktime.creationdate'), enc(opts.created)),
-    ),
-    box('mdat', new Uint8Array(32).fill(7)),
   );
 }

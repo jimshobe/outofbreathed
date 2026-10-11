@@ -12,21 +12,23 @@ const recent = await listMoments(60);
     <form id="up" autocomplete="off">
       <div class="cmd">&gt; <b>new</b></div>
       <label class="row">
-        <span>files</span>
-        <input type="file" name="file" accept="image/*,video/*" multiple />
+        <span>photos</span>
+        <input type="file" name="file" accept="image/*" multiple />
       </label>
       <ul id="picked" class="picked" hidden></ul>
       <p id="hint" class="hint" hidden>
         // some photos arrived without a location. on iPhone, tap <b>Options</b> at the top of the photo picker,
-        turn on <b>Location</b>, and pick them again. or type a place below (the map needs the real location).
+        turn on <b>Location</b>, and pick them again. or type a place below and they'll use that.
       </p>
-      <label class="row"><span>or youtube</span><input type="url" name="youtube" placeholder="https://youtu.be/…" /></label>
+      <label class="row"><span>or youtube</span><input type="url" name="youtube" placeholder="video link (upload to YouTube as Unlisted)" /></label>
       <div class="row">
         <span>category</span>
         <div class="cats">{CATEGORIES.map((c) => <label><input type="checkbox" name="category" value={c} checked={c === 'misc'} /> {c}</label>)}</div>
       </div>
       <label class="row"><span>caption</span><input type="text" name="caption" maxlength="300" /></label>
-      <label class="row"><span>place</span><input type="text" name="place_name" placeholder="optional; looked up from the photo's location" /></label>
+      <label class="row"><span>date</span><input type="date" name="date" /></label>
+      <label class="row"><span>place</span><input type="text" name="fallback_place" placeholder="e.g. Springbrook, QLD" /></label>
+      <p class="note">// date and place are for youtube links, or photos missing them. photos that have their own keep them.</p>
       <div class="row"><span></span><button type="submit">[ post ]</button></div>
       <pre id="log" aria-live="polite"></pre>
     </form>
@@ -41,7 +43,7 @@ const recent = await listMoments(60);
               : <span>{m.kind}</span>}
           </a>
           <div class="fields">
-            <div class="meta">{m.place_name ? '' : 'no location in file · '}{m.kind}{m.source === 'youtube' ? ' · youtube' : ''}</div>
+            <div class="meta">{m.place_name ? '' : 'no location · '}{m.kind}{m.source === 'youtube' ? ' · youtube' : ''}</div>
             <input class="caption" type="text" value={m.caption ?? ''} placeholder="caption" maxlength="300" />
             <div class="when">
               <input class="taken" type="datetime-local" step="1" value={m.taken_at.slice(0, 19)} data-offset={m.taken_at.slice(19).replace(/^\.\d+/, '')} />
@@ -82,7 +84,7 @@ const recent = await listMoments(60);
 
   async function describe(file: File) {
     const isJpeg = file.type === 'image/jpeg' || /\.jpe?g$/i.test(file.name);
-    if (file.type.startsWith('video/')) return { text: 'video · date and place read on upload', missing: false };
+    if (file.type.startsWith('video/')) return { text: 'videos go on youtube', missing: true };
     if (!isJpeg) return { text: 'date and place read on upload', missing: false };
     // EXIF sits at the start of the file; no need to read the whole photo.
     const meta = readJpegMeta(new Uint8Array(await file.slice(0, 512 * 1024).arrayBuffer()));
@@ -139,10 +141,14 @@ const recent = await listMoments(60);
     if (!files.length && !youtube) return say('$ choose files or paste a youtube link');
     const base = new FormData(form);
     base.delete('file');
-    // If a file has no date (Safari often strips it), date it "now" in this device's time zone, not UTC.
+    // Items with no date of their own (YouTube links, photos Safari stripped) get the typed date,
+    // or else "now" in this device's time zone (not UTC, which can land on the wrong day).
+    const typedDate = String(base.get('date') ?? '');
+    base.delete('date');
     const now = new Date(), off = -now.getTimezoneOffset();
     const pad = (n: number) => String(Math.abs(n)).padStart(2, '0');
-    base.set('fallback_taken_at', `${new Date(now.getTime() + off * 60000).toISOString().slice(0, 19)}${off >= 0 ? '+' : '-'}${pad(Math.trunc(off / 60))}:${pad(off % 60)}`);
+    const nowLocal = `${new Date(now.getTime() + off * 60000).toISOString().slice(0, 19)}${off >= 0 ? '+' : '-'}${pad(Math.trunc(off / 60))}:${pad(off % 60)}`;
+    base.set('fallback_taken_at', typedDate ? `${typedDate}T12:00:00` : nowLocal);
     const button = form.querySelector('button')!;
     button.disabled = true;
     say(`$ post ${files.length || 1} item${files.length === 1 || !files.length ? '' : 's'}`);
@@ -214,13 +220,16 @@ const recent = await listMoments(60);
   button:hover { text-decoration: underline; }
   button:disabled { color: var(--dim); }
   #log { margin-top: 12px; color: var(--dim); font: inherit; white-space: pre-wrap; }
+  /* Preview rows are created by script, so they lack Astro's scoped-style attribute: style them via :global. */
   .picked { list-style: none; padding: 0; margin: 4px 0 14px; display: grid; gap: 6px; }
-  .picked li { display: grid; grid-template-columns: 44px 1fr auto auto; gap: 10px; align-items: center; color: var(--fg); }
-  .picked img, .picked video { width: 44px; height: 44px; object-fit: cover; background: #0d0d0d; }
-  .picked span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .picked .info { color: var(--dim); white-space: nowrap; }
-  .picked li.missing .info { color: #ffb547; }
-  .picked .st { color: var(--dim); min-width: 1.5em; text-align: right; }
+  .picked :global(li) { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; color: var(--fg); }
+  .picked :global(img), .picked :global(video) { width: 44px; height: 44px; object-fit: cover; background: #0d0d0d; display: block; }
+  .picked :global(span:nth-child(2)) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .picked :global(.info) { color: var(--dim); white-space: nowrap; }
+  .picked :global(li.missing .info) { color: #ffb547; }
+  .picked :global(.st) { color: var(--dim); min-width: 1.5em; text-align: right; }
+  .note { color: var(--dim); margin: 0 0 12px; }
+  input[type='date'] { font: inherit; color: var(--fg); background: #000; border: 0; border-bottom: 1px solid var(--faint); padding: 6px 0; color-scheme: dark; width: auto; }
   .hint { color: #ffb547; margin: 0 0 14px; }
   .hint b { font-weight: 500; }
   .recent { margin-top: 40px; border-top: 1px solid var(--faint); }
@@ -242,8 +251,8 @@ const recent = await listMoments(60);
     .post { padding: 56px 16px 60px; }
     .row { grid-template-columns: 1fr; gap: 4px; }
     .item { grid-template-columns: 64px 1fr; }
-    .picked li { grid-template-columns: 44px 1fr auto; }
-    .picked span:nth-child(2) { display: none; }
+    .picked :global(li) { grid-template-columns: 44px minmax(0, 1fr) auto; }
+    .picked :global(span:nth-child(2)) { display: none; }
     .thumb { width: 64px; height: 64px; }
   }
 </style>

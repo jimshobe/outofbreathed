@@ -1,14 +1,12 @@
 import { env } from 'cloudflare:workers';
 import { readJpegMeta, stripJpegMeta } from './exif';
-import { readVideoMeta, blankVideoLocation } from './quicktime';
-import { generalLocation, placeName } from './geo';
+import { generalLocation, placeName, geocodePlace } from './geo';
 
 import { parseCategories, type Category } from './categories';
 
-// Photos are resized here, so the original can be large. Videos are kept as uploaded (compressed on
-// the phone), and must fit in Worker memory alongside the parsed form, so they get a lower cap.
+// Photos are resized here, so the original can be large. Videos aren't stored on the site at all:
+// they live on YouTube (unlisted) and are posted as links.
 const MAX_PHOTO_BYTES = 40 * 1024 * 1024;
-const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
 const DISPLAY_PX = 1600;
 const THUMB_PX = 480;
 
@@ -25,6 +23,8 @@ export interface UploadFields {
   lat?: number;
   lng?: number;
   place_name?: string;
+  /** A typed place used only when the item has no location of its own (YouTube links, stripped photos). */
+  fallback_place?: string;
   youtube?: string;
   source_ref?: string;
 }
@@ -119,47 +119,43 @@ export async function ingest(file: File | null, f: UploadFields): Promise<{ id: 
   } else if (file) {
     const head = new Uint8Array(await file.slice(0, 16).arrayBuffer());
     const type = sniff(head);
-    if (!type) throw new UploadError('unsupported file: send a JPEG, PNG, WebP, HEIC, MP4 or MOV', 415);
-
-    if (type === 'video') {
-      if (file.size > MAX_VIDEO_BYTES) throw new UploadError(`video is over ${MAX_VIDEO_BYTES >> 20} MB: compress it to 720p, or post a YouTube link instead`, 413);
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      const v = readVideoMeta(bytes);
-      blankVideoLocation(bytes);
-      meta = v;
-      kind = 'video';
-      width = v.width ?? null;
-      height = v.height ?? null;
-      const ext = String.fromCharCode(...head.subarray(8, 10)) === 'qt' ? 'mov' : 'mp4';
-      media_key = `m/${id}.${ext}`;
-      puts.push([media_key, bytes, ext === 'mov' ? 'video/quicktime' : 'video/mp4']);
-    } else {
-      if (file.size > MAX_PHOTO_BYTES) throw new UploadError(`photo is over ${MAX_PHOTO_BYTES >> 20} MB`, 413);
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      if (type === 'jpeg') meta = readJpegMeta(bytes);
-      let display: Uint8Array, thumb: Uint8Array;
-      try {
-        [display, thumb] = await Promise.all([toJpeg(bytes, DISPLAY_PX), toJpeg(bytes, THUMB_PX)]);
-      } catch (e) {
-        throw new UploadError(`couldn't process this image (${e instanceof Error ? e.message : e})`, 415);
-      }
-      const size = jpegSize(display);
-      width = size?.width ?? null;
-      height = size?.height ?? null;
-      kind = 'photo';
-      media_key = `m/${id}.jpg`;
-      thumb_key = `t/${id}.jpg`;
-      puts.push([media_key, display, 'image/jpeg'], [thumb_key, thumb, 'image/jpeg']);
+    if (type === 'video') throw new UploadError('videos go on YouTube: upload it there as Unlisted, then post the link', 415);
+    if (!type) throw new UploadError('unsupported file: send a JPEG, PNG, WebP or HEIC photo', 415);
+    if (file.size > MAX_PHOTO_BYTES) throw new UploadError(`photo is over ${MAX_PHOTO_BYTES >> 20} MB`, 413);
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (type === 'jpeg') meta = readJpegMeta(bytes);
+    let display: Uint8Array, thumb: Uint8Array;
+    try {
+      [display, thumb] = await Promise.all([toJpeg(bytes, DISPLAY_PX), toJpeg(bytes, THUMB_PX)]);
+    } catch (e) {
+      throw new UploadError(`couldn't process this image (${e instanceof Error ? e.message : e})`, 415);
     }
+    const size = jpegSize(display);
+    width = size?.width ?? null;
+    height = size?.height ?? null;
+    kind = 'photo';
+    media_key = `m/${id}.jpg`;
+    thumb_key = `t/${id}.jpg`;
+    puts.push([media_key, display, 'image/jpeg'], [thumb_key, thumb, 'image/jpeg']);
   } else {
     throw new UploadError('send a file, or a YouTube link');
   }
 
-  // Values sent by the uploader (the Shortcut reads them from Photos) win over what's in the file.
-  const lat = f.lat ?? meta.lat ?? null, lng = f.lng ?? meta.lng ?? null;
+  // Values sent by the uploader win over what's in the file; fallbacks only fill gaps.
+  let lat = f.lat ?? meta.lat ?? null, lng = f.lng ?? meta.lng ?? null;
   const taken_at = f.taken_at ?? meta.takenAt ?? fallbackTakenAt;
+  const typedPlace = f.place_name?.trim() || null;
+  const fallbackPlace = f.fallback_place?.trim() || null;
+  let place_name: string | null;
+  if (lat != null && lng != null) {
+    place_name = typedPlace ?? (await placeName(lat, lng));
+  } else {
+    // No GPS: look up the typed place so the post still lands on the map (at ~2 km, like everything else).
+    place_name = typedPlace ?? fallbackPlace;
+    const hit = place_name ? await geocodePlace(place_name) : null;
+    if (hit) ({ lat, lng } = hit);
+  }
   const shown = lat != null && lng != null ? generalLocation(lat, lng) : null;
-  const place_name = f.place_name?.trim() || (lat != null && lng != null ? await placeName(lat, lng) : null);
 
   await Promise.all(puts.map(([key, body, contentType]) => env.MEDIA.put(key, body, { httpMetadata: { contentType } })));
   try {
@@ -201,6 +197,7 @@ export function fieldsFromForm(form: FormData): UploadFields {
     lat: n('lat'),
     lng: n('lng'),
     place_name: s('place_name'),
+    fallback_place: s('fallback_place'),
     youtube: s('youtube'),
     source_ref: s('source_ref'),
   };

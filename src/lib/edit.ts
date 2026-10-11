@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:workers';
 import { ISO_LOCAL, UploadError } from './ingest';
 import { parseCategories, type Category } from './categories';
+import { generalLocation, geocodePlace } from './geo';
 
 export interface MomentEdit {
   caption?: string | null;
@@ -10,14 +11,27 @@ export interface MomentEdit {
 }
 
 export async function updateMoment(id: string, e: MomentEdit): Promise<boolean> {
-  if (!(await env.DB.prepare('SELECT 1 FROM moments WHERE id = ?').bind(id).first())) return false;
+  const row = await env.DB.prepare('SELECT lat FROM moments WHERE id = ?').bind(id).first<{ lat: number | null }>();
+  if (!row) return false;
 
   const sets: string[] = [];
   const vals: unknown[] = [];
   const set = (col: string, v: unknown) => { sets.push(`${col} = ?`); vals.push(v); };
 
   if (e.caption !== undefined) set('caption', e.caption?.trim() || null);
-  if (e.place_name !== undefined) set('place_name', e.place_name?.trim() || null);
+  if (e.place_name !== undefined) {
+    const place = e.place_name?.trim() || null;
+    set('place_name', place);
+    // A post without GPS (YouTube, stripped photo) gets its map position from the typed place.
+    // Posts with GPS keep their real position; the typed name only relabels them.
+    if (row.lat == null && place) {
+      const hit = await geocodePlace(place);
+      if (hit) {
+        const g = generalLocation(hit.lat, hit.lng);
+        set('lat', hit.lat); set('lng', hit.lng); set('display_lat', g.display_lat); set('display_lng', g.display_lng);
+      }
+    }
+  }
   if (e.taken_at !== undefined) {
     if (!ISO_LOCAL.test(e.taken_at)) throw new UploadError('taken_at must be ISO 8601, e.g. 2026-10-10T09:12:00+10:00');
     set('taken_at', e.taken_at);

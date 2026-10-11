@@ -1,8 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readJpegMeta, stripJpegMeta } from '../exif';
-import { readVideoMeta, blankVideoLocation } from '../quicktime';
 import { generalLocation } from '../geo';
-import { jpegWithGps, movWithGps } from './fixtures';
+import { jpegWithGps } from './fixtures';
 
 const text = (b: Uint8Array) => new TextDecoder('latin1').decode(b);
 
@@ -37,31 +36,6 @@ describe('JPEG metadata', () => {
     const broken = jpegWithGps({ date: '2026:01:01 00:00:00', lat: [1, 'N'], lng: [1, 'E'] });
     broken.fill(0xee, 30, 60); // corrupt the TIFF header
     expect(() => readJpegMeta(broken)).not.toThrow();
-  });
-});
-
-describe('video metadata', () => {
-  const iso = '-28.0880+153.4520+012.345/';
-  const mov = () => movWithGps({ iso6709: iso, created: '2026-10-10T09:12:00+1000', w: 1920, h: 1080, rotated: true });
-
-  it('reads location, creation time and rotated display size', () => {
-    const m = readVideoMeta(mov());
-    expect(m.lat).toBeCloseTo(-28.088, 4);
-    expect(m.lng).toBeCloseTo(153.452, 4);
-    expect(m.takenAt).toBe('2026-10-10T09:12:00+10:00');
-    expect([m.width, m.height]).toEqual([1080, 1920]);
-  });
-
-  it('blanks every location string in place without changing size', () => {
-    const b = mov();
-    const before = b.length;
-    expect(blankVideoLocation(b)).toBe(2);
-    expect(b.length).toBe(before);
-    expect(text(b)).not.toContain(iso);
-    const m = readVideoMeta(b);
-    expect(m.lat).toBeUndefined();
-    expect(m.lng).toBeUndefined();
-    expect(text(b)).toContain('com.apple.quicktime.creationdate'); // other metadata untouched
   });
 });
 
