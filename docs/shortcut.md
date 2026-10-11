@@ -30,14 +30,14 @@ action right after it, named X.
 
 ### Ask once for the whole batch
 
-1. **List** with the items `everyday`, `kids`, `rides`, `travel`, `food`.
-2. **Choose from List** (prompt: `Category`) → Variable **Category**.
+1. **List** with the items `misc`, `family`, `travel`, `moto`, `food`.
+2. **Choose from List** (prompt: `Category`, **Select Multiple off**) → Variable **Category** (set to *Chosen Item*).
 3. **If** *Category* **is** `food`
    - **Choose from List** on a **List** of `home`, `out` (prompt: `Made at home or ate out?`) → Variable **FoodType**.
    - **Otherwise**: **Text** (leave it empty) → Variable **FoodType**.
    - **End If**
 4. **Ask for Input**: Text, prompt `Caption (optional)` → Variable **Caption**.
-5. **If** *Category* **is** `kids`
+5. **If** *Category* **is** `family`
    - **Text** `1` → Variable **Private**.
    - **Otherwise**: **Choose from Menu** with prompt `Private?` and options **No** / **Yes**.
      - Under **No**: **Text** `0` → Variable **Private**.
@@ -88,5 +88,5 @@ Photos → select one or more → **Share** → **Post to outofbreathed**. Pick 
 ## Limits
 
 - Videos must be **under 50 MB** after encoding; a 720p clip of about 2 minutes is fine. For longer
-  rides, upload to YouTube as **Unlisted** and paste the link on the `/post` page.
+  moto rides, upload to YouTube as **Unlisted** and paste the link on the `/post` page.
 - Private moments can't be YouTube links; the site refuses them.

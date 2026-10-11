@@ -39,7 +39,7 @@ Every photo or video is a **moment** with a date, a place, a category, an option
 
 **Category lenses**
 
-- Filters that work on both views: Kids, Rides, Travel, Food, Everyday.
+- Filters that work on both views: misc, family, travel, moto, food.
 - Food gets its own grid with a "made at home" or "ate out" badge. Eating-out posts also appear on the map.
 
 **Extras (later)**
@@ -54,7 +54,7 @@ Posting happens from the Photos app share sheet through an iOS Shortcut, with a 
 
 1. Select one or more photos or videos in Photos, tap Share, choose the Shortcut.
 2. The Shortcut reads each item's date and GPS location directly from the photo. This matters because iPhones often strip location when uploading through a web page.
-3. It asks for a category, an optional caption, and Private (on by default for Kids).
+3. It asks for a category, an optional caption, and Private (on by default for family, which includes the kids).
 4. For a long ride video, it asks for an optional YouTube link instead of uploading the file.
 5. It compresses videos on the phone (Encode Media), then uploads each file straight to storage, retrying on a weak connection.
 6. The moment appears on the site immediately; no rebuild step.
@@ -80,7 +80,7 @@ The whole site sits behind a login, and a Private flag keeps sensitive moments, 
 
 **The Private flag**
 
-- A checkbox on every moment, ticked by default for the Kids category.
+- A checkbox on every moment, ticked by default for the family category.
 - Private files are always stored on the site, never on YouTube or any other service.
 - Media files are served only through the site after checking the viewer is signed in. A copied file link doesn't work outside the login.
 
@@ -125,7 +125,7 @@ One main table of moments in D1, with media files in R2. A starting sketch for C
 | lat, lng | number | Exact location, never sent to viewers for private or zoned moments |
 | display\_lat, display\_lng | number | What the map shows (rounded when needed) |
 | place\_name | text | Suburb or place, looked up once on upload |
-| category | text | kids, rides, travel, food, everyday |
+| category | text | misc, family, travel, moto, food |
 | food\_type | text | home or out (food only) |
 | caption | text | Optional, a sentence or two |
 | visibility | text | everyone or private now; family and just\_us later |

@@ -18,7 +18,7 @@ const recent = await listMoments(60);
       <label class="row"><span>or youtube</span><input type="url" name="youtube" placeholder="https://youtu.be/…" /></label>
       <label class="row">
         <span>category</span>
-        <select name="category">{CATEGORIES.map((c) => <option value={c} selected={c === 'everyday'}>{c}</option>)}</select>
+        <select name="category">{CATEGORIES.map((c) => <option value={c} selected={c === 'misc'}>{c}</option>)}</select>
       </label>
       <label class="row food" hidden>
         <span>food</span>
@@ -76,8 +76,8 @@ const recent = await listMoments(60);
   const priv = pick<HTMLInputElement>(form, '[name=private]');
   const foodRow = form.querySelector('.food') as HTMLElement;
 
-  // Kids default to private; changing category resets the default but the checkbox stays editable.
-  const syncCategory = () => { priv.checked = category.value === 'kids'; foodRow.hidden = category.value !== 'food'; };
+  // Family defaults to private; changing category resets the default but the checkbox stays editable.
+  const syncCategory = () => { priv.checked = category.value === 'family'; foodRow.hidden = category.value !== 'food'; };
   category.addEventListener('change', syncCategory);
 
   type ApiResult = { error?: string; created?: boolean };

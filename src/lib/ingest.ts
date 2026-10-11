@@ -3,7 +3,7 @@ import { readJpegMeta, stripJpegMeta } from './exif';
 import { readVideoMeta, blankVideoLocation } from './quicktime';
 import { displayLocation, placeName, type Zone } from './geo';
 
-export const CATEGORIES = ['kids', 'rides', 'travel', 'food', 'everyday'] as const;
+export const CATEGORIES = ['misc', 'family', 'travel', 'moto', 'food'] as const;
 export type Category = (typeof CATEGORIES)[number];
 
 // Photos are resized here, so the original can be large. Videos are kept as uploaded (compressed on
@@ -96,9 +96,10 @@ export async function ingest(file: File | null, f: UploadFields): Promise<{ id: 
   const already = await existingBySourceRef(f.source_ref);
   if (already) return { id: already, created: false };
 
-  const category = (f.category ?? 'everyday').toLowerCase();
+  const category = (f.category ?? 'misc').toLowerCase();
   if (!CATEGORIES.includes(category as Category)) throw new UploadError(`category must be one of ${CATEGORIES.join(', ')}`);
-  const visibility = (f.private ?? category === 'kids') ? 'private' : 'everyone';
+  // Family (which includes the kids) is private unless the uploader says otherwise.
+  const visibility = (f.private ?? category === 'family') ? 'private' : 'everyone';
   const food_type = category === 'food' && (f.food_type === 'home' || f.food_type === 'out') ? f.food_type : null;
   if (f.taken_at && !ISO_LOCAL.test(f.taken_at)) throw new UploadError('taken_at must be ISO 8601, e.g. 2026-10-10T09:12:00+10:00');
   const fallbackTakenAt = f.fallback_taken_at && ISO_LOCAL.test(f.fallback_taken_at) ? f.fallback_taken_at : new Date().toISOString();
