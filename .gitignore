@@ -26,3 +26,8 @@ pnpm-debug.log*
 # jetbrains setting folder
 .idea/
 .vercel
+
+# real family media used for UI mocks — never commit
+mocks/content/
+mocks/.thumbs/
+mocks/.shots/
