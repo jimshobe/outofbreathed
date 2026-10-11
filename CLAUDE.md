@@ -18,33 +18,30 @@ Migration facts not in the plan:
   - Its email ingest relies on the apex TXT record `forward-email=add:https://family.outofbreathed.com/api/email-ingest?token=…` plus the `forward-email=jimshobe@gmail.com` TXT and Forward Email MX records. The `family` CNAME and both TXT records must be copied exactly when DNS moves to Cloudflare; set the `family` record to DNS-only (grey cloud) so it keeps pointing at Vercel.
   - Both repos contain a `firestore.rules` for the same project and deploying either overwrites the other. The family repo's version lacks the blog's collections; this repo's version is a superset. Don't deploy rules from either without merging; once the blog is retired, the family repo owns the rules.
 
+## Branches
+
+`rebuild` holds the new Cloudflare app. `main` still holds the old Firebase/Vercel blog, which Vercel serves at outofbreathed.com until the domain cutover; consult it (e.g. `git show main:src/lib/firebase-admin.ts`) when exporting old content.
+
 ## Commands
 
 ```sh
 npm install
-npm run dev          # Astro dev server at localhost:4321
-npm run build        # production build (Vercel adapter)
-npm test             # vitest run (also runs as the husky pre-commit hook)
-npx vitest run src/components/__tests__/Admin.test.tsx   # single file
-npx vitest run -t "test name"                            # single test by name
+npx astro dev --background       # dev server at localhost:4321 (astro dev stop / status / logs)
+npm run check                    # astro check (type-check)
+npm run build && npx wrangler deploy        # deploy to https://outofbreathed.jimshobe.workers.dev
+npx wrangler types               # regenerate worker-configuration.d.ts after editing wrangler.jsonc
+npx wrangler d1 migrations apply outofbreathed --local|--remote   # schema changes live in migrations/
+npx wrangler d1 execute outofbreathed --remote --command "SELECT ..."
 ```
 
-Node >= 22.12 required.
+No test suite yet. Astro 7 + `@astrojs/cloudflare` 14 on Node >= 22.12 (Homebrew Node 26 is installed).
 
-## Current architecture (pre-rebuild)
+## Architecture
 
-Astro 5 in `output: 'server'` mode with React islands, deployed on Vercel. Firebase is the backend.
+Astro 7, `output: 'server'`, on Cloudflare Workers (`wrangler.jsonc`). Bindings come from `import { env } from 'cloudflare:workers'`, not `Astro.locals.runtime`.
 
-- **Two Firebase clients:** `src/lib/firebase.ts` (browser SDK — auth via Google sign-in, Firestore, Storage; used by React components) and `src/lib/firebase-admin.ts` (Admin SDK, server-only; used by `.astro` pages and `src/pages/api/*`). Server code bypasses Firestore rules, so it must filter `published == true` itself.
-- **Most data access happens client-side** in React components talking directly to Firestore, so `firestore.rules` / `storage.rules` are the real authorization layer. The admin is a hardcoded UID in the rules and `PUBLIC_ADMIN_UID` in code.
-- **Roles:** `users/{uid}.role` is `pending` | `member` | `contributor`; invites are keyed by email in `invites/`. Signup in `AccountMenu.tsx` checks for an invite and notifies the admin via `/api/notify`.
-- **Home page** (`LifeStream.tsx`) merges `/api/posts.json` with Mastodon and Bluesky feeds (accounts in `src/config.ts`) client-side, with category filtering. Categories are dynamic, stored in Firestore `config`, falling back to `DEFAULT_CATEGORIES` in `src/types/categories.ts`.
-- **Post pages** (`src/pages/posts/[...slug].astro`) render stored HTML server-side, post-process `<img>` runs into `.prose-gallery` grids by regex, and pull Mastodon statuses tagged with the post's `mastodon_tag`.
-- **API routes** `invite.ts` / `notify.ts` send email via Resend. Note `invite.ts` authorizes by comparing a client-supplied `callerUid` to the admin UID (not a verified token).
-- `firestore.rules` also contains rules for an unrelated "family app" (`families/`) sharing this Firebase project.
-
-Env vars (`.env`, gitignored): `PUBLIC_FIREBASE_API_KEY`, `PUBLIC_FIREBASE_AUTH_DOMAIN`, `PUBLIC_FIREBASE_PROJECT_ID`, `PUBLIC_FIREBASE_APP_ID`, `PUBLIC_ADMIN_UID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`, `RESEND_API_KEY`.
-
-## Tests
-
-Vitest + jsdom + Testing Library (`src/test/setup.ts`). Component tests mock `firebase/*` modules and `src/lib/firebase` with `vi.mock`; shared fakes (snapshots, mock users, sentinel refs for `onSnapshot`) are in `src/test/firebase-mocks.ts`. TipTap needs browser API stubs — see `PostEditor.test.tsx`.
+- **Auth is Cloudflare Access, enforced twice.** Access (team `twilight-tree-a1dc`, attached to the Worker itself, session 7 days, policy currently "Cloudflare account" members only) redirects signed-out visitors at the edge. `src/middleware.ts` also verifies the `Cf-Access-Jwt-Assertion` JWT against `ACCESS_TEAM_DOMAIN`/`ACCESS_AUD` (`src/lib/access.ts`) and returns 403 if it's missing or invalid, so the site fails closed. In `astro dev` the check is skipped. The AUD is the `kid` query param in the Access login redirect (`curl -sI` the site signed-out). Static assets in `dist/` bypass middleware; never put private content there.
+- **D1 `DB`** holds `moments` (`migrations/0001_moments.sql`, mirrors PLAN.md's data model). Exact `lat`/`lng` must never reach viewers; `src/lib/moments.ts` selects only viewer-safe columns. `taken_at` is the camera's local time with offset; display the date part as written rather than converting zones.
+- **R2 `MEDIA`** holds media, served only via `src/pages/media/[...key].ts` (behind middleware, Range support for video, `Cache-Control: private`). Never hand out public R2 URLs.
+- The adapter also provisioned a `SESSION` KV namespace and an `IMAGES` binding on first deploy; they're unused so far.
+- Seed/test data lives in gitignored `.wrangler/seed/`. The only moment so far is `test-0001` (`test/forest.jpg`), a placeholder.
