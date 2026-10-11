@@ -1,8 +1,9 @@
 ---
 import '../styles/global.css';
 
-interface Props { current: 'timeline' | 'map' }
+interface Props { current: 'timeline' | 'map' | 'post' }
 const { current } = Astro.props;
+const { isOwner } = Astro.locals.viewer;
 ---
 
 <html lang="en">
@@ -22,6 +23,7 @@ const { current } = Astro.props;
       <nav>
         <a href="/" aria-current={current === 'timeline' ? 'page' : undefined}>timeline</a>
         <a href="/map" aria-current={current === 'map' ? 'page' : undefined}>map</a>
+        {isOwner && <a href="/post" aria-current={current === 'post' ? 'page' : undefined}>post</a>}
       </nav>
     </header>
     <slot />

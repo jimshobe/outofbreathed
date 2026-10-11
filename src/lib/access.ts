@@ -26,7 +26,8 @@ async function signingKeys(teamDomain: string, forceRefresh = false): Promise<Ma
   return map;
 }
 
-export interface AccessIdentity { email: string }
+/** A person signed in with email, or a service token (the iPhone Shortcut) identified by its client ID. */
+export type AccessIdentity = { email: string; serviceToken?: never } | { serviceToken: string; email?: never };
 
 /** Returns the signed-in identity, or null if the token is missing or invalid. */
 export async function verifyAccessJwt(token: string | null, teamDomain: string, aud: string): Promise<AccessIdentity | null> {
@@ -48,7 +49,10 @@ export async function verifyAccessJwt(token: string | null, teamDomain: string, 
     const audOk = Array.isArray(claims.aud) ? claims.aud.includes(aud) : claims.aud === aud;
     if (!audOk || claims.iss !== `https://${teamDomain}` || typeof claims.exp !== 'number' || claims.exp < now) return null;
     if (typeof claims.nbf === 'number' && claims.nbf > now + 60) return null;
-    return typeof claims.email === 'string' ? { email: claims.email } : null;
+    if (typeof claims.email === 'string' && claims.email) return { email: claims.email.toLowerCase() };
+    // Service-token requests carry the token's client ID as common_name instead of an email.
+    if (typeof claims.common_name === 'string' && claims.common_name) return { serviceToken: claims.common_name };
+    return null;
   } catch {
     return null;
   }

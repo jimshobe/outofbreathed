@@ -11,13 +11,16 @@ export interface MomentView {
   caption: string | null;
   visibility: string;
   media_key: string | null;
+  thumb_key: string | null;
+  youtube_id: string | null;
+  source: 'site' | 'youtube';
   width: number | null;
   height: number | null;
 }
 
 export async function listMoments(limit = 200): Promise<MomentView[]> {
   const { results } = await env.DB.prepare(
-    `SELECT id, kind, taken_at, place_name, category, food_type, caption, visibility, media_key, width, height
+    `SELECT id, kind, taken_at, place_name, category, food_type, caption, visibility, media_key, thumb_key, youtube_id, source, width, height
        FROM moments ORDER BY taken_at DESC LIMIT ?`,
   ).bind(limit).all<MomentView>();
   return results;
@@ -26,6 +29,8 @@ export async function listMoments(limit = 200): Promise<MomentView[]> {
 // taken_at is the camera's local wall-clock time with its offset (e.g. 2026-10-10T09:12:00+10:00).
 // Show the date as the photographer saw it, so read the date part directly instead of converting zones.
 const localDate = (iso: string) => new Date(`${iso.slice(0, 10)}T00:00:00Z`);
+
+export const mediaUrl = (key: string) => `/media/${key.split('/').map(encodeURIComponent).join('/')}`;
 
 export function groupByMonth(list: MomentView[]) {
   const groups: { label: string; items: MomentView[] }[] = [];

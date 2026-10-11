@@ -23,6 +23,10 @@
 			"migrations_dir": "migrations"
 		}
 	],
+	// Cloudflare Images: resizes uploads into the display copy and thumbnail (free tier: 5,000 unique transforms/month).
+	"images": {
+		"binding": "IMAGES"
+	},
 	"r2_buckets": [
 		{
 			"binding": "MEDIA",
@@ -33,6 +37,10 @@
 		// Cloudflare Access: every request must carry a valid Access JWT for this app.
 		// AUD is the Access application tag for this Worker (the `kid` in its login redirect).
 		"ACCESS_TEAM_DOMAIN": "twilight-tree-a1dc.cloudflareaccess.com",
-		"ACCESS_AUD": "f043e9e082a06b0125a97d206933570626d6d6904aaf8d627e138bf0947cfa2b"
+		"ACCESS_AUD": "f043e9e082a06b0125a97d206933570626d6d6904aaf8d627e138bf0947cfa2b",
+		// Who may post, edit and delete (comma-separated). Everyone else Access lets in can only view.
+		"OWNER_EMAILS": "jimshobe@gmail.com",
+		// Client ID of the Access service token the iPhone Shortcut uses (not a secret; the secret stays on the phone).
+		"SHORTCUT_CLIENT_ID": ""
 	}
 }

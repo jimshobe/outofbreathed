@@ -20,3 +20,5 @@ header.site nav a:hover { color: var(--fg); }
 header.site nav a[aria-current='page'] { color: var(--fg); }
 header.site nav a[aria-current='page']::before { content: '['; }
 header.site nav a[aria-current='page']::after { content: ']'; }
+
+[hidden] { display: none !important; }

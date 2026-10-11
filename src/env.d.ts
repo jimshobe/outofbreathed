@@ -1,6 +1,6 @@
 declare namespace App {
   interface Locals {
-    /** The Cloudflare Access identity of the signed-in viewer. */
-    user: { email: string };
+    /** Who is making the request, per Cloudflare Access. */
+    viewer: { email?: string; serviceToken?: string; isOwner: boolean };
   }
 }
