@@ -1,7 +1,7 @@
 ---
 // Owner-only (enforced in middleware): upload from a browser, and edit or delete recent moments.
 import Base from '../layouts/Base.astro';
-import { listMoments, fmtDay, mediaUrl } from '../lib/moments';
+import { listMoments, mediaUrl } from '../lib/moments';
 import { CATEGORIES } from '../lib/ingest';
 
 const recent = await listMoments(60);
@@ -41,8 +41,12 @@ const recent = await listMoments(60);
               : <span>{m.kind}</span>}
           </a>
           <div class="fields">
-            <div class="meta">{fmtDay(m.taken_at)} {m.taken_at.slice(0, 4)} · {m.place_name?.toLowerCase() ?? 'no location'}{m.source === 'youtube' ? ' · youtube' : ''}</div>
+            <div class="meta">{m.place_name ? '' : 'no location in file · '}{m.kind}{m.source === 'youtube' ? ' · youtube' : ''}{m.visibility === 'private' ? ' · map shows area only' : ''}</div>
             <input class="caption" type="text" value={m.caption ?? ''} placeholder="caption" maxlength="300" />
+            <div class="when">
+              <input class="taken" type="datetime-local" step="1" value={m.taken_at.slice(0, 19)} data-offset={m.taken_at.slice(19).replace(/^\.\d+/, '')} />
+              <input class="place" type="text" value={m.place_name ?? ''} placeholder="place" maxlength="80" />
+            </div>
             <div class="controls">
               <select class="category">{CATEGORIES.map((c) => <option value={c} selected={c === m.category}>{c}</option>)}</select>
               <select class="food_type" hidden={m.category !== 'food'}>
@@ -100,6 +104,10 @@ const recent = await listMoments(60);
     const base = new FormData(form);
     base.delete('file');
     base.set('private', priv.checked ? '1' : '0');
+    // If a file has no date (Safari often strips it), date it "now" in this device's time zone, not UTC.
+    const now = new Date(), off = -now.getTimezoneOffset();
+    const pad = (n: number) => String(Math.abs(n)).padStart(2, '0');
+    base.set('fallback_taken_at', `${new Date(now.getTime() + off * 60000).toISOString().slice(0, 19)}${off >= 0 ? '+' : '-'}${pad(Math.trunc(off / 60))}:${pad(off % 60)}`);
     const button = form.querySelector('button')!;
     button.disabled = true;
     say(`$ post ${files.length || 1} item${files.length === 1 || !files.length ? '' : 's'}`);
@@ -128,6 +136,13 @@ const recent = await listMoments(60);
       if (res.ok) setTimeout(() => (status.textContent = ''), 1500);
     };
     pick<HTMLElement>(item, '.caption').addEventListener('change', (e) => save({ caption: (e.target as HTMLInputElement).value }));
+    pick<HTMLElement>(item, '.place').addEventListener('change', (e) => save({ place_name: (e.target as HTMLInputElement).value }));
+    pick<HTMLElement>(item, '.taken').addEventListener('change', (e) => {
+      // Keep the photo's original time-zone offset; a value with no seconds gets :00.
+      const input = e.target as HTMLInputElement;
+      const v = input.value.length === 16 ? input.value + ':00' : input.value;
+      if (v) save({ taken_at: v + (input.dataset.offset ?? '') });
+    });
     pick<HTMLElement>(item, '.category').addEventListener('change', (e) => {
       const c = (e.target as HTMLSelectElement).value;
       food.hidden = c !== 'food';
@@ -168,6 +183,9 @@ const recent = await listMoments(60);
   .thumb { width: 88px; height: 88px; background: #0d0d0d; display: grid; place-items: center; color: var(--dim); overflow: hidden; }
   .thumb img { width: 100%; height: 100%; object-fit: cover; }
   .meta { color: var(--dim); }
+  .when { display: flex; gap: 12px; margin-top: 6px; }
+  .when .taken { width: auto; color-scheme: dark; font: inherit; color: var(--fg); background: #000; border: 0; border-bottom: 1px solid var(--faint); padding: 6px 0; }
+  .when .place { flex: 1; }
   .controls { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; color: var(--dim); }
   .rm { color: var(--dim); }
   .rm:hover { color: #ff6b6b; }

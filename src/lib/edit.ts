@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:workers';
-import { CATEGORIES, UploadError, type Category } from './ingest';
+import { CATEGORIES, ISO_LOCAL, UploadError, type Category } from './ingest';
 import { displayLocation, type Zone } from './geo';
 
 export interface MomentEdit {
@@ -8,6 +8,7 @@ export interface MomentEdit {
   food_type?: string | null;
   visibility?: string;
   place_name?: string | null;
+  taken_at?: string;
 }
 
 interface Row { lat: number | null; lng: number | null; category: string; source: string; visibility: string }
@@ -22,6 +23,10 @@ export async function updateMoment(id: string, e: MomentEdit): Promise<boolean> 
 
   if (e.caption !== undefined) set('caption', e.caption?.trim() || null);
   if (e.place_name !== undefined) set('place_name', e.place_name?.trim() || null);
+  if (e.taken_at !== undefined) {
+    if (!ISO_LOCAL.test(e.taken_at)) throw new UploadError('taken_at must be ISO 8601, e.g. 2026-10-10T09:12:00+10:00');
+    set('taken_at', e.taken_at);
+  }
   const category = e.category ?? row.category;
   if (e.category !== undefined) {
     if (!CATEGORIES.includes(category as Category)) throw new UploadError(`category must be one of ${CATEGORIES.join(', ')}`);
