@@ -1,9 +1,64 @@
 ---
 import Base from '../layouts/Base.astro';
-import LifeStream from '../components/LifeStream';
-import '../styles/stream.css';
+import { listMoments, groupByMonth, fmtDay } from '../lib/moments';
+
+const months = groupByMonth(await listMoments());
+const mediaUrl = (key: string) => `/media/${key.split('/').map(encodeURIComponent).join('/')}`;
 ---
 
-<Base>
-  <LifeStream client:load />
+<Base current="timeline">
+  <main class="tl">
+    {months.length === 0 && <p class="empty">nothing here yet</p>}
+    {months.map((g) => (
+      <>
+        <div class="mh"><b>{g.label}</b><span>{g.items.length}</span></div>
+        {g.items.map((m) => {
+          const ratio = m.width && m.height ? Math.max(m.width / m.height, 0.8) : 4 / 5;
+          const tags = [m.visibility === 'private' && 'private', m.food_type].filter(Boolean).map((t) => `[${t}]`).join(' ');
+          return (
+            <article class="mo" id={`m-${m.id}`}>
+              {m.media_key && (
+                <div class="media" style={`aspect-ratio:${ratio}`}>
+                  {m.kind === 'video'
+                    ? <video src={mediaUrl(m.media_key)} muted loop playsinline autoplay preload="metadata" />
+                    : <img src={mediaUrl(m.media_key)} alt="" loading="lazy" />}
+                </div>
+              )}
+              <div class="line">
+                <span class="d">{fmtDay(m.taken_at)}</span>
+                <span class="pl">{m.place_name?.toLowerCase()}</span>
+                <span class="c">{m.caption}{tags && <span class="t">{tags}</span>}</span>
+              </div>
+            </article>
+          );
+        })}
+      </>
+    ))}
+    {months.length > 0 && <div class="end">that's everything<i></i></div>}
+  </main>
 </Base>
+
+<style>
+  .tl { max-width: 640px; margin: 0 auto; padding: 60px 20px 90px; }
+  .empty { margin-top: 40px; color: var(--dim); }
+  .mh { display: flex; align-items: center; gap: 10px; margin: 44px 0 18px; color: var(--dim); white-space: nowrap; }
+  .mh::before { content: '──'; color: var(--faint); }
+  .mh::after { content: ''; flex: 1; border-top: 1px solid var(--faint); }
+  .mh b { color: var(--fg); font-weight: 400; }
+  .mo { margin-bottom: 40px; }
+  .media { width: 100%; background: #0d0d0d; overflow: hidden; }
+  .media img, .media video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .line { margin-top: 10px; display: grid; grid-template-columns: 64px minmax(0, max-content) 1fr; gap: 0 14px; align-items: baseline; }
+  .d, .pl, .t { color: var(--dim); }
+  .pl { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .t { margin-left: 8px; }
+  .end { margin-top: 60px; color: var(--dim); }
+  .end::before { content: '$ '; }
+  .end i { display: inline-block; width: 8px; height: 15px; background: var(--fg); vertical-align: -2px; margin-left: 2px; animation: blink 1.1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  @media (max-width: 700px) {
+    .tl { padding: 56px 16px 80px; }
+    .line { grid-template-columns: auto 1fr; gap: 2px 12px; }
+    .c { grid-column: 1 / -1; }
+  }
+</style>

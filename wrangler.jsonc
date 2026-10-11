@@ -1,0 +1,38 @@
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"compatibility_date": "2026-10-06",
+	"compatibility_flags": ["global_fetch_strictly_public"],
+	"name": "outofbreathed",
+	"main": "@astrojs/cloudflare/entrypoints/server",
+	"assets": {
+		"directory": "./dist",
+		"binding": "ASSETS"
+	},
+	"observability": {
+		"enabled": true
+	},
+	// Served on outofbreathed.<subdomain>.workers.dev until the domain cutover.
+	// Preview URLs are off so there is no second, unprotected hostname.
+	"workers_dev": true,
+	"preview_urls": false,
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "outofbreathed",
+			"database_id": "8e8c479c-828d-4e58-8dbd-ff6ddcd5f9ee",
+			"migrations_dir": "migrations"
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "MEDIA",
+			"bucket_name": "outofbreathed-media"
+		}
+	],
+	"vars": {
+		// Cloudflare Access: every request must carry a valid Access JWT for this app.
+		// ACCESS_AUD is filled in once the Access application exists.
+		"ACCESS_TEAM_DOMAIN": "",
+		"ACCESS_AUD": ""
+	}
+}

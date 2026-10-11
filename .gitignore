@@ -3,7 +3,7 @@ dist/
 .vercel/output/
 # generated types
 .astro/
-# wrangler (old Cloudflare leftovers)
+# wrangler local state
 .wrangler/
 
 # dependencies
@@ -31,3 +31,6 @@ pnpm-debug.log*
 mocks/content/
 mocks/.thumbs/
 mocks/.shots/
+
+# local Worker secrets
+.dev.vars*

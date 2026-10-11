@@ -1,181 +1,29 @@
 ---
 import '../styles/global.css';
-import AccountMenu from '../components/AccountMenu';
 
-interface Props {
-  title?: string;
-  description?: string;
-  ogType?: 'website' | 'article';
-  ogImage?: string;
-}
-
-const {
-  title = 'outofbreathed.com',
-  description = 'A personal stream.',
-  ogType = 'website',
-  ogImage,
-} = Astro.props;
-
-const fullTitle = title === 'outofbreathed.com' ? title : `${title} — outofbreathed.com`;
-const canonicalUrl = Astro.url.href;
+interface Props { current: 'timeline' | 'map' }
+const { current } = Astro.props;
 ---
 
-<!doctype html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content={description} />
-    <title>{fullTitle}</title>
-    <link rel="canonical" href={canonicalUrl} />
-    <link rel="icon" href="/favicon.ico" sizes="any" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css" />
-    <link rel="alternate" type="application/rss+xml" title="outofbreathed.com" href="/rss.xml" />
-
-    <!-- Open Graph -->
-    <meta property="og:type" content={ogType} />
-    <meta property="og:title" content={fullTitle} />
-    <meta property="og:description" content={description} />
-    <meta property="og:url" content={canonicalUrl} />
-    <meta property="og:site_name" content="outofbreathed.com" />
-    {ogImage && <meta property="og:image" content={ogImage} />}
-
-    <!-- Twitter / X -->
-    <meta name="twitter:card" content={ogImage ? 'summary_large_image' : 'summary'} />
-    <meta name="twitter:title" content={fullTitle} />
-    <meta name="twitter:description" content={description} />
-    {ogImage && <meta name="twitter:image" content={ogImage} />}
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <title>outofbreathed.com</title>
   </head>
   <body>
-    <div class="layout">
-      <header>
-        <div class="top-bar">
-          <AccountMenu client:load />
-        </div>
-        <a href="/" class="wordmark">out of<br><span>breathed<em>.</em></span></a>
-        <div class="header-rule">
-          <div class="rule-accent"></div>
-          <div class="rule-line"></div>
-        </div>
-      </header>
-
-      <main>
-        <slot />
-      </main>
-
-      <footer>
-        <a href="https://bsky.app/profile/thejamsho.bsky.social" class="footer-icon" rel="noopener" target="_blank" aria-label="Follow on Bluesky">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 10.8c-1.087-2.114-4.046-6.053-6.798-7.995C3.566 1.67 1.058 1.1.5 2.088c-.707 1.512.152 7.895 1.56 11.175C3.224 16.39 5.34 17.57 7.5 17.898c-2.171-.134-5.14.29-6.5 1.102 0 0-1 .6 0 2.5 1.5 2 6.5 2 9 2s7.5 0 9-2c1-.9 0-2.5 0-2.5-1.36-.812-4.329-1.236-6.5-1.102 2.16-.329 4.276-1.508 5.44-4.635 1.408-3.28 2.267-9.663 1.56-11.175-.558-.989-3.066-.418-4.702.717C16.046 4.747 13.087 8.686 12 10.8z"/>
-          </svg>
-        </a>
-        <a href="https://aus.social/@thejamsho" class="footer-icon" rel="me noopener" target="_blank" aria-label="Follow on Mastodon">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M23.268 5.313c-.35-2.578-2.617-4.61-5.304-5.004C17.51.242 15.792 0 11.813 0h-.03c-3.98 0-4.835.242-5.288.309C3.882.692 1.496 2.518.917 5.127.64 6.412.61 7.837.661 9.143c.074 1.874.088 3.745.26 5.611.118 1.24.325 2.47.62 3.68.55 2.237 2.777 4.098 4.96 4.857 2.336.792 4.849.923 7.256.38.265-.061.527-.132.786-.213.585-.184 1.27-.39 1.774-.753a.057.057 0 0 0 .023-.043v-1.809a.052.052 0 0 0-.02-.041.053.053 0 0 0-.046-.01 20.282 20.282 0 0 1-4.709.545c-2.73 0-3.463-1.284-3.674-1.818a5.593 5.593 0 0 1-.319-1.433.053.053 0 0 1 .066-.054c1.517.363 3.072.546 4.632.546.376 0 .75 0 1.125-.01 1.57-.044 3.224-.124 4.768-.422.038-.008.077-.015.11-.024 2.435-.464 4.753-1.92 4.989-5.604.008-.145.03-1.52.03-1.67.002-.512.167-3.63-.024-5.545zm-3.748 9.195h-2.561V8.29c0-1.309-1.378-1.316-1.576-1.316-.96 0-1.577.635-1.577 1.679v3.066h-2.548V8.653c0-1.044-.617-1.679-1.577-1.679-.198 0-1.576.007-1.576 1.316v6.218H4.847c0-4.965 0-6.315.064-7.07.073-.76.37-1.498 1.118-2.118 1.036-.87 3.26-1.312 4.936-.028.78.599 1.244 1.494 1.244 2.464v.003c.389-.744 1.017-1.37 1.81-1.697 2.143-.885 4.782-.032 4.782 3.05v4.713z"/>
-          </svg>
-        </a>
-        <a href="/rss.xml" class="footer-icon" aria-label="RSS feed">
-          <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 11a9 9 0 0 1 9 9"/>
-            <path d="M4 4a16 16 0 0 1 16 16"/>
-            <circle cx="5" cy="19" r="1" fill="currentColor" stroke="none"/>
-          </svg>
-        </a>
-      </footer>
-    </div>
-    <script>
-      import { inject } from '@vercel/analytics';
-      inject();
-    </script>
+    <header class="site">
+      <h1>outofbreathed.com</h1>
+      <nav>
+        <a href="/" aria-current={current === 'timeline' ? 'page' : undefined}>timeline</a>
+        <a href="/map" aria-current={current === 'map' ? 'page' : undefined}>map</a>
+      </nav>
+    </header>
+    <slot />
   </body>
 </html>
-
-<style>
-  .layout {
-    max-width: var(--width-content);
-    margin: 0 auto;
-    padding: 0 1.5rem;
-  }
-
-  header {
-    padding: 2.5rem 0 0;
-  }
-
-  .top-bar {
-    display: flex;
-    justify-content: flex-end;
-    margin-bottom: 1rem;
-  }
-
-  .wordmark {
-    font-size: 3.75rem;
-    font-weight: 300;
-    color: var(--color-text);
-    letter-spacing: -0.03em;
-    line-height: 1;
-    text-decoration: none;
-  }
-
-  .wordmark span {
-    color: var(--color-accent);
-  }
-
-  .wordmark em {
-    font-style: normal;
-    color: var(--color-accent);
-  }
-
-  .header-rule {
-    display: flex;
-    align-items: center;
-    margin-bottom: 2.5rem;
-  }
-
-  .rule-accent {
-    height: 2px;
-    width: 40px;
-    background: var(--color-accent);
-    flex-shrink: 0;
-  }
-
-  .rule-line {
-    height: 1px;
-    flex: 1;
-    background: var(--color-divider);
-  }
-
-.nav-icon {
-    display: flex;
-    align-items: center;
-    color: var(--color-muted);
-  }
-
-  .nav-icon:hover {
-    color: var(--color-text);
-  }
-
-  main {
-    padding-bottom: 6rem;
-  }
-
-  footer {
-    padding: 2rem 0 3rem;
-    border-top: 1px solid var(--color-divider);
-    display: flex;
-    gap: 1.25rem;
-    align-items: center;
-  }
-
-  .footer-icon {
-    display: flex;
-    align-items: center;
-    color: var(--color-muted);
-  }
-
-  .footer-icon:hover {
-    color: var(--color-text);
-  }
-</style>

@@ -1,11 +1,9 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
-import react from '@astrojs/react';
-import vercel from '@astrojs/vercel';
+import cloudflare from '@astrojs/cloudflare';
 
+// Every page is behind the Access login and reads live data, so render on demand.
 export default defineConfig({
   output: 'server',
-  site: 'https://outofbreathed.com',
-  adapter: vercel(),
-  integrations: [react()],
+  adapter: cloudflare(),
 });

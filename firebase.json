@@ -1,9 +1,0 @@
-{
-  "firestore": {
-    "rules": "firestore.rules"
-  },
-  "storage": {
-    "bucket": "outofbreathed-42932-storage",
-    "rules": "storage.rules"
-  }
-}
