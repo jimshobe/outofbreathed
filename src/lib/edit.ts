@@ -8,6 +8,8 @@ export interface MomentEdit {
   categories?: string[];
   place_name?: string | null;
   taken_at?: string;
+  /** Move into a set, or null to take it out of its set. */
+  set_id?: string | null;
 }
 
 export async function updateMoment(id: string, e: MomentEdit): Promise<boolean> {
@@ -36,6 +38,10 @@ export async function updateMoment(id: string, e: MomentEdit): Promise<boolean> 
     if (!ISO_LOCAL.test(e.taken_at)) throw new UploadError('taken_at must be ISO 8601, e.g. 2026-10-10T09:12:00+10:00');
     set('taken_at', e.taken_at);
   }
+  if (e.set_id !== undefined) {
+    if (e.set_id && !(await env.DB.prepare('SELECT 1 FROM sets WHERE id = ?').bind(e.set_id).first())) throw new UploadError('that set no longer exists');
+    set('set_id', e.set_id || null);
+  }
   let newCategories: Category[] | undefined;
   if (e.categories !== undefined) {
     try {
@@ -59,6 +65,7 @@ export async function deleteMoment(id: string): Promise<boolean> {
   const row = await env.DB.prepare('SELECT media_key, thumb_key FROM moments WHERE id = ?').bind(id).first<{ media_key: string | null; thumb_key: string | null }>();
   if (!row) return false;
   await env.DB.batch([
+    env.DB.prepare('UPDATE sets SET cover_id = NULL WHERE cover_id = ?').bind(id),
     env.DB.prepare('DELETE FROM moment_categories WHERE moment_id = ?').bind(id),
     env.DB.prepare('DELETE FROM moments WHERE id = ?').bind(id),
   ]);

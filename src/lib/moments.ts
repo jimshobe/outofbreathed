@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:workers';
+import type { SetInfo } from './timeline';
 
 /** The fields a viewer may see. Exact lat/lng are deliberately never selected. */
 export interface MomentView {
@@ -16,36 +17,39 @@ export interface MomentView {
   source: 'site' | 'youtube';
   width: number | null;
   height: number | null;
+  set_id: string | null;
 }
 
-export async function listMoments(limit = 200): Promise<MomentView[]> {
-  const { results } = await env.DB.prepare(
-    `SELECT id, kind, taken_at, place_name, category, caption, media_key, thumb_key, youtube_id, source, width, height,
-            (SELECT group_concat(category) FROM moment_categories WHERE moment_id = moments.id) AS categories
-       FROM moments ORDER BY taken_at DESC LIMIT ?`,
-  ).bind(limit).all<Omit<MomentView, 'categories'> & { categories: string | null }>();
+const MOMENT_COLUMNS = `id, kind, taken_at, place_name, category, caption, media_key, thumb_key, youtube_id, source, width, height, set_id,
+  (SELECT group_concat(category) FROM moment_categories WHERE moment_id = moments.id) AS categories`;
+
+/** Newest first; or every moment of one set, oldest first. */
+export async function listMoments(opts: { limit?: number; setId?: string } = {}): Promise<MomentView[]> {
+  const stmt = opts.setId
+    ? env.DB.prepare(`SELECT ${MOMENT_COLUMNS} FROM moments WHERE set_id = ? ORDER BY taken_at`).bind(opts.setId)
+    : env.DB.prepare(`SELECT ${MOMENT_COLUMNS} FROM moments ORDER BY taken_at DESC LIMIT ?`).bind(opts.limit ?? 200);
+  const { results } = await stmt.all<Omit<MomentView, 'categories'> & { categories: string | null }>();
   return results.map((m) => ({
     ...m,
     categories: [m.category, ...(m.categories ?? '').split(',').filter((c) => c && c !== m.category)],
   }));
 }
 
-// taken_at is the camera's local wall-clock time with its offset (e.g. 2026-10-10T09:12:00+10:00).
-// Show the date as the photographer saw it, so read the date part directly instead of converting zones.
-const localDate = (iso: string) => new Date(`${iso.slice(0, 10)}T00:00:00Z`);
-
 export const mediaUrl = (key: string) => `/media/${key.split('/').map(encodeURIComponent).join('/')}`;
 
-export function groupByMonth(list: MomentView[]) {
-  const groups: { label: string; items: MomentView[] }[] = [];
-  for (const m of list) {
-    const label = localDate(m.taken_at).toLocaleDateString('en-AU', { month: 'long', year: 'numeric', timeZone: 'UTC' }).toLowerCase();
-    const last = groups[groups.length - 1];
-    if (last?.label === label) last.items.push(m);
-    else groups.push({ label, items: [m] });
-  }
-  return groups;
+export { fmtDay } from './timeline';
+
+export async function listSets(): Promise<SetInfo[]> {
+  const { results } = await env.DB.prepare('SELECT id, title, caption, cover_id FROM sets ORDER BY title').all<SetInfo>();
+  return results;
 }
 
-export const fmtDay = (iso: string) =>
-  localDate(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', timeZone: 'UTC' }).toLowerCase();
+/** Number of moments in each set, by set id. */
+export async function setCounts(): Promise<Map<string, number>> {
+  const { results } = await env.DB.prepare('SELECT set_id, count(*) AS n FROM moments WHERE set_id IS NOT NULL GROUP BY set_id').all<{ set_id: string; n: number }>();
+  return new Map(results.map((r) => [r.set_id, r.n]));
+}
+
+export async function getSet(id: string): Promise<SetInfo | null> {
+  return env.DB.prepare('SELECT id, title, caption, cover_id FROM sets WHERE id = ?').bind(id).first<SetInfo>();
+}

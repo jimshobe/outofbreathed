@@ -1,0 +1,42 @@
+---
+// Every item in one set, oldest first.
+import Base from '../../layouts/Base.astro';
+import Moment from '../../components/Moment.astro';
+import { getSet, listMoments } from '../../lib/moments';
+import { fmtRange } from '../../lib/timeline';
+
+const set = await getSet(Astro.params.id!);
+if (!set) return new Response('Not found', { status: 404 });
+const moments = await listMoments({ setId: set.id });
+const places = [...new Set(moments.map((m) => m.place_name).filter(Boolean))] as string[];
+---
+
+<Base current="timeline">
+  <main class="tl">
+    <a class="back" href={`/#set-${set.id}`}>&lt; timeline</a>
+    <header>
+      <h2>{set.title.toLowerCase()}</h2>
+      {moments.length > 0 && (
+        <p class="meta">
+          {fmtRange(moments[0].taken_at, moments[moments.length - 1].taken_at)} · {moments.length} {moments.length === 1 ? 'item' : 'items'}
+          {places.length > 0 && ` · ${places.map((p) => p.toLowerCase()).join(', ')}`}
+        </p>
+      )}
+      {set.caption && <p class="caption">{set.caption}</p>}
+    </header>
+    {moments.map((m) => <Moment m={m} />)}
+    {moments.length === 0 && <p class="meta">this set is empty</p>}
+  </main>
+</Base>
+
+<style>
+  .tl { max-width: 640px; margin: 0 auto; padding: 64px 20px 90px; }
+  .back { color: var(--dim); text-decoration: none; }
+  .back:hover { color: var(--fg); }
+  header { margin: 24px 0 32px; }
+  h2 { font: 500 15px/1.4 var(--mono); }
+  h2::before { content: '> '; color: var(--dim); }
+  .meta { color: var(--dim); margin-top: 4px; }
+  .caption { margin-top: 10px; }
+  @media (max-width: 700px) { .tl { padding: 56px 16px 80px; } }
+</style>

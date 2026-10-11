@@ -35,7 +35,8 @@ Every photo or video is a **moment** with a date, a place, a category, an option
 
 **Timeline view**
 
-- A straight chronological scroll, newest first, grouped by month and year. No single event (like the move to Australia) is treated as a starting point or given special framing.
+- A straight chronological scroll, newest first, grouped by month and year.
+- **Sets** group an event's photos ("Perth", "Mum's 70th"): one card at the set's first date with a cover, a few thumbnails and "+N", then `title · dates · count · places` and the set's caption. It opens the set's page. Sets are named on the post page when uploading; a moment belongs to at most one set. No single event (like the move to Australia) is treated as a starting point or given special framing.
 
 **Category lenses**
 
@@ -118,10 +119,10 @@ One main table of moments in D1, with media files in R2. A starting sketch for C
 | youtube\_id | text | For YouTube videos |
 | thumb\_key | text | Small preview image in R2 |
 | width, height, duration | number | For layout and players |
-| trip\_id | text | Optional, groups a ride or trip |
+| set\_id | text | Optional: the set (event/trip) this moment belongs to; one set per moment |
 | created\_at | datetime | When posted |
 
-Supporting tables (later): **trips** (name, dates, GPX route), **place\_info** (my overrides only: chosen Wikipedia article title and hidden Commons photos per place; the Wikipedia content itself lives in the edge cache).
+Supporting tables: **sets** (title, caption, cover; dates and places derived from its moments; GPX route later for rides), **place\_info** (my overrides only: chosen Wikipedia article title and hidden Commons photos per place; the Wikipedia content itself lives in the edge cache).
 
 ## Costs
 

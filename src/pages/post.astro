@@ -1,10 +1,10 @@
 ---
 // Owner-only (enforced in middleware): upload from a browser, and edit or delete recent moments.
 import Base from '../layouts/Base.astro';
-import { listMoments, mediaUrl } from '../lib/moments';
+import { listMoments, listSets, setCounts, mediaUrl } from '../lib/moments';
 import { CATEGORIES } from '../lib/categories';
 
-const recent = await listMoments(60);
+const [recent, sets, counts] = await Promise.all([listMoments({ limit: 60 }), listSets(), setCounts()]);
 ---
 
 <Base current="post" homeScreen>
@@ -26,12 +26,30 @@ const recent = await listMoments(60);
         <div class="cats">{CATEGORIES.map((c) => <label><input type="checkbox" name="category" value={c} checked={c === 'misc'} /> {c}</label>)}</div>
       </div>
       <label class="row"><span>caption</span><input type="text" name="caption" maxlength="300" /></label>
+      <label class="row"><span>set</span><input type="text" name="set_title" list="set-titles" maxlength="80" placeholder="optional: new name, or pick an existing set" /></label>
+      <datalist id="set-titles">{sets.map((s) => <option value={s.title} />)}</datalist>
+      <label class="row set-caption" hidden><span>set caption</span><input type="text" name="set_caption" maxlength="300" placeholder="about the whole set" /></label>
       <label class="row"><span>date</span><input type="date" name="date" /></label>
       <label class="row"><span>place</span><input type="text" name="fallback_place" placeholder="e.g. Springbrook, QLD" /></label>
       <p class="note">// date and place are for youtube links, or photos missing them. photos that have their own keep them.</p>
       <div class="row"><span></span><button type="submit">[ post ]</button></div>
       <pre id="log" aria-live="polite"></pre>
     </form>
+
+    {sets.length > 0 && (
+      <section class="sets">
+        <div class="cmd">&gt; <b>sets</b> <span>{sets.length}</span></div>
+        {sets.map((s) => (
+          <div class="setrow" data-set={s.id}>
+            <input class="stitle" type="text" value={s.title} maxlength="80" aria-label="set title" />
+            <input class="scaption" type="text" value={s.caption ?? ''} placeholder="set caption" maxlength="300" aria-label="set caption" />
+            <span class="scount"><a href={`/sets/${s.id}`}>{counts.get(s.id) ?? 0} items</a></span>
+            <button class="ungroup" type="button">[ungroup]</button>
+            <span class="status"></span>
+          </div>
+        ))}
+      </section>
+    )}
 
     <section class="recent">
       <div class="cmd">&gt; <b>recent</b> <span>{recent.length}</span></div>
@@ -51,6 +69,10 @@ const recent = await listMoments(60);
             </div>
             <div class="controls">
               <span class="cats">{CATEGORIES.map((c) => <label><input type="checkbox" class="cat" value={c} checked={m.categories.includes(c)} /> {c}</label>)}</span>
+              <select class="setsel" aria-label="set">
+                <option value="">no set</option>
+                {sets.map((s) => <option value={s.id} selected={s.id === m.set_id}>{s.title}</option>)}
+              </select>
               <button class="rm" type="button">[rm]</button>
               <span class="status"></span>
             </div>
@@ -149,8 +171,19 @@ const recent = await listMoments(60);
     const pad = (n: number) => String(Math.abs(n)).padStart(2, '0');
     const nowLocal = `${new Date(now.getTime() + off * 60000).toISOString().slice(0, 19)}${off >= 0 ? '+' : '-'}${pad(Math.trunc(off / 60))}:${pad(off % 60)}`;
     base.set('fallback_taken_at', typedDate ? `${typedDate}T12:00:00` : nowLocal);
+    const setTitle = String(base.get('set_title') ?? '').trim();
+    const setCaption = String(base.get('set_caption') ?? '').trim();
+    base.delete('set_title');
+    base.delete('set_caption');
     const button = form.querySelector('button')!;
     button.disabled = true;
+    if (setTitle) {
+      const res = await fetch('/api/sets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: setTitle, caption: setCaption }) });
+      const r = (await res.json().catch(() => ({}))) as { id?: string; created?: boolean; error?: string };
+      if (!res.ok || !r.id) { say(`$ set "${setTitle}": ${r.error ?? res.status}`); button.disabled = false; return; }
+      base.set('set_id', r.id);
+      say(`$ set "${setTitle}" (${r.created ? 'new' : 'existing'})`);
+    }
     say(`$ post ${files.length || 1} item${files.length === 1 || !files.length ? '' : 's'}`);
     let posted = 0;
     if (!files.length && (await post(base, youtube))) posted++;
@@ -169,6 +202,33 @@ const recent = await listMoments(60);
       say('$ done');
       setTimeout(() => location.reload(), 1200);
     }
+  });
+
+  // A new set name shows the set-caption field; an existing set's caption is edited under "sets".
+  const setTitleInput = pick<HTMLInputElement>(form, '[name=set_title]');
+  const existingTitles = new Set(Array.from(document.querySelectorAll('#set-titles option') as unknown as HTMLOptionElement[]).map((o) => o.value.toLowerCase()));
+  setTitleInput.addEventListener('input', () => {
+    const t = setTitleInput.value.trim().toLowerCase();
+    pick<HTMLElement>(form, '.set-caption').hidden = !t || existingTitles.has(t);
+  });
+
+  // Set management: rename, caption, ungroup.
+  (document.querySelectorAll('.setrow') as unknown as HTMLElement[]).forEach((row) => {
+    const id = row.dataset.set!;
+    const status = pick<HTMLElement>(row, '.status');
+    const save = async (edit: Record<string, unknown>) => {
+      status.textContent = '…';
+      const res = await fetch(`/api/sets/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(edit) });
+      status.textContent = res.ok ? 'saved' : ((await body(res)).error ?? 'error');
+      if (res.ok) setTimeout(() => (status.textContent = ''), 1500);
+    };
+    pick<HTMLElement>(row, '.stitle').addEventListener('change', (e) => save({ title: (e.target as HTMLInputElement).value }));
+    pick<HTMLElement>(row, '.scaption').addEventListener('change', (e) => save({ caption: (e.target as HTMLInputElement).value }));
+    pick<HTMLElement>(row, '.ungroup').addEventListener('click', async () => {
+      if (!confirm('Ungroup this set? Its photos stay on the timeline.')) return;
+      const res = await fetch(`/api/sets/${id}`, { method: 'DELETE' });
+      if (res.ok) location.reload(); else status.textContent = 'ungroup failed';
+    });
   });
 
   // Inline edits on recent moments: save on change.
@@ -194,6 +254,7 @@ const recent = await listMoments(60);
       if (!cats.length) { (e.target as HTMLInputElement).checked = true; return; } // at least one
       save({ categories: cats });
     }));
+    pick<HTMLElement>(item, '.setsel').addEventListener('change', (e) => save({ set_id: (e.target as HTMLSelectElement).value || null }));
     pick<HTMLElement>(item, '.rm').addEventListener('click', async () => {
       if (!confirm('Delete this moment and its files? This cannot be undone.')) return;
       const res = await fetch(`/api/moments/${id}`, { method: 'DELETE' });
@@ -232,7 +293,11 @@ const recent = await listMoments(60);
   input[type='date'] { font: inherit; color: var(--fg); background: #000; border: 0; border-bottom: 1px solid var(--faint); padding: 6px 0; color-scheme: dark; width: auto; }
   .hint { color: #ffb547; margin: 0 0 14px; }
   .hint b { font-weight: 500; }
-  .recent { margin-top: 40px; border-top: 1px solid var(--faint); }
+  .recent, .sets { margin-top: 40px; border-top: 1px solid var(--faint); }
+  .setrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto auto auto; gap: 8px 14px; align-items: center; padding: 8px 0; border-bottom: 1px solid #111; color: var(--dim); }
+  .setrow a { color: var(--dim); }
+  .ungroup { color: var(--dim); }
+  .ungroup:hover { color: #ff6b6b; }
   .item { display: grid; grid-template-columns: 88px 1fr; gap: 14px; padding: 14px 0; border-bottom: 1px solid #111; }
   .thumb { width: 88px; height: 88px; background: #0d0d0d; display: grid; place-items: center; color: var(--dim); overflow: hidden; }
   .thumb img { width: 100%; height: 100%; object-fit: cover; }
@@ -254,5 +319,7 @@ const recent = await listMoments(60);
     .picked :global(li) { grid-template-columns: 44px minmax(0, 1fr) auto; }
     .picked :global(span:nth-child(2)) { display: none; }
     .thumb { width: 64px; height: 64px; }
+    .setrow { grid-template-columns: 1fr auto auto; }
+    .setrow .scaption { grid-column: 1 / -1; grid-row: 2; }
   }
 </style>

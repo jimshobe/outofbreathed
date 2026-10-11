@@ -1,8 +1,12 @@
 ---
 import Base from '../layouts/Base.astro';
-import { listMoments, groupByMonth, fmtDay, mediaUrl } from '../lib/moments';
+import Moment from '../components/Moment.astro';
+import SetCard from '../components/SetCard.astro';
+import { listMoments, listSets } from '../lib/moments';
+import { buildEntries, groupEntriesByMonth } from '../lib/timeline';
 
-const months = groupByMonth(await listMoments());
+const [moments, sets] = await Promise.all([listMoments(), listSets()]);
+const months = groupEntriesByMonth(buildEntries(moments, sets));
 ---
 
 <Base current="timeline">
@@ -10,32 +14,10 @@ const months = groupByMonth(await listMoments());
     {months.length === 0 && <p class="empty">nothing here yet</p>}
     {months.map((g) => (
       <>
-        <div class="mh"><b>{g.label}</b><span>{g.items.length}</span></div>
-        {g.items.map((m) => {
-          const ratio = m.width && m.height ? Math.max(m.width / m.height, 0.8) : 4 / 5;
-          return (
-            <article class="mo" id={`m-${m.id}`}>
-              {m.source === 'youtube' && m.youtube_id && (
-                <div class="media" style="aspect-ratio:16/9">
-                  <iframe src={`https://www.youtube-nocookie.com/embed/${m.youtube_id}?playsinline=1&rel=0`} title={m.caption ?? 'video'}
-                    loading="lazy" allow="encrypted-media; picture-in-picture; fullscreen" referrerpolicy="strict-origin-when-cross-origin" />
-                </div>
-              )}
-              {m.media_key && (
-                <div class="media" style={`aspect-ratio:${ratio}`}>
-                  {m.kind === 'video'
-                    ? <video src={mediaUrl(m.media_key)} muted loop playsinline autoplay preload="metadata" />
-                    : <img src={mediaUrl(m.media_key)} alt="" loading="lazy" />}
-                </div>
-              )}
-              <div class="line">
-                <span class="d">{fmtDay(m.taken_at)}</span>
-                <span class="pl">{m.place_name?.toLowerCase()}</span>
-                <span class="c">{m.caption}</span>
-              </div>
-            </article>
-          );
-        })}
+        <div class="mh"><b>{g.label}</b><span>{g.entries.length}</span></div>
+        {g.entries.map((e) => e.type === 'set'
+          ? <SetCard set={e.set} moments={e.moments} cover={e.cover} start={e.start} end={e.end} places={e.places} />
+          : <Moment m={e.moment} />)}
       </>
     ))}
     {months.length > 0 && <div class="end">that's everything<i></i></div>}
@@ -49,19 +31,11 @@ const months = groupByMonth(await listMoments());
   .mh::before { content: '──'; color: var(--faint); }
   .mh::after { content: ''; flex: 1; border-top: 1px solid var(--faint); }
   .mh b { color: var(--fg); font-weight: 400; }
-  .mo { margin-bottom: 40px; }
-  .media { width: 100%; background: #0d0d0d; overflow: hidden; }
-  .media img, .media video, .media iframe { width: 100%; height: 100%; object-fit: cover; display: block; border: 0; }
-  .line { margin-top: 10px; display: grid; grid-template-columns: 64px minmax(0, max-content) 1fr; gap: 0 14px; align-items: baseline; }
-  .d, .pl { color: var(--dim); }
-  .pl { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .end { margin-top: 60px; color: var(--dim); }
   .end::before { content: '$ '; }
   .end i { display: inline-block; width: 8px; height: 15px; background: var(--fg); vertical-align: -2px; margin-left: 2px; animation: blink 1.1s steps(1) infinite; }
   @keyframes blink { 50% { opacity: 0; } }
   @media (max-width: 700px) {
     .tl { padding: 56px 16px 80px; }
-    .line { grid-template-columns: auto 1fr; gap: 2px 12px; }
-    .c { grid-column: 1 / -1; }
   }
 </style>

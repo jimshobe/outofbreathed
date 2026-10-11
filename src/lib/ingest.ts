@@ -27,6 +27,8 @@ export interface UploadFields {
   fallback_place?: string;
   youtube?: string;
   source_ref?: string;
+  /** Id of an existing set to put this moment in. */
+  set_id?: string;
 }
 
 export const ISO_LOCAL = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/;
@@ -102,6 +104,8 @@ export async function ingest(file: File | null, f: UploadFields): Promise<{ id: 
     throw new UploadError('lat and lng must both be valid numbers');
   }
 
+  if (f.set_id && !(await env.DB.prepare('SELECT 1 FROM sets WHERE id = ?').bind(f.set_id).first())) throw new UploadError('that set no longer exists');
+
   const id = newId();
   let kind: 'photo' | 'video';
   let source: 'site' | 'youtube' = 'site';
@@ -162,11 +166,11 @@ export async function ingest(file: File | null, f: UploadFields): Promise<{ id: 
     // One batch = one transaction: the moment and its categories land together or not at all.
     await env.DB.batch([env.DB.prepare(
       `INSERT INTO moments (id, kind, taken_at, lat, lng, display_lat, display_lng, place_name, category, caption,
-                            source, media_key, youtube_id, thumb_key, width, height, source_ref)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                            source, media_key, youtube_id, thumb_key, width, height, source_ref, set_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
       id, kind, taken_at, lat, lng, shown?.display_lat ?? null, shown?.display_lng ?? null, place_name, category,
-      f.caption?.trim() || null, source, media_key, youtube_id, thumb_key, width, height, f.source_ref ?? null,
+      f.caption?.trim() || null, source, media_key, youtube_id, thumb_key, width, height, f.source_ref ?? null, f.set_id ?? null,
     ), ...categories.map((c) => env.DB.prepare('INSERT INTO moment_categories (moment_id, category) VALUES (?, ?)').bind(id, c))]);
   } catch (e) {
     await Promise.all(puts.map(([key]) => env.MEDIA.delete(key)));
@@ -200,5 +204,6 @@ export function fieldsFromForm(form: FormData): UploadFields {
     fallback_place: s('fallback_place'),
     youtube: s('youtube'),
     source_ref: s('source_ref'),
+    set_id: s('set_id'),
   };
 }

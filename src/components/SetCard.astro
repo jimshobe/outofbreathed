@@ -1,0 +1,56 @@
+---
+// A set on the timeline: cover + up to four thumbnails, then "title · dates · count" and its caption.
+// The whole card links to the set's page.
+import { mediaUrl, type MomentView } from '../lib/moments';
+import { fmtRange, type SetInfo } from '../lib/timeline';
+
+interface Props { set: SetInfo; moments: MomentView[]; cover: MomentView; start: string; end: string; places: string[] }
+const { set, moments, cover, start, end, places } = Astro.props;
+
+const img = (m: MomentView, small = false) =>
+  m.media_key ? mediaUrl(small ? (m.thumb_key ?? m.media_key) : m.media_key)
+  : m.youtube_id ? `https://i.ytimg.com/vi/${m.youtube_id}/${small ? 'mqdefault' : 'hqdefault'}.jpg` : null;
+const rest = moments.filter((m) => m.id !== cover.id);
+const shown = rest.slice(0, 4);
+const more = moments.length - 1 - shown.length;
+const label = moments.length === 1 ? '1 item' : `${moments.length} items`;
+const place = places.length === 1 ? places[0].toLowerCase() : places.length > 1 ? `${places[0].toLowerCase()} +${places.length - 1}` : null;
+---
+
+<article class="set" id={`set-${set.id}`}>
+  <a class="grid" class:list={[`n${Math.min(shown.length, 4)}`]} href={`/sets/${set.id}`} aria-label={`${set.title}: ${label}`}>
+    <span class="cover">{img(cover) && <img src={img(cover)} alt="" loading="lazy" />}</span>
+    {shown.map((m, i) => (
+      <span class="t">
+        {img(m, true) && <img src={img(m, true)} alt="" loading="lazy" />}
+        {i === shown.length - 1 && more > 0 && <b>+{more}</b>}
+      </span>
+    ))}
+  </a>
+  <div class="line">
+    <a class="title" href={`/sets/${set.id}`}>{set.title.toLowerCase()}</a>
+    <span class="meta">{fmtRange(start, end)} · {label}{place && ` · ${place}`}</span>
+  </div>
+  {set.caption && <p class="caption">{set.caption}</p>}
+</article>
+
+<style>
+  .set { margin-bottom: 44px; scroll-margin-top: 70px; }
+  .grid { display: grid; gap: 4px; aspect-ratio: 3 / 2; grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr; }
+  .grid.n0 { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+  .grid.n1 { grid-template-rows: 1fr; }
+  .grid.n3 { grid-template-columns: 2fr 1fr 1fr; }
+  .grid.n4 { grid-template-columns: 2fr 1fr 1fr; }
+  .cover { grid-row: 1 / -1; }
+  .grid.n3 .t:first-of-type { grid-column: 2 / 4; }
+  .cover, .t { position: relative; background: #0d0d0d; overflow: hidden; display: block; }
+  .grid img { width: 100%; height: 100%; object-fit: cover; display: block; transition: opacity .2s; }
+  .grid:hover img { opacity: .85; }
+  .t b { position: absolute; inset: 0; display: grid; place-items: center; background: #000a; color: var(--fg); font-weight: 400; }
+  .line { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 2px 12px; align-items: baseline; }
+  .title { color: var(--fg); text-decoration: none; }
+  .title::before { content: '▸ '; color: var(--dim); }
+  .title:hover { text-decoration: underline; }
+  .meta { color: var(--dim); }
+  .caption { margin-top: 4px; }
+</style>
