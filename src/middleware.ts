@@ -29,7 +29,13 @@ export const onRequest = defineMiddleware(async (context, next) => {
     return new Response('Cross-site request refused.', { status: 403 });
   }
 
-  const response = await next();
-  response.headers.set('X-Robots-Tag', 'noindex, nofollow');
+  let response = await next();
+  try {
+    response.headers.set('X-Robots-Tag', 'noindex, nofollow');
+  } catch {
+    // Responses from the edge cache have immutable headers; copy before adding ours.
+    response = new Response(response.body, response);
+    response.headers.set('X-Robots-Tag', 'noindex, nofollow');
+  }
   return response;
 });

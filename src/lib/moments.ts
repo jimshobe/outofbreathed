@@ -18,9 +18,13 @@ export interface MomentView {
   width: number | null;
   height: number | null;
   set_id: string | null;
+  /** General (~2 km) map position; never the exact one. */
+  display_lat: number | null;
+  display_lng: number | null;
 }
 
 const MOMENT_COLUMNS = `id, kind, taken_at, place_name, category, caption, media_key, thumb_key, youtube_id, source, width, height, set_id,
+  display_lat, display_lng,
   (SELECT group_concat(category) FROM moment_categories WHERE moment_id = moments.id) AS categories`;
 
 /** Newest first; or every moment of one set, oldest first. */
@@ -111,4 +115,45 @@ export async function yearIndex(category?: string): Promise<string[]> {
   const { results } = await env.DB.prepare(`SELECT DISTINCT substr(taken_at, 1, 4) AS y FROM moments ${filter} ORDER BY y DESC`)
     .bind(...(category ? [category, category] : [])).all<{ y: string }>();
   return results.map((r) => r.y);
+}
+
+// ---- Map ----
+
+/** A place on the map: one ~2 km cell that has moments, named after its most common suburb. */
+export interface Place { lat: number; lng: number; n: number; name: string | null; latest: string }
+
+// Display positions are rounded to 4 decimals; compare with a hair of tolerance rather than exact floats.
+const CELL = 'display_lat BETWEEN ? - 1e-6 AND ? + 1e-6 AND display_lng BETWEEN ? - 1e-6 AND ? + 1e-6';
+const cellArgs = (lat: number, lng: number) => [lat, lat, lng, lng];
+
+export async function listPlaces(): Promise<Place[]> {
+  const { results } = await env.DB.prepare(
+    `SELECT display_lat AS lat, display_lng AS lng, count(*) AS n, max(taken_at) AS latest,
+            (SELECT place_name FROM moments p WHERE p.display_lat = m.display_lat AND p.display_lng = m.display_lng AND p.place_name IS NOT NULL
+              GROUP BY place_name ORDER BY count(*) DESC LIMIT 1) AS name
+       FROM moments m WHERE display_lat IS NOT NULL GROUP BY display_lat, display_lng`,
+  ).all<Place>();
+  return results;
+}
+
+/** Moments in one map cell, newest first, with the titles of any sets they're in. */
+export async function placeMoments(lat: number, lng: number) {
+  const { results } = await env.DB.prepare(`SELECT ${MOMENT_COLUMNS} FROM moments WHERE ${CELL} ORDER BY taken_at DESC LIMIT 300`)
+    .bind(...cellArgs(lat, lng)).all<Row>();
+  const moments = withCategories(results);
+  const setIds = [...new Set(moments.map((m) => m.set_id).filter((x): x is string => !!x))];
+  const sets = setIds.length
+    ? (await env.DB.prepare(`SELECT id, title FROM sets WHERE id IN (${setIds.map(() => '?').join(',')})`).bind(...setIds).all<{ id: string; title: string }>()).results
+    : [];
+  return { moments, sets };
+}
+
+/**
+ * Server-only: the average exact position of a cell's moments, used to look the place up on
+ * OpenStreetMap/Wikipedia more accurately than the cell centre. Never sent to viewers.
+ */
+export async function cellLookupPoint(lat: number, lng: number): Promise<{ lat: number; lng: number } | null> {
+  const r = await env.DB.prepare(`SELECT avg(lat) AS lat, avg(lng) AS lng FROM moments WHERE ${CELL} AND lat IS NOT NULL`)
+    .bind(...cellArgs(lat, lng)).first<{ lat: number | null; lng: number | null }>();
+  return r?.lat != null && r.lng != null ? { lat: r.lat, lng: r.lng } : null;
 }

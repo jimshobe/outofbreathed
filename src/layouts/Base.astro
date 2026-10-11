@@ -5,8 +5,10 @@ interface Props {
   current: 'timeline' | 'map' | 'post';
   /** Offer "Add to Home Screen" as a standalone app that opens on this page (the owner's post page). */
   homeScreen?: boolean;
+  /** Full-screen page (the map): the header floats over the content without a background. */
+  overlay?: boolean;
 }
-const { current, homeScreen = false } = Astro.props;
+const { current, homeScreen = false, overlay = false } = Astro.props;
 const { isOwner } = Astro.locals.viewer;
 ---
 
@@ -24,7 +26,7 @@ const { isOwner } = Astro.locals.viewer;
     {homeScreen && <meta name="apple-mobile-web-app-title" content="post" />}
   </head>
   <body>
-    <header class="site">
+    <header class:list={['site', { overlay }]}>
       <h1>outofbreathed.com</h1>
       <nav>
         <a href="/" aria-current={current === 'timeline' ? 'page' : undefined}>timeline</a>

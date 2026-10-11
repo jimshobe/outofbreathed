@@ -5,7 +5,7 @@
 // at that photo; swipe or arrow keys move through the group; swipe down, Esc, or the phone's back
 // gesture closes it. The open photo is in the URL (#p-ID), so a link opens straight to it.
 
-export interface LbItem { id: string; src: string; caption?: string | null; meta?: string | null }
+export interface LbItem { id: string; src?: string | null; caption?: string | null; meta?: string | null; /** YouTube video id: shown as an embedded player instead of a photo. */ youtube?: string | null }
 
 // Worker types in the shared tsconfig redefine DOM `Element`, so DOM lookups are cast through this.
 type El = HTMLElement;
@@ -17,6 +17,7 @@ const CSS = `
 .lb.open { display: flex; }
 .lb-stage { flex: 1; min-height: 0; display: grid; place-items: center; padding: max(48px, env(safe-area-inset-top)) 56px 8px; transition: transform .2s, opacity .2s; }
 .lb-stage img { max-width: 100%; max-height: 100%; object-fit: contain; user-select: none; -webkit-user-drag: none; }
+.lb-stage iframe { width: min(100%, 160vh); aspect-ratio: 16 / 9; border: 0; }
 .lb-meta { padding: 10px 20px max(18px, env(safe-area-inset-bottom)); display: flex; justify-content: space-between; gap: 16px; font: 13px/1.5 var(--mono); }
 .lb-meta .m { color: var(--dim); white-space: nowrap; }
 .lb button { position: absolute; color: var(--dim); font: 13px var(--mono); padding: 12px; }
@@ -50,7 +51,7 @@ function build(): El {
   el.className = 'lb';
   el.setAttribute('role', 'dialog');
   el.setAttribute('aria-modal', 'true');
-  el.innerHTML = `<div class="lb-stage"><img alt=""></div>
+  el.innerHTML = `<div class="lb-stage"></div>
     <div class="lb-meta"><span class="c"></span><span class="m"></span></div>
     <button class="lb-close" aria-label="Close">[esc]</button>
     <button class="lb-prev" aria-label="Previous">‹</button>
@@ -59,7 +60,7 @@ function build(): El {
   $(el, '.lb-close')!.onclick = () => close();
   $(el, '.lb-prev')!.onclick = () => step(-1);
   $(el, '.lb-next')!.onclick = () => step(1);
-  $(el, '.lb-stage')!.onclick = (e) => { if ((e.target as unknown as El).tagName !== 'IMG') close(); };
+  $(el, '.lb-stage')!.onclick = (e) => { if ((e.target as unknown as El).classList.contains('lb-stage')) close(); };
 
   // Swipe: sideways moves, downward closes. The stage follows the finger a little for feedback.
   let x0 = 0, y0 = 0, tracking = false;
@@ -84,15 +85,21 @@ function build(): El {
 
 function render() {
   const it = items[index];
-  const img = $(root!, '.lb-stage img') as unknown as HTMLImageElement;
-  img.src = it.src;
+  const stage = $(root!, '.lb-stage')!;
+  stage.innerHTML = it.youtube
+    ? `<iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(it.youtube)}?playsinline=1&rel=0" allow="encrypted-media; picture-in-picture; fullscreen" referrerpolicy="strict-origin-when-cross-origin" title="video"></iframe>`
+    : '<img alt="">';
+  if (!it.youtube) ($(stage, 'img') as unknown as HTMLImageElement).src = it.src ?? '';
   $(root!, '.lb-meta .c')!.textContent = it.caption ?? '';
   $(root!, '.lb-meta .m')!.textContent = [it.meta, items.length > 1 ? `${index + 1}/${items.length}` : ''].filter(Boolean).join(' · ');
   const many = items.length > 1;
   $(root!, '.lb-prev')!.hidden = !many;
   $(root!, '.lb-next')!.hidden = !many;
   // Warm the cache for the neighbours so swiping feels instant.
-  for (const d of [1, -1]) if (many) new Image().src = items[(index + d + items.length) % items.length].src;
+  for (const d of [1, -1]) {
+    const next = items[(index + d + items.length) % items.length];
+    if (many && next.src) new Image().src = next.src;
+  }
 }
 
 function step(d: number) {
@@ -119,7 +126,7 @@ function close(fromHistory = false) {
   if (!root?.classList.contains('open')) return;
   root.classList.remove('open');
   document.documentElement.style.overflow = '';
-  (($(root, '.lb-stage img')) as unknown as HTMLImageElement).removeAttribute('src');
+  $(root, '.lb-stage')!.innerHTML = ''; // stops a playing video
   if (pushed && !fromHistory) history.back();
   else history.replaceState(null, '', location.pathname + location.search);
   pushed = false;

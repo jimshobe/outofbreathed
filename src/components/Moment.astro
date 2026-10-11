@@ -22,7 +22,9 @@ const ratio = m.width && m.height ? Math.max(m.width / m.height, 0.8) : 4 / 5;
   )}
   <div class="line">
     <span class="d">{fmtDay(m.taken_at)}</span>
-    <span class="pl">{m.place_name?.toLowerCase()}</span>
+    {m.display_lat != null && m.display_lng != null
+      ? <a class="pl" href={`/map#@${m.display_lat},${m.display_lng}`}>{m.place_name?.toLowerCase() ?? 'map'}</a>
+      : <span class="pl">{m.place_name?.toLowerCase()}</span>}
     <span class="c">{m.caption}</span>
   </div>
 </article>
@@ -35,6 +37,8 @@ const ratio = m.width && m.height ? Math.max(m.width / m.height, 0.8) : 4 / 5;
   .line { margin-top: 10px; display: grid; grid-template-columns: 64px minmax(0, max-content) 1fr; gap: 0 14px; align-items: baseline; }
   .d, .pl { color: var(--dim); }
   .pl { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  a.pl { text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; }
+  a.pl:hover { color: var(--fg); text-decoration-color: var(--fg); }
   @media (max-width: 700px) {
     .line { grid-template-columns: auto 1fr; gap: 2px 12px; }
     .c { grid-column: 1 / -1; }
