@@ -41,6 +41,6 @@
 		// Who may post, edit and delete (comma-separated). Everyone else Access lets in can only view.
 		"OWNER_EMAILS": "jimshobe@gmail.com",
 		// Client ID of the Access service token the iPhone Shortcut uses (not a secret; the secret stays on the phone).
-		"SHORTCUT_CLIENT_ID": ""
+		"SHORTCUT_CLIENT_ID": "78bdc8e5d24427384911194c0c6e0c02.access"
 	}
 }
