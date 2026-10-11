@@ -31,8 +31,8 @@
 	],
 	"vars": {
 		// Cloudflare Access: every request must carry a valid Access JWT for this app.
-		// ACCESS_AUD is filled in once the Access application exists.
-		"ACCESS_TEAM_DOMAIN": "",
-		"ACCESS_AUD": ""
+		// AUD is the Access application tag for this Worker (the `kid` in its login redirect).
+		"ACCESS_TEAM_DOMAIN": "twilight-tree-a1dc.cloudflareaccess.com",
+		"ACCESS_AUD": "f043e9e082a06b0125a97d206933570626d6d6904aaf8d627e138bf0947cfa2b"
 	}
 }
