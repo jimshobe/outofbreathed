@@ -2,8 +2,8 @@
 // One photo or YouTube video, full column width, with its date · place · caption line.
 import { mediaUrl, fmtDay, type MomentView } from '../lib/moments';
 
-interface Props { m: MomentView }
-const { m } = Astro.props;
+interface Props { m: MomentView; /** Lightbox group this photo opens in. */ group: string }
+const { m, group } = Astro.props;
 // Clamp very tall shots so one photo never fills much more than a screen.
 const ratio = m.width && m.height ? Math.max(m.width / m.height, 0.8) : 4 / 5;
 ---
@@ -16,9 +16,9 @@ const ratio = m.width && m.height ? Math.max(m.width / m.height, 0.8) : 4 / 5;
     </div>
   )}
   {m.media_key && (
-    <div class="media" style={`aspect-ratio:${ratio}`}>
-      <img src={mediaUrl(m.media_key)} alt="" loading="lazy" />
-    </div>
+    <a class="media" style={`aspect-ratio:${ratio}`} href={`#p-${m.id}`} data-lb-open={group} data-lb-id={m.id}>
+      <img src={mediaUrl(m.media_key)} alt={m.caption ?? ''} loading="lazy" />
+    </a>
   )}
   <div class="line">
     <span class="d">{fmtDay(m.taken_at)}</span>
@@ -29,7 +29,8 @@ const ratio = m.width && m.height ? Math.max(m.width / m.height, 0.8) : 4 / 5;
 
 <style>
   .mo { margin-bottom: 40px; scroll-margin-top: 70px; }
-  .media { width: 100%; background: #0d0d0d; overflow: hidden; }
+  .media { display: block; width: 100%; background: #0d0d0d; overflow: hidden; }
+  a.media { cursor: zoom-in; }
   .media img, .media iframe { width: 100%; height: 100%; object-fit: cover; display: block; border: 0; }
   .line { margin-top: 10px; display: grid; grid-template-columns: 64px minmax(0, max-content) 1fr; gap: 0 14px; align-items: baseline; }
   .d, .pl { color: var(--dim); }

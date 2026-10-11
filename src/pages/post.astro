@@ -5,6 +5,7 @@ import { listMoments, listSets, setCounts, mediaUrl } from '../lib/moments';
 import { CATEGORIES } from '../lib/categories';
 
 const [recent, sets, counts] = await Promise.all([listMoments({ limit: 60 }), listSets(), setCounts()]);
+const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
 ---
 
 <Base current="post" homeScreen>
@@ -73,6 +74,10 @@ const [recent, sets, counts] = await Promise.all([listMoments({ limit: 60 }), li
                 <option value="">no set</option>
                 {sets.map((s) => <option value={s.id} selected={s.id === m.set_id}>{s.title}</option>)}
               </select>
+              {m.set_id && m.media_key && (
+                <button class="cover" type="button" data-set={m.set_id} aria-pressed={covers.has(m.id) ? 'true' : 'false'}
+                  title="use as the set's cover">{covers.has(m.id) ? '★ cover' : '☆ cover'}</button>
+              )}
               <button class="rm" type="button">[rm]</button>
               <span class="status"></span>
             </div>
@@ -255,6 +260,15 @@ const [recent, sets, counts] = await Promise.all([listMoments({ limit: 60 }), li
       save({ categories: cats });
     }));
     pick<HTMLElement>(item, '.setsel').addEventListener('change', (e) => save({ set_id: (e.target as HTMLSelectElement).value || null }));
+    pick<HTMLElement>(item, '.cover')?.addEventListener('click', async (e) => {
+      const btn = e.target as HTMLButtonElement;
+      const res = await fetch(`/api/sets/${btn.dataset.set}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cover_id: id }) });
+      if (!res.ok) { status.textContent = (await body(res)).error ?? 'error'; return; }
+      // Only one cover per set: reset the other stars in the same set.
+      (document.querySelectorAll(`.cover[data-set="${btn.dataset.set}"]`) as unknown as HTMLButtonElement[]).forEach((b) => { b.textContent = '☆ cover'; b.setAttribute('aria-pressed', 'false'); });
+      btn.textContent = '★ cover';
+      btn.setAttribute('aria-pressed', 'true');
+    });
     pick<HTMLElement>(item, '.rm').addEventListener('click', async () => {
       if (!confirm('Delete this moment and its files? This cannot be undone.')) return;
       const res = await fetch(`/api/moments/${id}`, { method: 'DELETE' });
@@ -309,7 +323,8 @@ const [recent, sets, counts] = await Promise.all([listMoments({ limit: 60 }), li
   .when .taken { width: auto; color-scheme: dark; font: inherit; color: var(--fg); background: #000; border: 0; border-bottom: 1px solid var(--faint); padding: 6px 0; }
   .when .place { flex: 1; }
   .controls { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; color: var(--dim); }
-  .rm { color: var(--dim); }
+  .rm, .cover { color: var(--dim); }
+  .cover[aria-pressed='true'] { color: var(--fg); }
   .rm:hover { color: #ff6b6b; }
   .status { color: var(--dim); }
   @media (max-width: 700px) {

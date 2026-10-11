@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildEntries, groupEntriesByMonth, fmtRange } from '../timeline';
+import { buildEntries, groupEntriesByMonth, fmtRange, assemblePage } from '../timeline';
 
 const m = (id: string, taken_at: string, set_id: string | null = null, place_name: string | null = 'Perth') => ({ id, taken_at, set_id, place_name });
 const perth = { id: 's1', title: 'Perth', caption: 'Long weekend', cover_id: null };
@@ -42,5 +42,28 @@ describe('fmtRange', () => {
   it('shows one day, a range, or a range across years', () => {
     expect(fmtRange('2026-09-14T08:00:00', '2026-09-14T20:00:00')).toBe('14 sept');
     expect(fmtRange('2025-12-30T08:00:00', '2026-01-02T08:00:00')).toBe('30 dec 2025 – 2 jan 2026');
+  });
+});
+
+describe('assemblePage', () => {
+  const ids = (entries: ReturnType<typeof assemblePage>) => entries.map((e) => (e.type === 'set' ? `set:${e.set.id}:${e.moments.length}` : e.moment.id));
+  // A set spanning 28 Sep – 3 Oct, and pages that break at 1 Oct.
+  const s = { id: 's1', title: 'Perth', caption: null, cover_id: null };
+  const set = [m('p1', '2026-09-28T10:00:00', 's1'), m('p2', '2026-09-30T10:00:00', 's1'), m('p3', '2026-10-03T10:00:00', 's1')];
+  const oct = [m('a', '2026-10-05T10:00:00'), set[2], m('b', '2026-10-01T09:00:00')];
+  const sep = [set[1], m('c', '2026-09-29T10:00:00'), set[0]];
+
+  it('leaves a set out of the newer page when it starts on an older one', () => {
+    expect(ids(assemblePage(oct, set, [s], '2026-10-01T00:00:00'))).toEqual(['a', 'b']);
+  });
+
+  it('shows the whole set on the page holding its first moment, including members from newer pages', () => {
+    expect(ids(assemblePage(sep, set, [s], '2026-09-01T00:00:00'))).toEqual(['c', 'set:s1:3']);
+  });
+
+  it('never shows a moment twice across pages', () => {
+    const shown = [...ids(assemblePage(oct, set, [s], '2026-10-01T00:00:00')), ...ids(assemblePage(sep, set, [s], '2026-09-01T00:00:00'))];
+    expect(new Set(shown).size).toBe(shown.length);
+    expect(shown).toEqual(['a', 'b', 'c', 'set:s1:3']);
   });
 });

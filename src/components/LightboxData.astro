@@ -1,0 +1,11 @@
+---
+// Embeds a photo list for the lightbox (src/scripts/lightbox.ts) under a group name.
+import { lbItem, type MomentView } from '../lib/moments';
+
+interface Props { group: string; moments: MomentView[] }
+const { group, moments } = Astro.props;
+// Escape "<" so a caption can never close the script tag.
+const json = JSON.stringify(moments.filter((m) => m.media_key).map(lbItem)).replace(/</g, '\\u003c');
+---
+
+<script type="application/json" is:inline data-lb-group={group} set:html={json} />

@@ -1,13 +1,17 @@
 ---
-// Every item in one set, oldest first.
+// One set: title, dates, caption, then a thumbnail grid that opens the lightbox. YouTube videos play
+// inline below the grid.
 import Base from '../../layouts/Base.astro';
 import Moment from '../../components/Moment.astro';
-import { getSet, listMoments } from '../../lib/moments';
+import LightboxData from '../../components/LightboxData.astro';
+import { getSet, listMoments, mediaUrl } from '../../lib/moments';
 import { fmtRange } from '../../lib/timeline';
 
 const set = await getSet(Astro.params.id!);
 if (!set) return new Response('Not found', { status: 404 });
 const moments = await listMoments({ setId: set.id });
+const photos = moments.filter((m) => m.media_key);
+const videos = moments.filter((m) => m.source === 'youtube');
 const places = [...new Set(moments.map((m) => m.place_name).filter(Boolean))] as string[];
 ---
 
@@ -24,19 +28,40 @@ const places = [...new Set(moments.map((m) => m.place_name).filter(Boolean))] as
       )}
       {set.caption && <p class="caption">{set.caption}</p>}
     </header>
-    {moments.map((m) => <Moment m={m} />)}
+
+    <div class="grid">
+      {photos.map((m) => (
+        <a href={`#p-${m.id}`} data-lb-open="set" data-lb-id={m.id} aria-label={m.caption ?? 'photo'}>
+          <img src={mediaUrl(m.thumb_key ?? m.media_key!)} alt="" loading="lazy" />
+        </a>
+      ))}
+    </div>
+    {videos.map((m) => <Moment m={m} group="set" />)}
     {moments.length === 0 && <p class="meta">this set is empty</p>}
+    <LightboxData group="set" moments={photos} />
   </main>
 </Base>
 
+<script>
+  import { initLightbox } from '../../scripts/lightbox';
+  initLightbox();
+</script>
+
 <style>
-  .tl { max-width: 640px; margin: 0 auto; padding: 64px 20px 90px; }
+  .tl { max-width: 900px; margin: 0 auto; padding: 64px 20px 90px; }
   .back { color: var(--dim); text-decoration: none; }
   .back:hover { color: var(--fg); }
-  header { margin: 24px 0 32px; }
+  header { margin: 24px 0 24px; max-width: 640px; }
   h2 { font: 500 15px/1.4 var(--mono); }
   h2::before { content: '> '; color: var(--dim); }
   .meta { color: var(--dim); margin-top: 4px; }
   .caption { margin-top: 10px; }
-  @media (max-width: 700px) { .tl { padding: 56px 16px 80px; } }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px; margin-bottom: 40px; }
+  .grid a { aspect-ratio: 1; background: #0d0d0d; overflow: hidden; cursor: zoom-in; }
+  .grid img { width: 100%; height: 100%; object-fit: cover; display: block; transition: opacity .2s; }
+  .grid a:hover img { opacity: .85; }
+  @media (max-width: 700px) {
+    .tl { padding: 56px 16px 80px; }
+    .grid { grid-template-columns: repeat(3, 1fr); gap: 2px; }
+  }
 </style>

@@ -171,6 +171,7 @@ Build in five phases, each ending with something usable. Phase 2 is the most imp
    - Done when: I share three photos from Photos and they appear on the site in under a minute.
 3. **Timeline view**
    - Month-grouped scroll, category filters, photo and video viewer.
+   - Built: sets (event groups with captions and covers), full-screen lightbox (swipe, keys, back gesture, `#p-ID` links), set pages as thumbnail grids, month-aligned paging with "older" and a year jump row.
    - Done when: the site is worth sending to family.
 4. **Map view and privacy**
    - Globe map with clustering, place panels (my photos + cached Wikipedia "about").

@@ -71,3 +71,34 @@ export function groupEntriesByMonth<M extends TimelineMoment>(entries: Entry<M>[
   }
   return months;
 }
+
+/** Start of the month containing a local timestamp, in the same sortable form as taken_at. */
+export const monthStart = (iso: string) => `${iso.slice(0, 7)}-01T00:00:00`;
+
+/**
+ * One page of the timeline. `page` holds every (filtered) moment from `boundary` (a month start) up to
+ * the cursor, so pages always break between months. `members` holds every moment of any set touched by
+ * the page, wherever they fall. A set is shown whole on the page that holds its first moment; on newer
+ * pages its moments are left out, because the set appears further down, on an older page.
+ */
+export function assemblePage<M extends TimelineMoment>(page: M[], members: M[], sets: SetInfo[], boundary: string): Entry<M>[] {
+  const firstOf = new Map<string, string>();
+  for (const m of [...page, ...members]) {
+    if (!m.set_id) continue;
+    const f = firstOf.get(m.set_id);
+    if (!f || m.taken_at < f) firstOf.set(m.set_id, m.taken_at);
+  }
+  const shown = sets.filter((s) => (firstOf.get(s.id) ?? '') >= boundary);
+  const shownIds = new Set(shown.map((s) => s.id));
+  const seen = new Set<string>();
+  const moments: M[] = [];
+  for (const m of [...page, ...members]) {
+    if (seen.has(m.id)) continue;
+    const inSet = !!m.set_id && sets.some((s) => s.id === m.set_id);
+    if (inSet && !shownIds.has(m.set_id!)) continue; // deferred to the page with the set's first moment
+    if (!inSet && !page.includes(m)) continue; // members only matter for sets shown here
+    seen.add(m.id);
+    moments.push(m);
+  }
+  return buildEntries(moments, shown);
+}
