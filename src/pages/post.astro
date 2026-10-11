@@ -7,7 +7,7 @@ import { CATEGORIES } from '../lib/categories';
 const recent = await listMoments(60);
 ---
 
-<Base current="post">
+<Base current="post" homeScreen>
   <main class="post">
     <form id="up" autocomplete="off">
       <div class="cmd">&gt; <b>new</b></div>
@@ -15,6 +15,11 @@ const recent = await listMoments(60);
         <span>files</span>
         <input type="file" name="file" accept="image/*,video/*" multiple />
       </label>
+      <ul id="picked" class="picked" hidden></ul>
+      <p id="hint" class="hint" hidden>
+        // some photos arrived without a location. on iPhone, tap <b>Options</b> at the top of the photo picker,
+        turn on <b>Location</b>, and pick them again. or type a place below (the map needs the real location).
+      </p>
       <label class="row"><span>or youtube</span><input type="url" name="youtube" placeholder="https://youtu.be/…" /></label>
       <div class="row">
         <span>category</span>
@@ -55,6 +60,8 @@ const recent = await listMoments(60);
 </Base>
 
 <script>
+  import { readJpegMeta } from '../lib/exif';
+
   // Worker types (in the global tsconfig) declare their own `Element`, which clashes with the DOM one
   // in querySelector's generic, so browser lookups go through this helper.
   const pick = <T,>(root: { querySelector(sel: string): unknown }, sel: string) => root.querySelector(sel) as T;
@@ -65,25 +72,69 @@ const recent = await listMoments(60);
     Array.from(root.querySelectorAll(sel) as unknown as HTMLInputElement[]).filter((i) => i.checked).map((i) => i.value);
 
 
+  // Before uploading, show each picked file with the date and location found in it, so photos that
+  // Safari stripped can be fixed (re-picked with Options → Location) before they're posted.
+  const fileInput = pick<HTMLInputElement>(form, '[name=file]');
+  const picked = document.getElementById('picked') as HTMLUListElement;
+  const hint = document.getElementById('hint')!;
+  let previews: string[] = [];
+  const day = (iso: string) => new Date(`${iso.slice(0, 10)}T00:00:00Z`).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).toLowerCase();
+
+  async function describe(file: File) {
+    const isJpeg = file.type === 'image/jpeg' || /\.jpe?g$/i.test(file.name);
+    if (file.type.startsWith('video/')) return { text: 'video · date and place read on upload', missing: false };
+    if (!isJpeg) return { text: 'date and place read on upload', missing: false };
+    // EXIF sits at the start of the file; no need to read the whole photo.
+    const meta = readJpegMeta(new Uint8Array(await file.slice(0, 512 * 1024).arrayBuffer()));
+    const when = meta.takenAt ? day(meta.takenAt) : 'no date';
+    const where = meta.lat != null ? 'location ✓' : 'no location';
+    return { text: `${when} · ${where}`, missing: meta.lat == null };
+  }
+
+  fileInput.addEventListener('change', async () => {
+    previews.forEach((u) => URL.revokeObjectURL(u));
+    previews = [];
+    let anyMissing = false;
+    const esc = (t: string) => t.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+    const files = Array.from(fileInput.files ?? []);
+    picked.innerHTML = files.map((file) => {
+      const url = URL.createObjectURL(file);
+      previews.push(url);
+      const media = file.type.startsWith('video/') ? `<video src="${url}" muted></video>` : `<img src="${url}" alt="">`;
+      return `<li>${media}<span>${esc(file.name)}</span><span class="info">…</span><span class="st"></span></li>`;
+    }).join('');
+    const rows = Array.from(picked.children) as unknown as HTMLElement[];
+    for (const [i, file] of files.entries()) {
+      const d = await describe(file);
+      pick<HTMLElement>(rows[i], '.info').textContent = d.text;
+      if (d.missing) { rows[i].classList.add('missing'); anyMissing = true; }
+    }
+    picked.hidden = !picked.children.length;
+    hint.hidden = !anyMissing;
+  });
+
   type ApiResult = { error?: string; created?: boolean };
   const body = async (res: Response) => (await res.json().catch(() => ({}))) as ApiResult;
 
-  async function post(fields: FormData, label: string) {
+  /** Posts one item, retrying network failures. Returns true if it's now on the site. */
+  async function post(fields: FormData, label: string, mark?: (s: string) => void): Promise<boolean> {
+    const done = (msg: string, ok: boolean) => { say(`  ${label} … ${msg}`); mark?.(ok ? '✓' : '✗'); return ok; };
     for (let attempt = 1; attempt <= 3; attempt++) {
+      mark?.(attempt === 1 ? '…' : `retry ${attempt}`);
       try {
         const res = await fetch('/api/moments', { method: 'POST', body: fields });
         const result = await body(res);
-        if (res.ok) return say(`  ${label} … ${result.created ? 'ok' : 'already posted'}`);
-        if (res.status < 500) return say(`  ${label} … ${result.error ?? res.status}`);
+        if (res.ok) return done(result.created ? 'ok' : 'already posted', true);
+        if (res.status < 500) return done(result.error ?? String(res.status), false);
       } catch { /* network: retry */ }
       if (attempt < 3) await new Promise((r) => setTimeout(r, 1500 * attempt));
     }
-    say(`  ${label} … failed after 3 tries`);
+    return done('failed after 3 tries; post again to retry', false);
   }
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const files = pick<HTMLInputElement>(form, '[name=file]').files!;
+    const files = fileInput.files!;
     const youtube = pick<HTMLInputElement>(form, '[name=youtube]').value.trim();
     if (!files.length && !youtube) return say('$ choose files or paste a youtube link');
     const base = new FormData(form);
@@ -95,17 +146,23 @@ const recent = await listMoments(60);
     const button = form.querySelector('button')!;
     button.disabled = true;
     say(`$ post ${files.length || 1} item${files.length === 1 || !files.length ? '' : 's'}`);
-    if (!files.length) await post(base, youtube);
-    for (const file of files) {
+    let posted = 0;
+    if (!files.length && (await post(base, youtube))) posted++;
+    const rows = Array.from(picked.children) as unknown as HTMLElement[];
+    for (const [i, file] of Array.from(files).entries()) {
       const fd = new FormData();
       for (const [k, v] of base) if (k !== 'youtube') fd.append(k, v);
       fd.append('file', file);
       // Same file picked again → same ref → the server returns the existing moment instead of a duplicate.
       fd.append('source_ref', `web:${file.name}:${file.size}:${file.lastModified}`);
-      await post(fd, file.name);
+      const st = rows[i]?.querySelector('.st');
+      if (await post(fd, file.name, (m) => { if (st) st.textContent = m; })) posted++;
     }
     button.disabled = false;
-    say('$ done. reload to see them below.');
+    if (posted) {
+      say('$ done');
+      setTimeout(() => location.reload(), 1200);
+    }
   });
 
   // Inline edits on recent moments: save on change.
@@ -157,6 +214,15 @@ const recent = await listMoments(60);
   button:hover { text-decoration: underline; }
   button:disabled { color: var(--dim); }
   #log { margin-top: 12px; color: var(--dim); font: inherit; white-space: pre-wrap; }
+  .picked { list-style: none; padding: 0; margin: 4px 0 14px; display: grid; gap: 6px; }
+  .picked li { display: grid; grid-template-columns: 44px 1fr auto auto; gap: 10px; align-items: center; color: var(--fg); }
+  .picked img, .picked video { width: 44px; height: 44px; object-fit: cover; background: #0d0d0d; }
+  .picked span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .picked .info { color: var(--dim); white-space: nowrap; }
+  .picked li.missing .info { color: #ffb547; }
+  .picked .st { color: var(--dim); min-width: 1.5em; text-align: right; }
+  .hint { color: #ffb547; margin: 0 0 14px; }
+  .hint b { font-weight: 500; }
   .recent { margin-top: 40px; border-top: 1px solid var(--faint); }
   .item { display: grid; grid-template-columns: 88px 1fr; gap: 14px; padding: 14px 0; border-bottom: 1px solid #111; }
   .thumb { width: 88px; height: 88px; background: #0d0d0d; display: grid; place-items: center; color: var(--dim); overflow: hidden; }
@@ -176,6 +242,8 @@ const recent = await listMoments(60);
     .post { padding: 56px 16px 60px; }
     .row { grid-template-columns: 1fr; gap: 4px; }
     .item { grid-template-columns: 64px 1fr; }
+    .picked li { grid-template-columns: 44px 1fr auto; }
+    .picked span:nth-child(2) { display: none; }
     .thumb { width: 64px; height: 64px; }
   }
 </style>

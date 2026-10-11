@@ -2,6 +2,9 @@
 
 Posts photos and videos to outofbreathed.com only. Unrelated to the family app at family.outofbreathed.com.
 
+> **Paused (Oct 2026).** Posting is done from the `/post` page for now, saved to the iPhone home screen.
+> Revisit once the upload API's parameters settle; the service token and `POST /api/moments` are already in place.
+
 Built by hand in the Shortcuts app; Shortcuts can't be generated from code. Posting the same photo
 twice is harmless: the site recognises the `source_ref` and skips it. So if a run fails halfway on a
 weak connection, just run it again.

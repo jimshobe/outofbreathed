@@ -47,7 +47,9 @@ Every photo or video is a **moment** with a date, a place, a category, an option
 
 ## Posting from iPhone
 
-Posting happens from the Photos app share sheet through an iOS Shortcut, with a private post page as backup. Both are free; no App Store app or Apple developer account is needed.
+**Current approach:** posting happens on the owner-only `/post` page, saved to the iPhone home screen as a "post" app. It shows each picked photo's date and whether a location was found before uploading (Safari strips location unless **Options → Location** is on in the photo picker). The Shortcut below is paused until the upload API settles.
+
+Original plan: posting happens from the Photos app share sheet through an iOS Shortcut, with a private post page as backup. Both are free; no App Store app or Apple developer account is needed.
 
 **Main flow: "Post to outofbreathed" Shortcut** (posts to outofbreathed.com only; unrelated to the family app)
 

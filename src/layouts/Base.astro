@@ -1,8 +1,12 @@
 ---
 import '../styles/global.css';
 
-interface Props { current: 'timeline' | 'map' | 'post' }
-const { current } = Astro.props;
+interface Props {
+  current: 'timeline' | 'map' | 'post';
+  /** Offer "Add to Home Screen" as a standalone app that opens on this page (the owner's post page). */
+  homeScreen?: boolean;
+}
+const { current, homeScreen = false } = Astro.props;
 const { isOwner } = Astro.locals.viewer;
 ---
 
@@ -16,6 +20,8 @@ const { isOwner } = Astro.locals.viewer;
     <link rel="icon" href="/favicon.ico" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>outofbreathed.com</title>
+    {homeScreen && <link rel="manifest" href="/post.webmanifest" />}
+    {homeScreen && <meta name="apple-mobile-web-app-title" content="post" />}
   </head>
   <body>
     <header class="site">
