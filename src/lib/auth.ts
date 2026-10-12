@@ -53,7 +53,12 @@ export async function finishLogin(url: URL, cookies: { get(name: string): { valu
       grant_type: 'authorization_code', redirect_uri: `${url.origin}/auth/callback`,
     }),
   });
-  if (!tokenRes.ok) return fail(`Google refused the sign-in (${tokenRes.status})`);
+  if (!tokenRes.ok) {
+    // Google explains what's wrong (e.g. invalid_client, redirect_uri_mismatch); nothing secret in it.
+    const err = (await tokenRes.json().catch(() => ({}))) as { error?: string; error_description?: string };
+    console.error('google token exchange failed', tokenRes.status, err);
+    return fail(`Google refused the sign-in (${tokenRes.status} ${err.error ?? ''}${err.error_description ? `: ${err.error_description}` : ''})`);
+  }
   const { id_token } = (await tokenRes.json()) as { id_token?: string };
   const claims = await verifyJwt(id_token, {
     jwksUrl: 'https://www.googleapis.com/oauth2/v3/certs', issuers: ['https://accounts.google.com', 'accounts.google.com'], audience: env.GOOGLE_CLIENT_ID,
