@@ -3,9 +3,10 @@
 import Base from '../layouts/Base.astro';
 import { listMoments, listSets, setCounts, mediaUrl } from '../lib/moments';
 import { listZones, shownDistanceM } from '../lib/zones';
+import { pendingComments } from '../lib/comments';
 import { CATEGORIES } from '../lib/categories';
 
-const [recent, sets, counts, zones] = await Promise.all([listMoments({ limit: 60 }), listSets(), setCounts(), listZones()]);
+const [recent, sets, counts, zones, pending] = await Promise.all([listMoments({ limit: 60 }), listSets(), setCounts(), listZones(), pendingComments()]);
 const RADII = [200, 300, 500, 1000, 2000];
 const km = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`);
 const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
@@ -39,6 +40,21 @@ const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
       <div class="row"><span></span><button type="submit">[ post ]</button></div>
       <pre id="log" aria-live="polite"></pre>
     </form>
+
+    {pending.length > 0 && (
+      <section class="pending">
+        <div class="cmd">&gt; <b>comments awaiting approval</b> <span>{pending.length}</span></div>
+        <p class="note">// approving someone's comment also lets their future comments appear straight away.</p>
+        {pending.map((c) => (
+          <div class="crow" data-comment={c.id}>
+            <div class="cwho">{c.avatar_url && <img src={c.avatar_url} alt="" referrerpolicy="no-referrer" />}<b>{c.first_name.toLowerCase()}</b> <span>{c.email}</span>
+              · <a href={c.set_id ? `/sets/${c.set_id}` : `/#p-${c.moment_id}`}>on this {c.set_id ? 'set' : 'photo'}</a></div>
+            <p class="cbody">{c.body}</p>
+            <div class="cact"><button data-status="approved">[approve]</button><button data-status="rejected">[reject]</button><span class="status"></span></div>
+          </div>
+        ))}
+      </section>
+    )}
 
     <section class="zones">
       <div class="cmd">&gt; <b>privacy zones</b> <span>{zones.length}</span></div>
@@ -242,6 +258,15 @@ const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
     pick<HTMLElement>(form, '.set-caption').hidden = !t || existingTitles.has(t);
   });
 
+  // Comment moderation.
+  (document.querySelectorAll('.crow') as unknown as HTMLElement[]).forEach((row) => {
+    row.querySelectorAll('[data-status]').forEach((b) => b.addEventListener('click', async (e) => {
+      const status = (e.target as HTMLElement).dataset.status;
+      const res = await fetch(`/api/comments/${row.dataset.comment}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
+      if (res.ok) row.remove(); else pick<HTMLElement>(row, '.status').textContent = (await body(res)).error ?? 'error';
+    }));
+  });
+
   // Privacy zones: add (looked up from the address), relabel, change radius, remove.
   const zoneForm = document.getElementById('zone-add') as HTMLFormElement;
   zoneForm.addEventListener('submit', async (e) => {
@@ -362,7 +387,18 @@ const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
   input[type='date'] { font: inherit; color: var(--fg); background: #000; border: 0; border-bottom: 1px solid var(--faint); padding: 6px 0; color-scheme: dark; width: auto; }
   .hint { color: #ffb547; margin: 0 0 14px; }
   .hint b { font-weight: 500; }
-  .recent, .sets, .zones { margin-top: 40px; border-top: 1px solid var(--faint); }
+  .recent, .sets, .zones, .pending { margin-top: 40px; border-top: 1px solid var(--faint); }
+  .pending { border-top-color: #ffb547; }
+  .crow { padding: 10px 0; border-bottom: 1px solid #111; }
+  .cwho { color: var(--dim); display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .cwho img { width: 18px; height: 18px; border-radius: 50%; }
+  .cwho b { color: var(--fg); font-weight: 400; }
+  .cwho a { color: var(--dim); }
+  .cbody { margin: 6px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .cact { display: flex; gap: 14px; color: var(--dim); }
+  .cact button { color: var(--dim); }
+  .cact button[data-status='approved']:hover { color: var(--fg); }
+  .cact button[data-status='rejected']:hover { color: #ff6b6b; }
   .zonerow { display: grid; grid-template-columns: 110px minmax(0, 1fr) auto; gap: 4px 14px; align-items: center; padding: 8px 0; border-bottom: 1px solid #111; color: var(--dim); }
   .zaddr { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg); }
   .zshown { grid-column: 1 / 3; }

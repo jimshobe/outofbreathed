@@ -1,8 +1,8 @@
 import type { APIRoute } from 'astro';
 import { env } from 'cloudflare:workers';
 
-// Media is only ever served through the Worker, after middleware has checked the Access login,
-// so a copied link is useless outside the site. Supports Range requests for video seeking.
+// Serves photos from R2. Every key is a unique id whose content never changes, so it can be cached
+// for good by browsers and Cloudflare's edge. Supports Range requests.
 export const GET: APIRoute = async ({ params, request }) => {
   const key = params.key;
   if (!key) return new Response('Not found', { status: 404 });
@@ -18,8 +18,7 @@ export const GET: APIRoute = async ({ params, request }) => {
   object.writeHttpMetadata(headers);
   headers.set('ETag', object.httpEtag);
   headers.set('Accept-Ranges', 'bytes');
-  // Viewers' browsers may cache, shared caches may not.
-  headers.set('Cache-Control', 'private, max-age=86400');
+  headers.set('Cache-Control', 'public, max-age=31536000, immutable');
 
   if (!('body' in object)) return new Response(null, { status: 304, headers });
 

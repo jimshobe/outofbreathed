@@ -6,6 +6,8 @@ import Moment from '../../components/Moment.astro';
 import LightboxData from '../../components/LightboxData.astro';
 import { getSet, listMoments, mediaUrl } from '../../lib/moments';
 import { fmtRange } from '../../lib/timeline';
+import Comments from '../../components/Comments.astro';
+import { commentCounts } from '../../lib/comments';
 
 const set = await getSet(Astro.params.id!);
 if (!set) return new Response('Not found', { status: 404 });
@@ -13,6 +15,7 @@ const moments = await listMoments({ setId: set.id });
 const photos = moments.filter((m) => m.media_key);
 const videos = moments.filter((m) => m.source === 'youtube');
 const places = [...new Set(moments.map((m) => m.place_name).filter(Boolean))] as string[];
+const count = (await commentCounts([], [set.id])).get(`s:${set.id}`) ?? 0;
 ---
 
 <Base current="timeline">
@@ -38,12 +41,14 @@ const places = [...new Set(moments.map((m) => m.place_name).filter(Boolean))] as
     </div>
     {videos.map((m) => <Moment m={m} group="set" />)}
     {moments.length === 0 && <p class="meta">this set is empty</p>}
+    <Comments on={`s:${set.id}`} count={count} open />
     <LightboxData group="set" moments={photos} />
   </main>
 </Base>
 
 <script>
   import { initLightbox } from '../../scripts/lightbox';
+  import '../../scripts/comments';
   initLightbox();
 </script>
 

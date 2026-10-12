@@ -3,10 +3,11 @@
 // Photos open the lightbox over the whole set; the title and "+N" go to the set's page.
 import { mediaUrl, type MomentView } from '../lib/moments';
 import LightboxData from './LightboxData.astro';
+import Comments from './Comments.astro';
 import { fmtRange, type SetInfo } from '../lib/timeline';
 
-interface Props { set: SetInfo; moments: MomentView[]; cover: MomentView; start: string; end: string; places: string[] }
-const { set, moments, cover, start, end, places } = Astro.props;
+interface Props { set: SetInfo; moments: MomentView[]; cover: MomentView; start: string; end: string; places: string[]; comments?: number }
+const { set, moments, cover, start, end, places, comments = 0 } = Astro.props;
 
 const img = (m: MomentView, small = false) =>
   m.media_key ? mediaUrl(small ? (m.thumb_key ?? m.media_key) : m.media_key)
@@ -38,6 +39,7 @@ const place = places.length === 1 ? places[0].toLowerCase() : places.length > 1 
     <span class="meta">{fmtRange(start, end)} · {label}{place && ` · ${place}`}</span>
   </div>
   {set.caption && <p class="caption">{set.caption}</p>}
+  <Comments on={`s:${set.id}`} count={comments} />
 </article>
 
 <style>

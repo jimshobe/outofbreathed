@@ -1,0 +1,10 @@
+---
+// The comment toggle + thread for one moment ("m:<id>") or set ("s:<id>"). Behaviour: src/scripts/comments.ts.
+interface Props { on: string; count?: number; open?: boolean }
+const { on, count = 0, open = false } = Astro.props;
+---
+
+<div class="cm" data-on={on} data-open={open ? '1' : undefined}>
+  <button class="cm-toggle" type="button">{count === 0 ? 'comment' : count === 1 ? '1 comment' : `${count} comments`}</button>
+  <div class="cm-thread" hidden></div>
+</div>

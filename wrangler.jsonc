@@ -11,8 +11,7 @@
 	"observability": {
 		"enabled": true
 	},
-	// Served on outofbreathed.<subdomain>.workers.dev until the domain cutover.
-	// Preview URLs are off so there is no second, unprotected hostname.
+	// Served on outofbreathed.<subdomain>.workers.dev until the domain cutover. Preview URLs are off.
 	"workers_dev": true,
 	"preview_urls": false,
 	"d1_databases": [
@@ -34,13 +33,10 @@
 		}
 	],
 	"vars": {
-		// Cloudflare Access: every request must carry a valid Access JWT for this app.
-		// AUD is the Access application tag for this Worker (the `kid` in its login redirect).
-		"ACCESS_TEAM_DOMAIN": "twilight-tree-a1dc.cloudflareaccess.com",
-		"ACCESS_AUD": "f043e9e082a06b0125a97d206933570626d6d6904aaf8d627e138bf0947cfa2b",
-		// Who may post, edit and delete (comma-separated). Everyone else Access lets in can only view.
+		// Who may post, edit and moderate (comma-separated Google account emails). Everyone can view.
 		"OWNER_EMAILS": "jimshobe@gmail.com",
-		// Client ID of the Access service token the iPhone Shortcut uses (not a secret; the secret stays on the phone).
-		"SHORTCUT_CLIENT_ID": "78bdc8e5d24427384911194c0c6e0c02.access"
+		// Google sign-in OAuth client (Google Cloud Console). Its secret, and SESSION_SECRET (signs the
+		// session cookie), are Worker secrets: `wrangler secret put GOOGLE_CLIENT_SECRET` / `SESSION_SECRET`.
+		"GOOGLE_CLIENT_ID": ""
 	}
 }

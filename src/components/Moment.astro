@@ -1,9 +1,10 @@
 ---
 // One photo or YouTube video, full column width, with its date · place · caption line.
 import { mediaUrl, fmtDay, type MomentView } from '../lib/moments';
+import Comments from './Comments.astro';
 
-interface Props { m: MomentView; /** Lightbox group this photo opens in. */ group: string }
-const { m, group } = Astro.props;
+interface Props { m: MomentView; /** Lightbox group this photo opens in. */ group: string; /** Approved comments; omit to hide comments. */ comments?: number }
+const { m, group, comments } = Astro.props;
 // Clamp very tall shots so one photo never fills much more than a screen.
 const ratio = m.width && m.height ? Math.max(m.width / m.height, 0.8) : 4 / 5;
 ---
@@ -27,6 +28,7 @@ const ratio = m.width && m.height ? Math.max(m.width / m.height, 0.8) : 4 / 5;
       : <span class="pl">{m.place_name?.toLowerCase()}</span>}
     <span class="c">{m.caption}</span>
   </div>
+  {comments !== undefined && <Comments on={`m:${m.id}`} count={comments} />}
 </article>
 
 <style>

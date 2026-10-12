@@ -9,7 +9,8 @@ interface Props {
   overlay?: boolean;
 }
 const { current, homeScreen = false, overlay = false } = Astro.props;
-const { isOwner } = Astro.locals.viewer;
+const { isOwner, uid, name, avatar } = Astro.locals.viewer;
+const here = Astro.url.pathname + Astro.url.search;
 ---
 
 <html lang="en">
@@ -25,13 +26,16 @@ const { isOwner } = Astro.locals.viewer;
     {homeScreen && <link rel="manifest" href="/post.webmanifest" />}
     {homeScreen && <meta name="apple-mobile-web-app-title" content="post" />}
   </head>
-  <body>
+  <body data-signed-in={uid ? '1' : undefined} data-owner={isOwner ? '1' : undefined}>
     <header class:list={['site', { overlay }]}>
       <h1>outofbreathed.com</h1>
       <nav>
         <a href="/" aria-current={current === 'timeline' ? 'page' : undefined}>timeline</a>
         <a href="/map" aria-current={current === 'map' ? 'page' : undefined}>map</a>
         {isOwner && <a href="/post" aria-current={current === 'post' ? 'page' : undefined}>post</a>}
+        {uid
+          ? <a class="me" href={`/auth/logout?next=${encodeURIComponent(here)}`} title="sign out">{avatar && <img src={avatar} alt="" referrerpolicy="no-referrer" />}{name?.toLowerCase()} ×</a>
+          : <a href={`/auth/login?next=${encodeURIComponent(here)}`}>sign in</a>}
       </nav>
     </header>
     <slot />

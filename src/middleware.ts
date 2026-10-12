@@ -1,31 +1,36 @@
 import { defineMiddleware } from 'astro:middleware';
 import { env } from 'cloudflare:workers';
-import { verifyAccessJwt, type AccessIdentity } from './lib/access';
+import { readSession, isOwnerEmail, SESSION_COOKIE, type Session } from './lib/auth';
 
-const OWNER_ONLY = [/^\/post(\/|$)/, /^\/api\//];
+// Viewing is public. Posting, editing and moderation are for the owner (an OWNER_EMAILS Google account).
+const OWNER_ONLY = /^\/(post|api)(\/|$)/;
 
 export const onRequest = defineMiddleware(async (context, next) => {
-  let identity: AccessIdentity | null;
-  // Local dev has no Access in front of it; act as the owner.
-  if (import.meta.env.DEV) identity = { email: env.OWNER_EMAILS.split(',')[0].trim() };
-  else identity = await verifyAccessJwt(context.request.headers.get('Cf-Access-Jwt-Assertion'), env.ACCESS_TEAM_DOMAIN, env.ACCESS_AUD);
-  if (!identity) return new Response('Not signed in.', { status: 403, headers: { 'X-Robots-Tag': 'noindex, nofollow' } });
+  const { url, request } = context;
+  let session: Session | null = await readSession(context.cookies.get(SESSION_COOKIE)?.value);
+  // Local dev can't sign in with Google; act as the owner unless a test asks to be someone else
+  // ("x-dev-viewer: anon" or "user:<id>:<email>").
+  if (import.meta.env.DEV && !session) {
+    const as = request.headers.get('x-dev-viewer');
+    if (as?.startsWith('user:')) { const [, uid, email, name] = as.split(':'); session = { uid, email, name: name ?? 'Tester' }; }
+    else if (as !== 'anon') session = { uid: 'dev-owner', email: env.OWNER_EMAILS.split(',')[0].trim(), name: 'Owner' };
+  }
+  const isOwner = !!session && isOwnerEmail(session.email);
+  context.locals.viewer = { uid: session?.uid, email: session?.email, name: session?.name, avatar: session?.avatar ?? null, isOwner };
 
-  const owners = env.OWNER_EMAILS.split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
-  const isOwner = identity.email
-    ? owners.includes(identity.email)
-    : !!env.SHORTCUT_CLIENT_ID && identity.serviceToken === env.SHORTCUT_CLIENT_ID;
-  context.locals.viewer = { ...identity, isOwner };
-
-  // Service tokens exist only for posting; viewers can browse but not post.
-  if (OWNER_ONLY.some((r) => r.test(context.url.pathname)) ? !isOwner : !identity.email) {
-    return new Response('Not allowed.', { status: 403 });
+  if (OWNER_ONLY.test(url.pathname) && !isOwner) {
+    if (request.method === 'GET' && url.pathname.startsWith('/post')) {
+      return session
+        ? new Response(`Signed in as ${session.email}, which isn't the owner account. Sign out at /auth/logout.`, { status: 403 })
+        : context.redirect(`/auth/login?next=${encodeURIComponent(url.pathname)}`);
+    }
+    return Response.json({ error: 'owner only' }, { status: 403 });
   }
 
-  // Browsers always send Origin on cross-site writes; refuse writes that come from another site
-  // so a signed-in owner's cookie can't be used by some other page. (The Shortcut sends no Origin.)
-  const origin = context.request.headers.get('Origin');
-  if (!['GET', 'HEAD'].includes(context.request.method) && origin && origin !== context.url.origin) {
+  // Browsers always send Origin on cross-site writes; refuse writes that come from another site so a
+  // signed-in visitor's cookie can't be used by some other page.
+  const origin = request.headers.get('Origin');
+  if (!['GET', 'HEAD'].includes(request.method) && origin && origin !== url.origin) {
     return new Response('Cross-site request refused.', { status: 403 });
   }
 

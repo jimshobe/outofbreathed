@@ -22,5 +22,28 @@ header.site nav a:hover { color: var(--fg); }
 header.site nav a[aria-current='page'] { color: var(--fg); }
 header.site nav a[aria-current='page']::before { content: '['; }
 header.site nav a[aria-current='page']::after { content: ']'; }
+header.site nav .me { display: inline-flex; align-items: center; gap: 6px; }
+header.site nav .me img { width: 16px; height: 16px; border-radius: 50%; }
 
 [hidden] { display: none !important; }
+
+/* Comment threads (src/components/Comments.astro, rendered by src/scripts/comments.ts). */
+.cm { margin-top: 6px; }
+.cm-toggle { color: var(--dim); }
+.cm-toggle:hover { color: var(--fg); }
+.cm-thread { margin-top: 10px; padding-left: 12px; border-left: 1px solid var(--faint); }
+.cm-thread ol { list-style: none; padding: 0; display: grid; gap: 10px; }
+.cm-thread li { display: grid; grid-template-columns: 20px 1fr; gap: 10px; }
+.cm-thread li img, .cm-thread li .ph { width: 20px; height: 20px; border-radius: 50%; background: var(--faint); margin-top: 1px; }
+.cm-thread .who { color: var(--fg); margin-right: 10px; }
+.cm-thread .when, .cm-thread .pend, .cm-thread .loading { color: var(--dim); }
+.cm-thread .pend { margin-left: 10px; color: #ffb547; }
+.cm-thread .del { color: var(--dim); margin-left: 10px; }
+.cm-thread .del:hover { color: #ff6b6b; }
+.cm-thread p { margin-top: 2px; overflow-wrap: anywhere; }
+.cm-thread form { margin-top: 10px; display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; align-items: end; }
+.cm-thread textarea { font: inherit; color: var(--fg); background: #000; border: 0; border-bottom: 1px solid var(--faint); resize: vertical; padding: 4px 0; }
+.cm-thread textarea:focus { outline: none; border-color: var(--fg); }
+.cm-thread .st { grid-column: 1 / -1; color: var(--dim); }
+.cm-thread .signin { display: inline-block; margin-top: 8px; color: var(--dim); }
+.cm-thread .signin:hover { color: var(--fg); }

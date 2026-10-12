@@ -4,6 +4,7 @@ import Moment from '../components/Moment.astro';
 import SetCard from '../components/SetCard.astro';
 import LightboxData from '../components/LightboxData.astro';
 import { timelinePage, yearIndex } from '../lib/moments';
+import { commentCounts } from '../lib/comments';
 import { groupEntriesByMonth } from '../lib/timeline';
 import { CATEGORIES, type Category } from '../lib/categories';
 
@@ -17,6 +18,7 @@ const before = b && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(b) ? b : undefi
 const [{ entries, older }, years] = await Promise.all([timelinePage({ before, category }), yearIndex(category)]);
 const months = groupEntriesByMonth(entries);
 const singles = entries.flatMap((e) => (e.type === 'moment' ? [e.moment] : []));
+const counts = await commentCounts(singles.map((m) => m.id), entries.flatMap((e) => (e.type === 'set' ? [e.set.id] : [])));
 
 const link = (o: { c?: string; before?: string }) => {
   const q = new URLSearchParams();
@@ -48,8 +50,8 @@ const shownYear = entries[0]?.date.slice(0, 4);
       <>
         <div class="mh"><b>{g.label}</b><span>{g.entries.length}</span></div>
         {g.entries.map((e) => e.type === 'set'
-          ? <SetCard set={e.set} moments={e.moments} cover={e.cover} start={e.start} end={e.end} places={e.places} />
-          : <Moment m={e.moment} group="tl" />)}
+          ? <SetCard set={e.set} moments={e.moments} cover={e.cover} start={e.start} end={e.end} places={e.places} comments={counts.get(`s:${e.set.id}`) ?? 0} />
+          : <Moment m={e.moment} group="tl" comments={counts.get(`m:${e.moment.id}`) ?? 0} />)}
       </>
     ))}
 
@@ -63,6 +65,7 @@ const shownYear = entries[0]?.date.slice(0, 4);
 
 <script>
   import { initLightbox } from '../scripts/lightbox';
+  import '../scripts/comments';
   initLightbox();
 </script>
 
