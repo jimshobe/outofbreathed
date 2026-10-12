@@ -37,6 +37,6 @@
 		"OWNER_EMAILS": "jimshobe@gmail.com",
 		// Google sign-in OAuth client (Google Cloud Console). Its secret, and SESSION_SECRET (signs the
 		// session cookie), are Worker secrets: `wrangler secret put GOOGLE_CLIENT_SECRET` / `SESSION_SECRET`.
-		"GOOGLE_CLIENT_ID": ""
+		"GOOGLE_CLIENT_ID": "819812776409-0vf2dfdhamp77sq3h81v3hc3iltj49r1.apps.googleusercontent.com"
 	}
 }
