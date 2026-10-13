@@ -13,12 +13,17 @@ const $ = (root: { querySelector(sel: string): unknown }, sel: string) => root.q
 const $$ = (root: { querySelectorAll(sel: string): unknown }, sel: string) => Array.from(root.querySelectorAll(sel) as ArrayLike<El>);
 
 const CSS = `
-.lb { position: fixed; inset: 0; z-index: 100; background: #000; display: none; flex-direction: column; touch-action: none; }
+.lb { position: fixed; inset: 0; height: 100dvh; z-index: 100; background: #000; display: none; flex-direction: column; touch-action: none;
+  padding: max(48px, env(safe-area-inset-top)) 56px 0; }
 .lb.open { display: flex; }
-.lb-stage { flex: 1; min-height: 0; display: grid; place-items: center; padding: max(48px, env(safe-area-inset-top)) 56px 8px; transition: transform .2s, opacity .2s; }
-.lb-stage img { max-width: 100%; max-height: 100%; object-fit: contain; user-select: none; -webkit-user-drag: none; }
-.lb-stage iframe { width: min(100%, 160vh); aspect-ratio: 16 / 9; border: 0; }
-.lb-meta { padding: 10px 20px max(18px, env(safe-area-inset-bottom)); display: flex; justify-content: space-between; gap: 16px; font: 13px/1.5 var(--mono); }
+/* The stage takes whatever height is left above the caption. Its content is positioned absolutely inside
+   it, so the photo's size is capped by the stage, never the other way round (which let tall photos
+   overflow the screen). */
+.lb-stage { flex: 1; min-height: 0; position: relative; transition: transform .2s, opacity .2s; }
+.lb-stage img, .lb-stage iframe { position: absolute; inset: 0; margin: auto; max-width: 100%; max-height: 100%; }
+.lb-stage img { width: auto; height: auto; object-fit: contain; user-select: none; -webkit-user-drag: none; }
+.lb-stage iframe { width: 100%; height: auto; aspect-ratio: 16 / 9; border: 0; }
+.lb-meta { padding: 10px 0 max(18px, env(safe-area-inset-bottom)); display: flex; justify-content: space-between; gap: 16px; font: 13px/1.5 var(--mono); }
 .lb-meta .m { color: var(--dim); white-space: nowrap; }
 .lb button { position: absolute; color: var(--dim); font: 13px var(--mono); padding: 12px; }
 .lb button:hover { color: var(--fg); }
@@ -26,7 +31,8 @@ const CSS = `
 .lb-prev, .lb-next { top: 50%; transform: translateY(-50%); font-size: 20px !important; }
 .lb-prev { left: 4px; } .lb-next { right: 4px; }
 @media (max-width: 700px) {
-  .lb-stage { padding: max(44px, env(safe-area-inset-top)) 0 8px; }
+  .lb { padding: max(44px, env(safe-area-inset-top)) 0 0; }
+  .lb-meta { padding-left: 16px; padding-right: 16px; }
   .lb-prev, .lb-next { display: none; }
   .lb-meta { flex-direction: column; gap: 2px; }
 }`;
