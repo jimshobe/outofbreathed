@@ -1,11 +1,13 @@
 import type { APIRoute } from 'astro';
 import { env } from 'cloudflare:workers';
+import { PRIVATE_PREFIX } from '../../lib/routes';
 
 // Serves photos from R2. Every key is a unique id whose content never changes, so it can be cached
 // for good by browsers and Cloudflare's edge. Supports Range requests.
 export const GET: APIRoute = async ({ params, request }) => {
   const key = params.key;
-  if (!key) return new Response('Not found', { status: 404 });
+  // Private originals (ride GPX files with home in them) are never served.
+  if (!key || key.startsWith(PRIVATE_PREFIX) || key.includes('..')) return new Response('Not found', { status: 404 });
 
   const range = parseRange(request.headers.get('Range'));
   const object = await env.MEDIA.get(key, {

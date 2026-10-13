@@ -43,12 +43,15 @@ export async function updateSet(id: string, e: SetEdit): Promise<boolean> {
   return true;
 }
 
-/** Removes the set; its moments stay on the timeline as singles. */
+/** Removes the set (and its ride route file); its moments stay on the timeline as singles. */
 export async function ungroupSet(id: string): Promise<boolean> {
-  if (!(await setExists(id))) return false;
+  const set = await env.DB.prepare('SELECT route_gpx_key FROM sets WHERE id = ?').bind(id).first<{ route_gpx_key: string | null }>();
+  if (!set) return false;
   await env.DB.batch([
     env.DB.prepare('UPDATE moments SET set_id = NULL WHERE set_id = ?').bind(id),
+    env.DB.prepare('DELETE FROM comments WHERE set_id = ?').bind(id),
     env.DB.prepare('DELETE FROM sets WHERE id = ?').bind(id),
   ]);
+  if (set.route_gpx_key) await env.MEDIA.delete(set.route_gpx_key);
   return true;
 }

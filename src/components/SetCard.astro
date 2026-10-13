@@ -5,6 +5,7 @@ import { mediaUrl, type MomentView } from '../lib/moments';
 import LightboxData from './LightboxData.astro';
 import Comments from './Comments.astro';
 import { fmtRange, type SetInfo } from '../lib/timeline';
+import { fmtStats } from '../lib/route';
 
 interface Props { set: SetInfo; moments: MomentView[]; cover: MomentView; start: string; end: string; places: string[]; comments?: number }
 const { set, moments, cover, start, end, places, comments = 0 } = Astro.props;
@@ -19,6 +20,7 @@ const label = moments.length === 1 ? '1 item' : `${moments.length} items`;
 // Photos open in the lightbox over the whole set ("+N" goes to the set page); YouTube covers just link there.
 const group = `set-${set.id}`;
 const opener = (m: MomentView) => (m.media_key ? { 'data-lb-open': group, 'data-lb-id': m.id } : {});
+const stats = set.route_km != null ? fmtStats({ km: set.route_km, secs: set.route_secs ?? null, climb_m: set.route_climb_m ?? null }) : '';
 const place = places.length === 1 ? places[0].toLowerCase() : places.length > 1 ? `${places[0].toLowerCase()} +${places.length - 1}` : null;
 ---
 
@@ -38,6 +40,7 @@ const place = places.length === 1 ? places[0].toLowerCase() : places.length > 1 
     <a class="title" href={`/sets/${set.id}`}>{set.title.toLowerCase()}</a>
     <span class="meta">{fmtRange(start, end)} · {label}{place && ` · ${place}`}</span>
   </div>
+  {stats && <p class="stats">⤳ {stats}</p>}
   {set.caption && <p class="caption">{set.caption}</p>}
   <Comments on={`s:${set.id}`} count={comments} />
 </article>
@@ -61,4 +64,5 @@ const place = places.length === 1 ? places[0].toLowerCase() : places.length > 1 
   .title:hover { text-decoration: underline; }
   .meta { color: var(--dim); }
   .caption { margin-top: 4px; }
+  .stats { margin-top: 2px; color: var(--dim); }
 </style>

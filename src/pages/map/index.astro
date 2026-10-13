@@ -1,10 +1,12 @@
 ---
 import Base from '../../layouts/Base.astro';
 import { listPlaces } from '../../lib/moments';
+import { listRoutes } from '../../lib/routes';
 
 // Every place (a ~100 m spot with photos) is embedded; panels load their photos on demand.
-const places = await listPlaces();
+const [places, routes] = await Promise.all([listPlaces(), listRoutes()]);
 const json = JSON.stringify(places).replace(/</g, '\\u003c');
+const routesJson = JSON.stringify(routes).replace(/</g, '\\u003c');
 ---
 
 <Base current="map" overlay>
@@ -18,6 +20,7 @@ const json = JSON.stringify(places).replace(/</g, '\\u003c');
     <button data-k="r"><b>r</b> spin</button>
   </footer>
   <script type="application/json" is:inline id="places" set:html={json} />
+  <script type="application/json" is:inline id="routes" set:html={routesJson} />
 </Base>
 
 <script>

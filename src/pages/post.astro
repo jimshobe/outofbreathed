@@ -4,6 +4,7 @@ import Base from '../layouts/Base.astro';
 import { listMoments, listSets, setCounts, mediaUrl } from '../lib/moments';
 import { listZones, shownDistanceM } from '../lib/zones';
 import { pendingComments } from '../lib/comments';
+import { fmtStats } from '../lib/route';
 import { CATEGORIES } from '../lib/categories';
 
 const [recent, sets, counts, zones, pending] = await Promise.all([listMoments({ limit: 60 }), listSets(), setCounts(), listZones(), pendingComments()]);
@@ -87,6 +88,12 @@ const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
             <input class="scaption" type="text" value={s.caption ?? ''} placeholder="set caption" maxlength="300" aria-label="set caption" />
             <span class="scount"><a href={`/sets/${s.id}`}>{counts.get(s.id) ?? 0} items</a></span>
             <button class="ungroup" type="button">[ungroup]</button>
+            <span class="route">
+              {s.route_km != null
+                ? <>⤳ {fmtStats({ km: s.route_km, secs: s.route_secs ?? null, climb_m: s.route_climb_m ?? null })} <button class="rmroute" type="button">[remove route]</button></>
+                : null}
+              <label class="addroute">{s.route_km != null ? '[replace route]' : '[+ route]'}<input type="file" accept=".gpx,application/gpx+xml" hidden /></label>
+            </span>
             <span class="status"></span>
           </div>
         ))}
@@ -309,6 +316,21 @@ const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
     };
     pick<HTMLElement>(row, '.stitle').addEventListener('change', (e) => save({ title: (e.target as HTMLInputElement).value }));
     pick<HTMLElement>(row, '.scaption').addEventListener('change', (e) => save({ caption: (e.target as HTMLInputElement).value }));
+    // Ride route: upload a GPX; the server trims it out of privacy zones and works out the stats.
+    pick<HTMLInputElement>(row, '.addroute input').addEventListener('change', async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      status.textContent = 'reading route…';
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch(`/api/sets/${id}/route`, { method: 'POST', body: fd });
+      if (res.ok) location.reload(); else status.textContent = (await body(res)).error ?? 'error';
+    });
+    pick<HTMLElement>(row, '.rmroute')?.addEventListener('click', async () => {
+      if (!confirm('Remove this ride route?')) return;
+      const res = await fetch(`/api/sets/${id}/route`, { method: 'DELETE' });
+      if (res.ok) location.reload(); else status.textContent = 'remove failed';
+    });
     pick<HTMLElement>(row, '.ungroup').addEventListener('click', async () => {
       if (!confirm('Ungroup this set? Its photos stay on the timeline.')) return;
       const res = await fetch(`/api/sets/${id}`, { method: 'DELETE' });
@@ -409,6 +431,9 @@ const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
   .setrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto auto auto; gap: 8px 14px; align-items: center; padding: 8px 0; border-bottom: 1px solid #111; color: var(--dim); }
   .setrow a { color: var(--dim); }
   .ungroup { color: var(--dim); }
+  .setrow .route { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--dim); }
+  .addroute, .rmroute { color: var(--dim); cursor: pointer; }
+  .addroute:hover, .rmroute:hover { color: var(--fg); }
   .ungroup:hover { color: #ff6b6b; }
   .item { display: grid; grid-template-columns: 88px 1fr; gap: 14px; padding: 14px 0; border-bottom: 1px solid #111; }
   .thumb { width: 88px; height: 88px; background: #0d0d0d; display: grid; place-items: center; color: var(--dim); overflow: hidden; }

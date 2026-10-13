@@ -175,7 +175,7 @@ Build in five phases, each ending with something usable. Phase 2 is the most imp
    - Done when: the map works on phone and desktop.
    - Built: places are ~100 m spots (exact positions grouped), named after their most common place name (venue or suburb); globe from the prototype; panel with photos (lightbox) and [i] about (Wikipedia article found via OpenStreetMap's own wikipedia/wikidata tags, Commons photos, edge-cached a week); timeline place names link to `/map#@lat,lng`. Wikipedia overrides (`place_info`) not built yet.
 5. **Video and extras**
-   - YouTube embeds (done), ride routes.
+   - YouTube embeds (done), ride routes (done): a GPX file on a set shows as a dotted line on the globe and a route map on the set page, with distance, time and climb. Routes are trimmed out of privacy zones; the original GPX is kept privately (`private/` in R2, never served) so routes re-trim when zones change.
    - Then: move the domain over and invite everyone.
 
 ## Getting started in Claude Code

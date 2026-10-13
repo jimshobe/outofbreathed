@@ -71,7 +71,7 @@ export async function deleteZone(id: number): Promise<boolean> {
   return true;
 }
 
-/** Re-applies every zone to every located moment. Returns how many moments changed. */
+/** Re-applies every zone to every located moment and every ride route. Returns how many moments changed. */
 export async function recomputeZones(): Promise<number> {
   const zones = await zoneAreas();
   const { results } = await env.DB.prepare('SELECT id, lat, lng, display_lat, display_lng, zone_id FROM moments WHERE lat IS NOT NULL AND lng IS NOT NULL')
@@ -82,6 +82,7 @@ export async function recomputeZones(): Promise<number> {
     return same ? [] : [env.DB.prepare('UPDATE moments SET display_lat = ?, display_lng = ?, zone_id = ? WHERE id = ?').bind(d.display_lat, d.display_lng, d.zone_id, m.id)];
   });
   for (let i = 0; i < updates.length; i += 50) await env.DB.batch(updates.slice(i, i + 50));
+  await (await import('./routes')).recomputeRoutes();
   return updates.length;
 }
 

@@ -13,6 +13,10 @@ export interface SetInfo {
   title: string;
   caption: string | null;
   cover_id: string | null;
+  /** Ride stats when the set has a route. */
+  route_km?: number | null;
+  route_secs?: number | null;
+  route_climb_m?: number | null;
 }
 
 export type Entry<M extends TimelineMoment> =

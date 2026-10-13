@@ -57,7 +57,7 @@ export const lbItem = (m: MomentView) => ({
 });
 
 export async function listSets(): Promise<SetInfo[]> {
-  const { results } = await env.DB.prepare('SELECT id, title, caption, cover_id FROM sets ORDER BY title').all<SetInfo>();
+  const { results } = await env.DB.prepare('SELECT id, title, caption, cover_id, route_km, route_secs, route_climb_m FROM sets ORDER BY title').all<SetInfo>();
   return results;
 }
 
@@ -67,8 +67,14 @@ export async function setCounts(): Promise<Map<string, number>> {
   return new Map(results.map((r) => [r.set_id, r.n]));
 }
 
+/** A set's public route (zone-trimmed JSON), if it has one. */
+export async function getSetRoute(id: string): Promise<[number, number][][] | null> {
+  const r = await env.DB.prepare('SELECT route FROM sets WHERE id = ?').bind(id).first<{ route: string | null }>();
+  return r?.route ? JSON.parse(r.route) : null;
+}
+
 export async function getSet(id: string): Promise<SetInfo | null> {
-  return env.DB.prepare('SELECT id, title, caption, cover_id FROM sets WHERE id = ?').bind(id).first<SetInfo>();
+  return env.DB.prepare('SELECT id, title, caption, cover_id, route_km, route_secs, route_climb_m FROM sets WHERE id = ?').bind(id).first<SetInfo>();
 }
 
 // ---- Timeline pages ----
@@ -111,7 +117,7 @@ export async function timelinePage(opts: { before?: string; category?: string })
       ? env.DB.prepare(`SELECT ${MOMENT_COLUMNS} FROM ${PUBLIC} WHERE set_id IN (${setIds.map(() => '?').join(',')})`).bind(...setIds).all<Row>().then((r) => r.results)
       : Promise.resolve([] as Row[]),
     setIds.length
-      ? env.DB.prepare(`SELECT id, title, caption, cover_id FROM sets WHERE id IN (${setIds.map(() => '?').join(',')})`).bind(...setIds).all<SetInfo>().then((r) => r.results)
+      ? env.DB.prepare(`SELECT id, title, caption, cover_id, route_km, route_secs, route_climb_m FROM sets WHERE id IN (${setIds.map(() => '?').join(',')})`).bind(...setIds).all<SetInfo>().then((r) => r.results)
       : Promise.resolve([] as SetInfo[]),
     env.DB.prepare(`SELECT 1 FROM moments ${where('')} LIMIT 1`).bind(boundary, ...args()).first(),
   ]);

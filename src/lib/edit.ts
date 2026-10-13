@@ -69,6 +69,7 @@ export async function deleteMoment(id: string): Promise<boolean> {
   await env.DB.batch([
     env.DB.prepare('UPDATE sets SET cover_id = NULL WHERE cover_id = ?').bind(id),
     env.DB.prepare('DELETE FROM moment_categories WHERE moment_id = ?').bind(id),
+    env.DB.prepare('DELETE FROM comments WHERE moment_id = ?').bind(id),
     env.DB.prepare('DELETE FROM moments WHERE id = ?').bind(id),
   ]);
   const keys = [row.media_key, row.thumb_key].filter((k): k is string => !!k);
