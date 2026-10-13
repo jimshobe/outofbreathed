@@ -42,10 +42,6 @@ Every photo or video is a **moment** with a date, a place, a category, an option
 
 - Filters that work on both views: misc, family, travel, moto, food.
 
-**Extras (later)**
-
-- **On this day:** the home page shows what we were doing a year ago.
-
 ## Posting from iPhone
 
 **Current approach:** posting happens on the owner-only `/post` page, saved to the iPhone home screen as a "post" app. It shows each picked photo's date and whether a location was found before uploading (Safari strips location unless **Options → Location** is on in the photo picker). The Shortcut below is paused until the upload API settles.
@@ -179,7 +175,7 @@ Build in five phases, each ending with something usable. Phase 2 is the most imp
    - Done when: the map works on phone and desktop.
    - Built: places are ~100 m spots (exact positions grouped), named after their most common place name (venue or suburb); globe from the prototype; panel with photos (lightbox) and [i] about (Wikipedia article found via OpenStreetMap's own wikipedia/wikidata tags, Commons photos, edge-cached a week); timeline place names link to `/map#@lat,lng`. Wikipedia overrides (`place_info`) not built yet.
 5. **Video and extras**
-   - YouTube embeds, ride routes, On this day.
+   - YouTube embeds (done), ride routes.
    - Then: move the domain over and invite everyone.
 
 ## Getting started in Claude Code
