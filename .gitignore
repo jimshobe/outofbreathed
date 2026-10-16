@@ -34,3 +34,6 @@ mocks/.shots/
 
 # local Worker secrets
 .dev.vars*
+
+# local backups of old content
+backup/

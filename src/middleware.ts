@@ -5,8 +5,21 @@ import { readSession, isOwnerEmail, SESSION_COOKIE, type Session } from './lib/a
 // Viewing is public. Posting, editing and moderation are for the owner (an OWNER_EMAILS Google account).
 const OWNER_ONLY = /^\/(post|api)(\/|$)/;
 
+// Old blog addresses that may be bookmarked or linked from elsewhere.
+const OLD_BLOG = [/^\/posts\//, /^\/rss\.xml$/, /^\/api\/posts\.json$/, /^\/admin\/?$/];
+
 export const onRequest = defineMiddleware(async (context, next) => {
   const { url, request } = context;
+
+  // One canonical address: www.outofbreathed.com → outofbreathed.com (same path).
+  if (url.hostname.startsWith('www.')) {
+    return Response.redirect(`${url.protocol}//${url.hostname.slice(4)}${url.pathname}${url.search}`, 301);
+  }
+  // Old blog links land somewhere sensible instead of a 404.
+  if (OLD_BLOG.some((r) => r.test(url.pathname))) {
+    return Response.redirect(new URL(url.pathname.startsWith('/admin') ? '/post' : '/', url).href, 301);
+  }
+
   let session: Session | null = await readSession(context.cookies.get(SESSION_COOKIE)?.value);
   // Local dev can't sign in with Google; act as the owner unless a test asks to be someone else
   // ("x-dev-viewer: anon" or "user:<id>:<email>").
