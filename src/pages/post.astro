@@ -2,13 +2,18 @@
 // Owner-only (enforced in middleware): upload from a browser, and edit or delete recent moments.
 import Base from '../layouts/Base.astro';
 import PostForm from '../components/PostForm.astro';
-import { listMoments, listSets, setCounts, mediaUrl } from '../lib/moments';
+import { listMoments, listSets, setCounts, mediaUrl, fmtDay } from '../lib/moments';
 import { listZones, shownDistanceM } from '../lib/zones';
 import { pendingComments } from '../lib/comments';
 import { fmtStats } from '../lib/route';
 import { CATEGORIES } from '../lib/categories';
 
-const [recent, sets, counts, zones, pending] = await Promise.all([listMoments({ limit: 60 }), listSets(), setCounts(), listZones(), pendingComments()]);
+// "recent" shows 60 at a time; ?older=<taken_at> pages back.
+const older = Astro.url.searchParams.get('older') ?? undefined;
+const PAGE = 60;
+const [recent, sets, counts, zones, pending] = await Promise.all([listMoments({ limit: PAGE, before: older }), listSets(), setCounts(), listZones(), pendingComments()]);
+const setTitle = new Map(sets.map((s) => [s.id, s.title]));
+const fmtWhen = (iso: string) => `${fmtDay(iso)} ${iso.slice(0, 4)}`;
 const RADII = [200, 300, 500, 1000, 2000];
 const km = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`);
 const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
@@ -16,12 +21,111 @@ const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
 
 <Base current="post" homeScreen>
   <main class="post">
-    <PostForm sets={sets} />
+    <nav class="tabs" aria-label="post page sections">
+      <button data-tab="post">post</button>
+      <button data-tab="recent">recent</button>
+      <button data-tab="sets">sets</button>
+      <button data-tab="comments">comments{pending.length > 0 && <b class="badge">{pending.length}</b>}</button>
+      <button data-tab="zones">zones</button>
+    </nav>
 
-    {pending.length > 0 && (
-      <section class="pending">
-        <div class="cmd">&gt; <b>comments awaiting approval</b> <span>{pending.length}</span></div>
-        <p class="note">// approving someone's comment also lets their future comments appear straight away.</p>
+    <section data-panel="post">
+      <PostForm sets={sets} />
+    </section>
+
+    <section data-panel="recent" class="recent" hidden>
+      <div class="rhead">
+        <span class="cmd">&gt; <b>recent</b> <span>{older ? `before ${fmtWhen(older)}` : `latest ${recent.length}`}</span></span>
+        <button type="button" class="selmode">[select]</button>
+      </div>
+      {recent.map((m) => (
+        <div class="item" data-id={m.id}>
+          <div class="sum">
+            <input type="checkbox" class="sel" aria-label="select" />
+            <span class="thumb">
+              {(m.thumb_key ?? (m.kind === 'photo' ? m.media_key : null)) ? <img src={mediaUrl((m.thumb_key ?? m.media_key)!)} alt="" loading="lazy" />
+                : m.youtube_id ? <img src={`https://i.ytimg.com/vi/${m.youtube_id}/mqdefault.jpg`} alt="" loading="lazy" />
+                : <span>{m.kind}</span>}
+            </span>
+            <button type="button" class="open" aria-expanded="false">
+              <span class="l1">{fmtWhen(m.taken_at)} · <span class="pn">{m.place_name?.toLowerCase() ?? 'no location'}</span>{m.source === 'youtube' ? ' · ▶' : ''}</span>
+              <span class="l2 cap">{m.caption ?? ''}</span>
+              <span class="l3">{[...m.categories, ...(m.set_id ? [`▸ ${setTitle.get(m.set_id)?.toLowerCase() ?? 'set'}`] : [])].join(' · ')}</span>
+            </button>
+          </div>
+          <div class="fields" hidden>
+            <input class="caption" type="text" value={m.caption ?? ''} placeholder="caption" maxlength="300" />
+            <div class="when">
+              <input class="taken" type="datetime-local" step="1" value={m.taken_at.slice(0, 19)} data-offset={m.taken_at.slice(19).replace(/^\.\d+/, '')} />
+              <input class="place" type="text" value={m.place_name ?? ''} placeholder="place" maxlength="80" />
+            </div>
+            <div class="controls">
+              <span class="cats">{CATEGORIES.map((c) => <label><input type="checkbox" class="cat" value={c} checked={m.categories.includes(c)} /> {c}</label>)}</span>
+              <select class="setsel" aria-label="set">
+                <option value="">no set</option>
+                {sets.map((s) => <option value={s.id} selected={s.id === m.set_id}>{s.title}</option>)}
+              </select>
+              {m.set_id && m.media_key && (
+                <button class="cover" type="button" data-set={m.set_id} aria-pressed={covers.has(m.id) ? 'true' : 'false'}
+                  title="use as the set's cover">{covers.has(m.id) ? '★ cover' : '☆ cover'}</button>
+              )}
+              <a class="view" href={`/#p-${m.id}`}>[view]</a>
+              <button class="rm" type="button">[delete]</button>
+              <span class="status"></span>
+            </div>
+          </div>
+        </div>
+      ))}
+      {recent.length === 0 && <p class="note">// nothing here yet</p>}
+      <div class="pager">
+        {older && <a href="/post#recent">[newest]</a>}
+        {recent.length === PAGE && <a href={`/post?older=${encodeURIComponent(recent[recent.length - 1].taken_at)}#recent`}>[load older ↓]</a>}
+      </div>
+
+      <div class="bulk" hidden>
+        <span class="count">0 selected</span>
+        <span class="grp">
+          <select class="bset" aria-label="set for selected">
+            <option value="">— set —</option>
+            <option value="__none">no set (take out)</option>
+            {sets.map((s) => <option value={s.id}>{s.title}</option>)}
+          </select>
+          <button type="button" data-bulk="set">[apply]</button>
+        </span>
+        <span class="grp">
+          <select class="btag" aria-label="tag for selected">{CATEGORIES.map((c) => <option value={c}>{c}</option>)}</select>
+          <button type="button" data-bulk="tag-add">[+ tag]</button>
+          <button type="button" data-bulk="tag-remove">[− tag]</button>
+        </span>
+        <button type="button" data-bulk="delete" class="danger">[delete]</button>
+        <button type="button" class="bclear">[done]</button>
+        <span class="bstatus"></span>
+      </div>
+    </section>
+
+    <section data-panel="sets" class="sets" hidden>
+      <div class="cmd">&gt; <b>sets</b> <span>{sets.length}</span></div>
+      <p class="note">// make a set from the post tab, or select photos in recent and choose a set.</p>
+        {sets.map((s) => (
+          <div class="setrow" data-set={s.id}>
+            <input class="stitle" type="text" value={s.title} maxlength="80" aria-label="set title" />
+            <input class="scaption" type="text" value={s.caption ?? ''} placeholder="set caption" maxlength="300" aria-label="set caption" />
+            <span class="scount"><a href={`/sets/${s.id}`}>{counts.get(s.id) ?? 0} items</a></span>
+            <button class="ungroup" type="button">[ungroup]</button>
+            <span class="route">
+              {s.route_km != null
+                ? <>⤳ {fmtStats({ km: s.route_km, secs: s.route_secs ?? null, climb_m: s.route_climb_m ?? null })} <button class="rmroute" type="button">[remove route]</button></>
+                : null}
+              <label class="addroute">{s.route_km != null ? '[replace route]' : '[+ route]'}<input type="file" accept=".gpx,application/gpx+xml" hidden /></label>
+            </span>
+            <span class="status"></span>
+          </div>
+        ))}
+    </section>
+
+    <section data-panel="comments" class="pending" hidden>
+      <div class="cmd">&gt; <b>comments awaiting approval</b> <span>{pending.length}</span></div>
+      <p class="note">{pending.length ? "// approving someone's comment also lets their future comments appear straight away." : '// nothing waiting.'}</p>
         {pending.map((c) => (
           <div class="crow" data-comment={c.id}>
             <div class="cwho">{c.avatar_url && <img src={c.avatar_url} alt="" referrerpolicy="no-referrer" />}<b>{c.first_name.toLowerCase()}</b> <span>{c.email}</span>
@@ -30,10 +134,9 @@ const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
             <div class="cact"><button data-status="approved">[approve]</button><button data-status="rejected">[reject]</button><span class="status"></span></div>
           </div>
         ))}
-      </section>
-    )}
+    </section>
 
-    <section class="zones">
+    <section data-panel="zones" class="zones" hidden>
       <div class="cmd">&gt; <b>privacy zones</b> <span>{zones.length}</span></div>
       <p class="note">// photos taken inside a zone show only its suburb, on the map and the timeline. zones are never shown to visitors.</p>
       {zones.map((z) => (
@@ -54,61 +157,6 @@ const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
         <span class="status"></span>
       </form>
     </section>
-
-    {sets.length > 0 && (
-      <section class="sets">
-        <div class="cmd">&gt; <b>sets</b> <span>{sets.length}</span></div>
-        {sets.map((s) => (
-          <div class="setrow" data-set={s.id}>
-            <input class="stitle" type="text" value={s.title} maxlength="80" aria-label="set title" />
-            <input class="scaption" type="text" value={s.caption ?? ''} placeholder="set caption" maxlength="300" aria-label="set caption" />
-            <span class="scount"><a href={`/sets/${s.id}`}>{counts.get(s.id) ?? 0} items</a></span>
-            <button class="ungroup" type="button">[ungroup]</button>
-            <span class="route">
-              {s.route_km != null
-                ? <>⤳ {fmtStats({ km: s.route_km, secs: s.route_secs ?? null, climb_m: s.route_climb_m ?? null })} <button class="rmroute" type="button">[remove route]</button></>
-                : null}
-              <label class="addroute">{s.route_km != null ? '[replace route]' : '[+ route]'}<input type="file" accept=".gpx,application/gpx+xml" hidden /></label>
-            </span>
-            <span class="status"></span>
-          </div>
-        ))}
-      </section>
-    )}
-
-    <section class="recent">
-      <div class="cmd">&gt; <b>recent</b> <span>{recent.length}</span></div>
-      {recent.map((m) => (
-        <div class="item" data-id={m.id}>
-          <a class="thumb" href={`/#m-${m.id}`}>
-            {(m.thumb_key ?? (m.kind === 'photo' ? m.media_key : null)) ? <img src={mediaUrl((m.thumb_key ?? m.media_key)!)} alt="" loading="lazy" />
-              : m.youtube_id ? <img src={`https://i.ytimg.com/vi/${m.youtube_id}/mqdefault.jpg`} alt="" loading="lazy" />
-              : <span>{m.kind}</span>}
-          </a>
-          <div class="fields">
-            <div class="meta">{m.place_name ? '' : 'no location · '}{m.kind}{m.source === 'youtube' ? ' · youtube' : ''}</div>
-            <input class="caption" type="text" value={m.caption ?? ''} placeholder="caption" maxlength="300" />
-            <div class="when">
-              <input class="taken" type="datetime-local" step="1" value={m.taken_at.slice(0, 19)} data-offset={m.taken_at.slice(19).replace(/^\.\d+/, '')} />
-              <input class="place" type="text" value={m.place_name ?? ''} placeholder="place" maxlength="80" />
-            </div>
-            <div class="controls">
-              <span class="cats">{CATEGORIES.map((c) => <label><input type="checkbox" class="cat" value={c} checked={m.categories.includes(c)} /> {c}</label>)}</span>
-              <select class="setsel" aria-label="set">
-                <option value="">no set</option>
-                {sets.map((s) => <option value={s.id} selected={s.id === m.set_id}>{s.title}</option>)}
-              </select>
-              {m.set_id && m.media_key && (
-                <button class="cover" type="button" data-set={m.set_id} aria-pressed={covers.has(m.id) ? 'true' : 'false'}
-                  title="use as the set's cover">{covers.has(m.id) ? '★ cover' : '☆ cover'}</button>
-              )}
-              <button class="rm" type="button">[rm]</button>
-              <span class="status"></span>
-            </div>
-          </div>
-        </div>
-      ))}
-    </section>
   </main>
 </Base>
 
@@ -123,6 +171,70 @@ const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
 
   type ApiResult = { error?: string; created?: boolean };
   const body = async (res: Response) => (await res.json().catch(() => ({}))) as ApiResult;
+
+  // ---- tabs: one section at a time; the open tab lives in the URL (#recent) so reloads come back to it ----
+  const tabs = Array.from(document.querySelectorAll('.tabs [data-tab]') as unknown as HTMLElement[]);
+  const panels = Array.from(document.querySelectorAll('[data-panel]') as unknown as HTMLElement[]);
+  function showTab(name: string) {
+    if (!panels.some((p) => p.dataset.panel === name)) name = 'post';
+    panels.forEach((p) => { p.hidden = p.dataset.panel !== name; });
+    tabs.forEach((t) => t.setAttribute('aria-current', t.dataset.tab === name ? 'page' : 'false'));
+  }
+  tabs.forEach((t) => t.addEventListener('click', () => {
+    history.replaceState(null, '', `${location.pathname}${location.search}#${t.dataset.tab}`);
+    showTab(t.dataset.tab!);
+  }));
+  showTab(location.hash.slice(1));
+
+  // ---- recent: tap a row to open its edit controls; [select] for bulk changes ----
+  const recentPanel = pick<HTMLElement>(document, '[data-panel=recent]');
+  const bulkBar = pick<HTMLElement>(recentPanel, '.bulk');
+  const selected = () => Array.from(recentPanel.querySelectorAll('.sel') as unknown as HTMLInputElement[]).filter((b) => b.checked);
+  const updateBulk = () => {
+    const n = selected().length;
+    pick<HTMLElement>(bulkBar, '.count').textContent = `${n} selected`;
+  };
+  recentPanel.addEventListener('click', (e) => {
+    const open = (e.target as HTMLElement).closest('.open') as HTMLElement | null;
+    if (!open) return;
+    const item = open.closest('.item') as HTMLElement;
+    if (recentPanel.classList.contains('selecting')) {
+      // In select mode a tap selects instead of opening.
+      const box = pick<HTMLInputElement>(item, '.sel');
+      box.checked = !box.checked;
+      return updateBulk();
+    }
+    const fields = pick<HTMLElement>(item, '.fields');
+    fields.hidden = !fields.hidden;
+    open.setAttribute('aria-expanded', String(!fields.hidden));
+  });
+  recentPanel.addEventListener('change', (e) => { if ((e.target as HTMLElement).classList.contains('sel')) updateBulk(); });
+  const setSelecting = (on: boolean) => {
+    recentPanel.classList.toggle('selecting', on);
+    bulkBar.hidden = !on;
+    if (!on) selected().forEach((b) => { b.checked = false; });
+    updateBulk();
+  };
+  pick<HTMLElement>(recentPanel, '.selmode').addEventListener('click', () => setSelecting(!recentPanel.classList.contains('selecting')));
+  pick<HTMLElement>(bulkBar, '.bclear').addEventListener('click', () => setSelecting(false));
+
+  bulkBar.querySelectorAll('[data-bulk]').forEach((btn) => btn.addEventListener('click', async () => {
+    const action = (btn as HTMLElement).dataset.bulk!;
+    const ids = selected().map((b) => (b.closest('.item') as HTMLElement).dataset.id!);
+    const st = pick<HTMLElement>(bulkBar, '.bstatus');
+    if (!ids.length) { st.textContent = 'select some photos first'; return; }
+    const payload: Record<string, unknown> = { ids, action };
+    if (action === 'set') {
+      const v = pick<HTMLSelectElement>(bulkBar, '.bset').value;
+      if (!v) { st.textContent = 'choose a set'; return; }
+      payload.set_id = v === '__none' ? null : v;
+    }
+    if (action.startsWith('tag')) payload.category = pick<HTMLSelectElement>(bulkBar, '.btag').value;
+    if (action === 'delete' && !confirm(`Delete ${ids.length} photo${ids.length === 1 ? '' : 's'} and their files? This cannot be undone.`)) return;
+    st.textContent = '…';
+    const res = await fetch('/api/moments/bulk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (res.ok) location.reload(); else st.textContent = (await body(res)).error ?? 'error';
+  }));
 
   // Comment moderation.
   (document.querySelectorAll('.crow') as unknown as HTMLElement[]).forEach((row) => {
@@ -207,8 +319,16 @@ const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
       status.textContent = res.ok ? 'saved' : ((await body(res)).error ?? 'error');
       if (res.ok) setTimeout(() => (status.textContent = ''), 1500);
     };
-    pick<HTMLElement>(item, '.caption').addEventListener('change', (e) => save({ caption: (e.target as HTMLInputElement).value }));
-    pick<HTMLElement>(item, '.place').addEventListener('change', (e) => save({ place_name: (e.target as HTMLInputElement).value }));
+    pick<HTMLElement>(item, '.caption').addEventListener('change', (e) => {
+      const v = (e.target as HTMLInputElement).value;
+      pick<HTMLElement>(item, '.sum .cap').textContent = v;
+      save({ caption: v });
+    });
+    pick<HTMLElement>(item, '.place').addEventListener('change', (e) => {
+      const v = (e.target as HTMLInputElement).value;
+      pick<HTMLElement>(item, '.sum .pn').textContent = v.toLowerCase() || 'no location';
+      save({ place_name: v });
+    });
     pick<HTMLElement>(item, '.taken').addEventListener('change', (e) => {
       // Keep the photo's original time-zone offset; a value with no seconds gets :00.
       const input = e.target as HTMLInputElement;
@@ -255,7 +375,15 @@ const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
   button:hover { text-decoration: underline; }
   button:disabled { color: var(--dim); }
   .note { color: var(--dim); margin: 0 0 12px; }
-  .recent, .sets, .zones, .pending { margin-top: 40px; border-top: 1px solid var(--faint); }
+  /* tabs */
+  .tabs { position: sticky; top: 46px; z-index: 5; display: flex; gap: 4px 18px; flex-wrap: wrap; padding: 10px 0; background: var(--bg); border-bottom: 1px solid var(--faint); }
+  .tabs button { color: var(--dim); padding: 4px 0; }
+  .tabs button:hover { color: var(--fg); }
+  .tabs button[aria-current='page'] { color: var(--fg); }
+  .tabs button[aria-current='page']::before { content: '['; }
+  .tabs button[aria-current='page']::after { content: ']'; }
+  .badge { margin-left: 6px; padding: 0 5px; background: #ffb547; color: #000; font-weight: 500; }
+  [data-panel] { padding-top: 6px; }
   .pending { border-top-color: #ffb547; }
   .crow { padding: 10px 0; border-bottom: 1px solid #111; }
   .cwho { color: var(--dim); display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
@@ -281,10 +409,37 @@ const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
   .addroute, .rmroute { color: var(--dim); cursor: pointer; }
   .addroute:hover, .rmroute:hover { color: var(--fg); }
   .ungroup:hover { color: #ff6b6b; }
-  .item { display: grid; grid-template-columns: 88px 1fr; gap: 14px; padding: 14px 0; border-bottom: 1px solid #111; }
-  .thumb { width: 88px; height: 88px; background: #0d0d0d; display: grid; place-items: center; color: var(--dim); overflow: hidden; }
+  /* recent: one compact line per photo; tap to edit */
+  .rhead { display: flex; justify-content: space-between; align-items: baseline; }
+  .selmode { color: var(--dim); }
+  .selmode:hover, .recent.selecting .selmode { color: var(--fg); }
+  .item { border-bottom: 1px solid #111; }
+  /* Fixed columns so the hidden select box doesn't shift the thumbnail and text out of place. */
+  .sum { display: grid; grid-template-columns: 0 48px minmax(0, 1fr); column-gap: 0; align-items: center; padding: 8px 0; }
+  .sum .thumb { grid-column: 2; }
+  .sum .open { grid-column: 3; padding-left: 12px; }
+  .recent.selecting .sum { grid-template-columns: 30px 48px minmax(0, 1fr); }
+  .sel { display: none; width: 18px; height: 18px; }
+  .recent.selecting .sel { display: block; }
+  .thumb { width: 48px; height: 48px; background: #0d0d0d; display: grid; place-items: center; color: var(--dim); overflow: hidden; }
   .thumb img { width: 100%; height: 100%; object-fit: cover; }
-  .meta { color: var(--dim); }
+  .open { text-align: left; display: grid; gap: 1px; min-width: 0; }
+  .open > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .open .l1, .open .l3 { color: var(--dim); }
+  .open .l2:empty::before { content: 'no caption'; color: var(--faint); }
+  .fields { padding: 0 0 14px 60px; }
+  .recent.selecting .fields { display: none; }
+  .view { color: var(--dim); }
+  .pager { display: flex; gap: 18px; margin: 16px 0 90px; }
+  .pager a { color: var(--fg); }
+  .bulk { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center;
+    padding: 12px 20px max(12px, env(safe-area-inset-bottom)); background: #000; border-top: 1px solid var(--fg); }
+  .bulk .count { color: var(--fg); }
+  .bulk .grp { display: inline-flex; gap: 8px; align-items: center; }
+  .bulk button { color: var(--dim); }
+  .bulk button:hover { color: var(--fg); }
+  .bulk .danger:hover { color: #ff6b6b; }
+  .bulk .bstatus { color: var(--dim); }
   .cats { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--fg); }
   .cats label { white-space: nowrap; }
   .controls .cats { color: var(--dim); }
@@ -299,8 +454,8 @@ const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
   @media (max-width: 700px) {
     .post { padding: 56px 16px 60px; }
     .row { grid-template-columns: 1fr; gap: 4px; }
-    .item { grid-template-columns: 64px 1fr; }
-        .thumb { width: 64px; height: 64px; }
+    .fields { padding-left: 0; }
+    .tabs { top: 42px; }
     .setrow { grid-template-columns: 1fr auto auto; }
     .zonerow { grid-template-columns: 1fr auto; }
     .zaddr { grid-column: 1 / -1; grid-row: 2; }

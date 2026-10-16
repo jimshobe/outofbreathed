@@ -36,11 +36,11 @@ const MOMENT_COLUMNS = `id, kind, taken_at, place_name, category, caption, media
   display_lat, display_lng, round(display_lat, 3) AS spot_lat, round(display_lng, 3) AS spot_lng, zoned,
   (SELECT group_concat(category) FROM moment_categories WHERE moment_id = moments.id) AS categories`;
 
-/** Newest first; or every moment of one set, oldest first. */
-export async function listMoments(opts: { limit?: number; setId?: string } = {}): Promise<MomentView[]> {
+/** Newest first (optionally only those older than `before`); or every moment of one set, oldest first. */
+export async function listMoments(opts: { limit?: number; setId?: string; before?: string } = {}): Promise<MomentView[]> {
   const stmt = opts.setId
     ? env.DB.prepare(`SELECT ${MOMENT_COLUMNS} FROM ${PUBLIC} WHERE set_id = ? ORDER BY taken_at`).bind(opts.setId)
-    : env.DB.prepare(`SELECT ${MOMENT_COLUMNS} FROM ${PUBLIC} ORDER BY taken_at DESC LIMIT ?`).bind(opts.limit ?? 200);
+    : env.DB.prepare(`SELECT ${MOMENT_COLUMNS} FROM ${PUBLIC} WHERE taken_at < ? ORDER BY taken_at DESC LIMIT ?`).bind(opts.before ?? '9999', opts.limit ?? 200);
   return withCategories((await stmt.all<Row>()).results);
 }
 
