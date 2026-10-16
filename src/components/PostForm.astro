@@ -1,0 +1,86 @@
+---
+// The owner's posting form. Photos and YouTube links go into a queue; each row has its own caption, and
+// asks for a date or place only when that item lacks one. Behaviour: src/scripts/post-form.ts.
+import { CATEGORIES } from '../lib/categories';
+import type { SetInfo } from '../lib/timeline';
+
+interface Props { sets: SetInfo[] }
+const { sets } = Astro.props;
+---
+
+<form id="up" class="pf" autocomplete="off">
+  <div class="cmd">&gt; <b>new</b></div>
+  <div class="adders">
+    <label class="add">[+ photos]<input type="file" accept="image/*" multiple hidden /></label>
+    <button type="button" class="add addyt">[+ youtube link]</button>
+  </div>
+  <p class="hint" hidden>
+    // some photos have no location. type a place on them below, or re-pick them with
+    <b>Options → Location</b> turned on in the iPhone photo picker.
+  </p>
+  <ol class="queue"></ol>
+
+  <div class="batch" hidden>
+    <div class="brow">
+      <span>tags</span>
+      <div class="cats">
+        {CATEGORIES.map((c) => <label><input type="checkbox" name="category" value={c} /> {c}</label>)}
+        <em>optional; for filtering</em>
+      </div>
+    </div>
+    <label class="brow"><span>set</span><input type="text" name="set_title" list="set-titles" maxlength="80" placeholder="optional: group these, e.g. perth trip" /></label>
+    <datalist id="set-titles">{sets.map((s) => <option value={s.title} />)}</datalist>
+    <label class="brow"><span class="caplabel">caption</span><input type="text" name="batch_caption" maxlength="300" placeholder="for any photo without its own" /></label>
+    <div class="actions">
+      <button type="submit" class="go">[ post ]</button>
+      <button type="button" class="retry" hidden>[ retry failed ]</button>
+      <button type="button" class="clear">[ clear ]</button>
+      <span class="summary" aria-live="polite"></span>
+    </div>
+  </div>
+</form>
+
+<style>
+  .pf .cmd { color: var(--dim); margin: 24px 0 14px; }
+  .pf .cmd b { color: var(--fg); font-weight: 500; }
+  .adders { display: flex; flex-wrap: wrap; gap: 10px; }
+  .add { display: inline-block; padding: 12px 16px; border: 1px solid var(--faint); color: var(--fg); cursor: pointer; }
+  .add:hover { border-color: var(--fg); }
+  .hint { color: #ffb547; margin: 14px 0 0; }
+  .hint b { font-weight: 500; }
+  .queue { list-style: none; padding: 0; margin: 14px 0 0; display: grid; gap: 10px; }
+  .batch { margin-top: 18px; display: grid; gap: 12px; }
+  .brow { display: grid; grid-template-columns: 90px 1fr; gap: 12px; align-items: center; color: var(--dim); }
+  .cats { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--fg); align-items: center; }
+  .cats label { white-space: nowrap; padding: 4px 0; }
+  .cats em { font-style: normal; color: var(--dim); }
+  .pf input[type='text'], .pf input[type='url'], .pf input[type='date'] {
+    font: inherit; color: var(--fg); background: #000; border: 0; border-bottom: 1px solid var(--faint); padding: 6px 0; border-radius: 0; width: 100%; color-scheme: dark;
+  }
+  .pf input:focus { outline: none; border-color: var(--fg); }
+  .pf input[type='checkbox'] { accent-color: var(--fg); }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin-top: 4px; }
+  .actions button { color: var(--dim); }
+  .actions .go { color: var(--fg); padding: 10px 0; }
+  .actions button:hover { color: var(--fg); text-decoration: underline; }
+  .actions button:disabled { color: var(--dim); text-decoration: none; }
+  .summary { color: var(--dim); }
+  .summary :global(a) { color: var(--fg); }
+
+  /* queue rows are rendered by script, so they need :global */
+  .queue :global(li) { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: 4px 12px; padding: 8px 0; border-bottom: 1px solid #111; }
+  .queue :global(.th) { grid-row: span 4; width: 56px; height: 56px; background: #0d0d0d; display: grid; place-items: center; color: var(--dim); overflow: hidden; }
+  .queue :global(.th img) { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .queue :global(.info) { color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .queue :global(.info .warn) { color: #ffb547; }
+  .queue :global(.st) { color: var(--dim); text-align: right; white-space: nowrap; }
+  .queue :global(.st.ok) { color: var(--fg); }
+  .queue :global(.st.bad) { color: #ff6b6b; white-space: normal; }
+  .queue :global(.rm) { color: var(--dim); }
+  .queue :global(.rm:hover) { color: #ff6b6b; }
+  .queue :global(.f) { grid-column: 2 / -1; }
+  .queue :global(li.error) { opacity: .6; }
+  @media (max-width: 700px) {
+    .brow { grid-template-columns: 1fr; gap: 4px; }
+  }
+</style>

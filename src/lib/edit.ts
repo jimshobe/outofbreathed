@@ -51,8 +51,7 @@ export async function updateMoment(id: string, e: MomentEdit): Promise<boolean> 
     } catch (err) {
       throw new UploadError((err as Error).message);
     }
-    if (!newCategories.length) throw new UploadError('pick at least one category');
-    set('category', newCategories[0]);
+    set('category', newCategories[0] ?? null);
   }
   const statements = sets.length ? [env.DB.prepare(`UPDATE moments SET ${sets.join(', ')} WHERE id = ?`).bind(...vals, id)] : [];
   if (newCategories) {

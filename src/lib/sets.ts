@@ -17,10 +17,14 @@ export async function setExists(id: string): Promise<boolean> {
 /** Returns the existing set with this title (case-insensitive), or creates it. */
 export async function findOrCreateSet(title: unknown, caption?: unknown): Promise<{ id: string; created: boolean }> {
   const t = cleanTitle(title);
-  const existing = await env.DB.prepare('SELECT id FROM sets WHERE lower(title) = lower(?)').bind(t).first<{ id: string }>();
-  if (existing) return { id: existing.id, created: false };
-  const id = newSetId();
   const c = typeof caption === 'string' && caption.trim() ? caption.trim() : null;
+  const existing = await env.DB.prepare('SELECT id FROM sets WHERE lower(title) = lower(?)').bind(t).first<{ id: string }>();
+  if (existing) {
+    // Adding to an existing set: a caption fills in only if the set has none yet.
+    if (c) await env.DB.prepare('UPDATE sets SET caption = ? WHERE id = ? AND caption IS NULL').bind(c, existing.id).run();
+    return { id: existing.id, created: false };
+  }
+  const id = newSetId();
   await env.DB.prepare('INSERT INTO sets (id, title, caption) VALUES (?, ?, ?)').bind(id, t, c).run();
   return { id, created: true };
 }

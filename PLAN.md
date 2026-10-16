@@ -40,11 +40,11 @@ Every photo or video is a **moment** with a date, a place, a category, an option
 
 **Category lenses**
 
-- Filters that work on both views: misc, family, travel, moto, food.
+- Optional tags for filtering: family, travel, moto, food. A moment can have none (it shows under "all"); there is no catch-all category.
 
 ## Posting from iPhone
 
-**Current approach:** posting happens on the owner-only `/post` page, saved to the iPhone home screen as a "post" app. It shows each picked photo's date and whether a location was found before uploading (Safari strips location unless **Options → Location** is on in the photo picker). The Shortcut below is paused until the upload API settles.
+**Current approach:** posting happens on the owner-only `/post` page, saved to the iPhone home screen as a "post" app. Picked photos and YouTube links go into a queue: each row has its own caption and asks for a date or place only when the item lacks one (Safari strips location unless **Options → Location** is on in the photo picker). A batch can be named as a set (the batch caption becomes the set caption). Photos are shrunk on the device to 2048 px before upload, three upload at a time, failures can be retried, and tags/set are remembered. The Shortcut below is paused until the upload API settles.
 
 Original plan: posting happens from the Photos app share sheet through an iOS Shortcut, with a private post page as backup. Both are free; no App Store app or Apple developer account is needed.
 
@@ -108,7 +108,7 @@ One main table of moments in D1, with media files in R2. A starting sketch for C
 | lat, lng | number | Exact location as recorded |
 | display\_lat, display\_lng | number | What the map shows: currently the exact position |
 | place\_name | text | Suburb or place, looked up once on upload |
-| category | text | Primary category: misc, family, travel, moto, food. All of a moment's categories (it can have several) live in `moment_categories`. |
+| category | text | Primary tag (nullable): family, travel, moto, food. All of a moment's categories (it can have several) live in `moment_categories`. |
 | caption | text | Optional, a sentence or two |
 | visibility | text | Unused (always everyone); kept in case audience levels are wanted later |
 | source | text | site or youtube |

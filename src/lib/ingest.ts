@@ -98,8 +98,7 @@ export async function ingest(file: File | null, f: UploadFields): Promise<{ id: 
   } catch (e) {
     throw new UploadError((e as Error).message);
   }
-  if (!categories.length) categories = ['misc'];
-  const category = categories[0]; // primary
+  const category = categories[0] ?? null; // primary tag, if any
   if (f.taken_at && !ISO_LOCAL.test(f.taken_at)) throw new UploadError('taken_at must be ISO 8601, e.g. 2026-10-10T09:12:00+10:00');
   const fallbackTakenAt = f.fallback_taken_at && ISO_LOCAL.test(f.fallback_taken_at) ? f.fallback_taken_at : new Date().toISOString();
   if ((f.lat == null) !== (f.lng == null) || (f.lat != null && (Math.abs(f.lat) > 90 || Math.abs(f.lng!) > 180))) {

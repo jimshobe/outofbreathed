@@ -1,4 +1,5 @@
-export const CATEGORIES = ['misc', 'family', 'travel', 'moto', 'food'] as const;
+// Optional tags for filtering the timeline. A moment may have none (it still shows under "all").
+export const CATEGORIES = ['family', 'travel', 'moto', 'food'] as const;
 export type Category = (typeof CATEGORIES)[number];
 
 /**

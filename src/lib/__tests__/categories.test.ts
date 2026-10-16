@@ -3,7 +3,7 @@ import { parseCategories } from '../categories';
 
 describe('parseCategories', () => {
   it('accepts the newline-joined list the iOS Shortcut sends', () => {
-    expect(parseCategories(['misc\nfood'])).toEqual(['misc', 'food']);
+    expect(parseCategories(['moto\nfood'])).toEqual(['moto', 'food']);
     expect(parseCategories(['family\r\ntravel\r\n'])).toEqual(['family', 'travel']);
   });
 
@@ -13,6 +13,7 @@ describe('parseCategories', () => {
 
   it('returns nothing for empty input and rejects unknown names', () => {
     expect(parseCategories([undefined, '', '\n'])).toEqual([]);
-    expect(() => parseCategories(['misc\npets'])).toThrow(/unknown category "pets"/);
+    expect(() => parseCategories(['moto\npets'])).toThrow(/unknown category "pets"/);
+    expect(() => parseCategories(['misc'])).toThrow(/unknown category "misc"/);
   });
 });

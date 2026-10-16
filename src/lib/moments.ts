@@ -7,8 +7,8 @@ export interface MomentView {
   kind: 'photo' | 'video';
   taken_at: string;
   place_name: string | null;
-  category: string;
-  /** All categories, primary first. */
+  category: string | null;
+  /** All categories, primary first (may be empty). */
   categories: string[];
   caption: string | null;
   media_key: string | null;
@@ -87,7 +87,7 @@ const CATEGORY_FILTER = `(id IN (SELECT moment_id FROM moment_categories WHERE c
 
 type Row = Omit<MomentView, 'categories'> & { categories: string | null };
 const withCategories = (results: Row[]): MomentView[] =>
-  results.map((m) => ({ ...m, categories: [m.category, ...(m.categories ?? '').split(',').filter((c) => c && c !== m.category)] }));
+  results.map((m) => ({ ...m, categories: [...new Set([m.category, ...(m.categories ?? '').split(',')].filter((c): c is string => !!c))] }));
 
 export interface TimelinePage {
   entries: Entry<MomentView>[];

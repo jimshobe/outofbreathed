@@ -1,6 +1,7 @@
 ---
 // Owner-only (enforced in middleware): upload from a browser, and edit or delete recent moments.
 import Base from '../layouts/Base.astro';
+import PostForm from '../components/PostForm.astro';
 import { listMoments, listSets, setCounts, mediaUrl } from '../lib/moments';
 import { listZones, shownDistanceM } from '../lib/zones';
 import { pendingComments } from '../lib/comments';
@@ -15,32 +16,7 @@ const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
 
 <Base current="post" homeScreen>
   <main class="post">
-    <form id="up" autocomplete="off">
-      <div class="cmd">&gt; <b>new</b></div>
-      <label class="row">
-        <span>photos</span>
-        <input type="file" name="file" accept="image/*" multiple />
-      </label>
-      <ul id="picked" class="picked" hidden></ul>
-      <p id="hint" class="hint" hidden>
-        // some photos arrived without a location. on iPhone, tap <b>Options</b> at the top of the photo picker,
-        turn on <b>Location</b>, and pick them again. or type a place below and they'll use that.
-      </p>
-      <label class="row"><span>or youtube</span><input type="url" name="youtube" placeholder="video link (upload to YouTube as Unlisted)" /></label>
-      <div class="row">
-        <span>category</span>
-        <div class="cats">{CATEGORIES.map((c) => <label><input type="checkbox" name="category" value={c} checked={c === 'misc'} /> {c}</label>)}</div>
-      </div>
-      <label class="row"><span>caption</span><input type="text" name="caption" maxlength="300" /></label>
-      <label class="row"><span>set</span><input type="text" name="set_title" list="set-titles" maxlength="80" placeholder="optional: new name, or pick an existing set" /></label>
-      <datalist id="set-titles">{sets.map((s) => <option value={s.title} />)}</datalist>
-      <label class="row set-caption" hidden><span>set caption</span><input type="text" name="set_caption" maxlength="300" placeholder="about the whole set" /></label>
-      <label class="row"><span>date</span><input type="date" name="date" /></label>
-      <label class="row"><span>place</span><input type="text" name="fallback_place" placeholder="e.g. Springbrook, QLD" /></label>
-      <p class="note">// date and place are for youtube links, or photos missing them. photos that have their own keep them.</p>
-      <div class="row"><span></span><button type="submit">[ post ]</button></div>
-      <pre id="log" aria-live="polite"></pre>
-    </form>
+    <PostForm sets={sets} />
 
     {pending.length > 0 && (
       <section class="pending">
@@ -137,133 +113,16 @@ const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
 </Base>
 
 <script>
-  import { readJpegMeta } from '../lib/exif';
+  import '../scripts/post-form';
 
   // Worker types (in the global tsconfig) declare their own `Element`, which clashes with the DOM one
   // in querySelector's generic, so browser lookups go through this helper.
   const pick = <T,>(root: { querySelector(sel: string): unknown }, sel: string) => root.querySelector(sel) as T;
-  const form = document.getElementById('up') as HTMLFormElement;
-  const log = document.getElementById('log')!;
-  const say = (line: string) => { log.textContent += line + '\n'; };
   const checked = (root: { querySelectorAll(sel: string): unknown }, sel: string) =>
     Array.from(root.querySelectorAll(sel) as unknown as HTMLInputElement[]).filter((i) => i.checked).map((i) => i.value);
 
-
-  // Before uploading, show each picked file with the date and location found in it, so photos that
-  // Safari stripped can be fixed (re-picked with Options → Location) before they're posted.
-  const fileInput = pick<HTMLInputElement>(form, '[name=file]');
-  const picked = document.getElementById('picked') as HTMLUListElement;
-  const hint = document.getElementById('hint')!;
-  let previews: string[] = [];
-  const day = (iso: string) => new Date(`${iso.slice(0, 10)}T00:00:00Z`).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).toLowerCase();
-
-  async function describe(file: File) {
-    const isJpeg = file.type === 'image/jpeg' || /\.jpe?g$/i.test(file.name);
-    if (file.type.startsWith('video/')) return { text: 'videos go on youtube', missing: true };
-    if (!isJpeg) return { text: 'date and place read on upload', missing: false };
-    // EXIF sits at the start of the file; no need to read the whole photo.
-    const meta = readJpegMeta(new Uint8Array(await file.slice(0, 512 * 1024).arrayBuffer()));
-    const when = meta.takenAt ? day(meta.takenAt) : 'no date';
-    const where = meta.lat != null ? 'location ✓' : 'no location';
-    return { text: `${when} · ${where}`, missing: meta.lat == null };
-  }
-
-  fileInput.addEventListener('change', async () => {
-    previews.forEach((u) => URL.revokeObjectURL(u));
-    previews = [];
-    let anyMissing = false;
-    const esc = (t: string) => t.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
-    const files = Array.from(fileInput.files ?? []);
-    picked.innerHTML = files.map((file) => {
-      const url = URL.createObjectURL(file);
-      previews.push(url);
-      const media = file.type.startsWith('video/') ? `<video src="${url}" muted></video>` : `<img src="${url}" alt="">`;
-      return `<li>${media}<span>${esc(file.name)}</span><span class="info">…</span><span class="st"></span></li>`;
-    }).join('');
-    const rows = Array.from(picked.children) as unknown as HTMLElement[];
-    for (const [i, file] of files.entries()) {
-      const d = await describe(file);
-      pick<HTMLElement>(rows[i], '.info').textContent = d.text;
-      if (d.missing) { rows[i].classList.add('missing'); anyMissing = true; }
-    }
-    picked.hidden = !picked.children.length;
-    hint.hidden = !anyMissing;
-  });
-
   type ApiResult = { error?: string; created?: boolean };
   const body = async (res: Response) => (await res.json().catch(() => ({}))) as ApiResult;
-
-  /** Posts one item, retrying network failures. Returns true if it's now on the site. */
-  async function post(fields: FormData, label: string, mark?: (s: string) => void): Promise<boolean> {
-    const done = (msg: string, ok: boolean) => { say(`  ${label} … ${msg}`); mark?.(ok ? '✓' : '✗'); return ok; };
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      mark?.(attempt === 1 ? '…' : `retry ${attempt}`);
-      try {
-        const res = await fetch('/api/moments', { method: 'POST', body: fields });
-        const result = await body(res);
-        if (res.ok) return done(result.created ? 'ok' : 'already posted', true);
-        if (res.status < 500) return done(result.error ?? String(res.status), false);
-      } catch { /* network: retry */ }
-      if (attempt < 3) await new Promise((r) => setTimeout(r, 1500 * attempt));
-    }
-    return done('failed after 3 tries; post again to retry', false);
-  }
-
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const files = fileInput.files!;
-    const youtube = pick<HTMLInputElement>(form, '[name=youtube]').value.trim();
-    if (!files.length && !youtube) return say('$ choose files or paste a youtube link');
-    const base = new FormData(form);
-    base.delete('file');
-    // Items with no date of their own (YouTube links, photos Safari stripped) get the typed date,
-    // or else "now" in this device's time zone (not UTC, which can land on the wrong day).
-    const typedDate = String(base.get('date') ?? '');
-    base.delete('date');
-    const now = new Date(), off = -now.getTimezoneOffset();
-    const pad = (n: number) => String(Math.abs(n)).padStart(2, '0');
-    const nowLocal = `${new Date(now.getTime() + off * 60000).toISOString().slice(0, 19)}${off >= 0 ? '+' : '-'}${pad(Math.trunc(off / 60))}:${pad(off % 60)}`;
-    base.set('fallback_taken_at', typedDate ? `${typedDate}T12:00:00` : nowLocal);
-    const setTitle = String(base.get('set_title') ?? '').trim();
-    const setCaption = String(base.get('set_caption') ?? '').trim();
-    base.delete('set_title');
-    base.delete('set_caption');
-    const button = form.querySelector('button')!;
-    button.disabled = true;
-    if (setTitle) {
-      const res = await fetch('/api/sets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: setTitle, caption: setCaption }) });
-      const r = (await res.json().catch(() => ({}))) as { id?: string; created?: boolean; error?: string };
-      if (!res.ok || !r.id) { say(`$ set "${setTitle}": ${r.error ?? res.status}`); button.disabled = false; return; }
-      base.set('set_id', r.id);
-      say(`$ set "${setTitle}" (${r.created ? 'new' : 'existing'})`);
-    }
-    say(`$ post ${files.length || 1} item${files.length === 1 || !files.length ? '' : 's'}`);
-    let posted = 0;
-    if (!files.length && (await post(base, youtube))) posted++;
-    const rows = Array.from(picked.children) as unknown as HTMLElement[];
-    for (const [i, file] of Array.from(files).entries()) {
-      const fd = new FormData();
-      for (const [k, v] of base) if (k !== 'youtube') fd.append(k, v);
-      fd.append('file', file);
-      // Same file picked again → same ref → the server returns the existing moment instead of a duplicate.
-      fd.append('source_ref', `web:${file.name}:${file.size}:${file.lastModified}`);
-      const st = rows[i]?.querySelector('.st');
-      if (await post(fd, file.name, (m) => { if (st) st.textContent = m; })) posted++;
-    }
-    button.disabled = false;
-    if (posted) {
-      say('$ done');
-      setTimeout(() => location.reload(), 1200);
-    }
-  });
-
-  // A new set name shows the set-caption field; an existing set's caption is edited under "sets".
-  const setTitleInput = pick<HTMLInputElement>(form, '[name=set_title]');
-  const existingTitles = new Set(Array.from(document.querySelectorAll('#set-titles option') as unknown as HTMLOptionElement[]).map((o) => o.value.toLowerCase()));
-  setTitleInput.addEventListener('input', () => {
-    const t = setTitleInput.value.trim().toLowerCase();
-    pick<HTMLElement>(form, '.set-caption').hidden = !t || existingTitles.has(t);
-  });
 
   // Comment moderation.
   (document.querySelectorAll('.crow') as unknown as HTMLElement[]).forEach((row) => {
@@ -356,9 +215,8 @@ const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
       const v = input.value.length === 16 ? input.value + ':00' : input.value;
       if (v) save({ taken_at: v + (input.dataset.offset ?? '') });
     });
-    item.querySelectorAll('.cat').forEach((box) => box.addEventListener('change', (e) => {
+    item.querySelectorAll('.cat').forEach((box) => box.addEventListener('change', () => {
       const cats = checked(item, '.cat');
-      if (!cats.length) { (e.target as HTMLInputElement).checked = true; return; } // at least one
       save({ categories: cats });
     }));
     pick<HTMLElement>(item, '.setsel').addEventListener('change', (e) => save({ set_id: (e.target as HTMLSelectElement).value || null }));
@@ -396,19 +254,7 @@ const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
   button { color: var(--fg); }
   button:hover { text-decoration: underline; }
   button:disabled { color: var(--dim); }
-  #log { margin-top: 12px; color: var(--dim); font: inherit; white-space: pre-wrap; }
-  /* Preview rows are created by script, so they lack Astro's scoped-style attribute: style them via :global. */
-  .picked { list-style: none; padding: 0; margin: 4px 0 14px; display: grid; gap: 6px; }
-  .picked :global(li) { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; color: var(--fg); }
-  .picked :global(img), .picked :global(video) { width: 44px; height: 44px; object-fit: cover; background: #0d0d0d; display: block; }
-  .picked :global(span:nth-child(2)) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .picked :global(.info) { color: var(--dim); white-space: nowrap; }
-  .picked :global(li.missing .info) { color: #ffb547; }
-  .picked :global(.st) { color: var(--dim); min-width: 1.5em; text-align: right; }
   .note { color: var(--dim); margin: 0 0 12px; }
-  input[type='date'] { font: inherit; color: var(--fg); background: #000; border: 0; border-bottom: 1px solid var(--faint); padding: 6px 0; color-scheme: dark; width: auto; }
-  .hint { color: #ffb547; margin: 0 0 14px; }
-  .hint b { font-weight: 500; }
   .recent, .sets, .zones, .pending { margin-top: 40px; border-top: 1px solid var(--faint); }
   .pending { border-top-color: #ffb547; }
   .crow { padding: 10px 0; border-bottom: 1px solid #111; }
@@ -454,9 +300,7 @@ const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
     .post { padding: 56px 16px 60px; }
     .row { grid-template-columns: 1fr; gap: 4px; }
     .item { grid-template-columns: 64px 1fr; }
-    .picked :global(li) { grid-template-columns: 44px minmax(0, 1fr) auto; }
-    .picked :global(span:nth-child(2)) { display: none; }
-    .thumb { width: 64px; height: 64px; }
+        .thumb { width: 64px; height: 64px; }
     .setrow { grid-template-columns: 1fr auto auto; }
     .zonerow { grid-template-columns: 1fr auto; }
     .zaddr { grid-column: 1 / -1; grid-row: 2; }
