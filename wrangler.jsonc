@@ -13,6 +13,11 @@
 	},
 	// Served on outofbreathed.<subdomain>.workers.dev until the domain cutover. Preview URLs are off.
 	"workers_dev": true,
+	// outofbreathed.com is a Cloudflare zone; www redirects to the bare domain (src/middleware.ts).
+	"routes": [
+		{ "pattern": "outofbreathed.com", "custom_domain": true },
+		{ "pattern": "www.outofbreathed.com", "custom_domain": true }
+	],
 	"preview_urls": false,
 	"d1_databases": [
 		{

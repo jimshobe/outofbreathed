@@ -11,7 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 MapLibre gotchas found while prototyping: GeoJSON source URLs must be absolute (the worker can't resolve relative paths), and headless Chrome screenshots fire before GeoJSON workers finish, so delay capture when verifying map rendering.
 
 Migration facts not in the plan:
-- Domain is `outofbreathed.com`. DNS is currently on Vercel (`ns1/ns2.vercel-dns.com`), which also hosts the site. Email uses Forward Email (MX `mx1/mx2.forwardemail.net`) and Resend sends from `jim@outofbreathed.com` — preserve MX/TXT/SPF/DKIM records when moving DNS to Cloudflare.
+- Domain is `outofbreathed.com`, registered at DreamHost, DNS on Cloudflare since 2026-10-16 (`kim/wesley.ns.cloudflare.com`). The site is this Worker on `outofbreathed.com` + `www` (custom domains in `wrangler.jsonc`; middleware 301s www → apex and old blog URLs → `/`). Email uses Forward Email (MX `mx1/mx2.forwardemail.net`) and Resend sends from `jim@outofbreathed.com` (`send` MX/SPF, `resend._domainkey`) — keep those records.
 - Existing content lives in Firebase (project `outofbreathed-42932`), not in this repo: Firestore `posts` (HTML `content` from TipTap) and Storage bucket `outofbreathed-42932-storage` under `posts/`. Back these up before decommissioning.
 - **A separate "family app" shares this Firebase project and must keep working.** It uses `families/` (with `tasks`, `events`), Firebase Auth, and the shared `users/{uid}` docs (`familyId` field). Never delete the Firebase project, `users` docs, or Auth users; never deploy `firestore.rules` without the `families` rules and `isInFamily`. Retire only the blog's own pieces (`posts`, `comments`, `invites`, Storage `posts/`); `config` is read by both apps.
   - Family app repo: `github.com/jimshobe/family` (cloned at `../family`). Vite/React PWA + Vercel functions, served at `family.outofbreathed.com` (CNAME `cname.vercel-dns.com`), with a daily Vercel cron (`/api/digest`).
@@ -20,7 +20,7 @@ Migration facts not in the plan:
 
 ## Branches
 
-`rebuild` holds the new Cloudflare app. `main` still holds the old Firebase/Vercel blog, which Vercel serves at outofbreathed.com until the domain cutover; consult it (e.g. `git show main:src/lib/firebase-admin.ts`) when exporting old content.
+`rebuild` holds the new Cloudflare app. `main` still holds the old Firebase/Vercel blog (no longer served; a copy of its posts is in the git-ignored `backup/old-blog/`); consult it (e.g. `git show main:src/lib/firebase-admin.ts`) when exporting old content.
 
 ## Commands
 
@@ -28,7 +28,7 @@ Migration facts not in the plan:
 npm install
 npx astro dev --background       # dev server at localhost:4321 (astro dev stop / status / logs)
 npm run check                    # astro check (type-check)
-npm run build && npx wrangler deploy        # deploy to https://outofbreathed.jimshobe.workers.dev
+npm run build && npx wrangler deploy        # deploy to https://outofbreathed.com (also outofbreathed.jimshobe.workers.dev)
 npx wrangler types               # regenerate worker-configuration.d.ts after editing wrangler.jsonc
 npx wrangler d1 migrations apply outofbreathed --local|--remote   # schema changes live in migrations/
 npx wrangler d1 execute outofbreathed --remote --command "SELECT ..."
