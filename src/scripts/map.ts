@@ -78,7 +78,7 @@ function drawMarks() {
   const placed: { x0: number; x1: number; y0: number; y1: number }[] = [];
   for (const c of clusters) {
     if (c.members.length > 1) { placed.push({ x0: c.xy.x - 16, x1: c.xy.x + 16, y0: c.xy.y - 12, y1: c.xy.y + 12 }); continue; }
-    const p = c.members[0].p, w = (label(p).length + String(p.n).length + 6) * 7.8 + 24;
+    const p = c.members[0].p, w = (label(p).length + 5) * 7.8 + 24;
     const box = { x0: c.xy.x - 6, x1: c.xy.x + w, y0: c.xy.y - 10, y1: c.xy.y + 10 };
     c.nolabel = placed.some((b) => box.x0 < b.x1 && box.x1 > b.x0 && box.y0 < b.y1 && box.y1 > b.y0);
     placed.push(c.nolabel ? { x0: c.xy.x - 6, x1: c.xy.x + 6, y0: c.xy.y - 6, y1: c.xy.y + 6 } : box);
@@ -87,12 +87,11 @@ function drawMarks() {
   marks.innerHTML = clusters.map((c) => {
     const style = `left:${c.xy.x}px;top:${c.xy.y}px`;
     if (c.members.length > 1) {
-      const n = c.members.reduce((s, o) => s + o.p.n, 0);
-      return `<div class="mk group" style="${style}" data-keys="${c.members.map((o) => key(o.p)).join(';')}"><span class="n">${n}</span></div>`;
+      return `<div class="mk group" style="${style}" data-keys="${c.members.map((o) => key(o.p)).join(';')}" aria-label="${c.members.length} places"><span class="n">+</span></div>`;
     }
     const p = c.members[0].p, k = key(p);
     return `<div class="mk${p === newest ? ' here' : ''}${p.zoned ? ' approx' : ''}${c.nolabel ? ' nolabel' : ''}" style="${style}" data-keys="${k}">
-      <span class="sq"></span><span class="lbl"><span class="nm">${esc(label(p))} ${p.n}</span><button class="i" data-info="${k}" aria-label="About ${esc(label(p))}">[i]</button></span></div>`;
+      <span class="sq"></span><span class="lbl"><span class="nm">${esc(label(p))}</span><button class="i" data-info="${k}" aria-label="About ${esc(label(p))}">[i]</button></span></div>`;
   }).join('');
 }
 map.on('render', drawMarks);
@@ -150,14 +149,14 @@ function flyTo(p: Place) {
 
 function gmaps(p: Place) {
   const url = googleMapsUrl(p.name, p.zoned);
-  return url ? ` · <a class="gm" href="${esc(url)}" target="_blank" rel="noopener">[google maps ↗]</a>` : '';
+  return url ? `<a class="gm" href="${esc(url)}" target="_blank" rel="noopener">[google maps ↗]</a>` : '';
 }
 
 function head(p: Place, mode: string) {
   const tab = (m: string, text: string) => `<button data-mode="${m}" class="${mode === m ? 'on' : ''}">${text}</button>`;
   return `<button class="x" aria-label="Close">[esc]</button>
     <div class="cmd">&gt; <b>${esc(label(p))}</b></div>
-    <div class="sub">${p.n} ${p.n === 1 ? 'item' : 'items'}${p.zoned ? ' · general area' : ''}${gmaps(p)}</div>
+    <div class="sub">${[p.zoned ? 'general area' : '', gmaps(p)].filter(Boolean).join(' · ') || '&nbsp;'}</div>
     <div class="tabs">${tab('photos', 'photos')}${tab('about', '[i] about')}</div>`;
 }
 

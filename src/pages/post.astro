@@ -13,7 +13,7 @@ const older = Astro.url.searchParams.get('older') ?? undefined;
 const PAGE = 60;
 const [recent, sets, counts, zones, pending] = await Promise.all([listMoments({ limit: PAGE, before: older }), listSets(), setCounts(), listZones(), pendingComments()]);
 const setTitle = new Map(sets.map((s) => [s.id, s.title]));
-const fmtWhen = (iso: string) => `${fmtDay(iso)} ${iso.slice(0, 4)}`;
+const fmtWhen = fmtDay;
 const RADII = [200, 300, 500, 1000, 2000];
 const km = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`);
 const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
@@ -35,7 +35,7 @@ const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
 
     <section data-panel="recent" class="recent" hidden>
       <div class="rhead">
-        <span class="cmd">&gt; <b>recent</b> <span>{older ? `before ${fmtWhen(older)}` : `latest ${recent.length}`}</span></span>
+        <span class="cmd">&gt; <b>recent</b> <span>{older ? `before ${fmtWhen(older)}` : 'latest'}</span></span>
         <button type="button" class="selmode">[select]</button>
       </div>
       {recent.map((m) => (

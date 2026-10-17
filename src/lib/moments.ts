@@ -53,7 +53,7 @@ export const lbItem = (m: MomentView) => ({
   id: m.id,
   src: mediaUrl(m.media_key!),
   caption: m.caption,
-  meta: [`${fmtDay(m.taken_at)} ${m.taken_at.slice(0, 4)}`, m.place_name?.toLowerCase()].filter(Boolean).join(' · '),
+  meta: [fmtDay(m.taken_at), m.place_name?.toLowerCase()].filter(Boolean).join(' · '),
 });
 
 export async function listSets(): Promise<SetInfo[]> {

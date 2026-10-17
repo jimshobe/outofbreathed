@@ -5,7 +5,6 @@ import SetCard from '../components/SetCard.astro';
 import LightboxData from '../components/LightboxData.astro';
 import { timelinePage, yearIndex } from '../lib/moments';
 import { commentCounts } from '../lib/comments';
-import { groupEntriesByMonth } from '../lib/timeline';
 import { CATEGORIES, type Category } from '../lib/categories';
 
 // ?c=moto filters by category; ?before=<month start> pages back in time (and jumps to a year).
@@ -16,7 +15,6 @@ const b = params.get('before');
 const before = b && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(b) ? b : undefined;
 
 const [{ entries, older }, years] = await Promise.all([timelinePage({ before, category }), yearIndex(category)]);
-const months = groupEntriesByMonth(entries);
 const singles = entries.flatMap((e) => (e.type === 'moment' ? [e.moment] : []));
 const counts = await commentCounts(singles.map((m) => m.id), entries.flatMap((e) => (e.type === 'set' ? [e.set.id] : [])));
 
@@ -45,19 +43,16 @@ const shownYear = entries[0]?.date.slice(0, 4);
       </nav>
     )}
 
-    {months.length === 0 && <p class="empty">nothing here yet</p>}
-    {months.map((g) => (
-      <>
-        <div class="mh"><b>{g.label}</b><span>{g.entries.length}</span></div>
-        {g.entries.map((e) => e.type === 'set'
-          ? <SetCard set={e.set} moments={e.moments} cover={e.cover} start={e.start} end={e.end} places={e.places} comments={counts.get(`s:${e.set.id}`) ?? 0} />
-          : <Moment m={e.moment} group="tl" comments={counts.get(`m:${e.moment.id}`) ?? 0} />)}
-      </>
-    ))}
+    {entries.length === 0 && <p class="empty">nothing here yet</p>}
+    <div class="entries">
+      {entries.map((e) => e.type === 'set'
+        ? <SetCard set={e.set} moments={e.moments} cover={e.cover} start={e.start} end={e.end} places={e.places} comments={counts.get(`s:${e.set.id}`) ?? 0} />
+        : <Moment m={e.moment} group="tl" comments={counts.get(`m:${e.moment.id}`) ?? 0} />)}
+    </div>
 
     {older
       ? <a class="more" href={link({ c: category, before: older })}>older ↓</a>
-      : months.length > 0 && <div class="end">that's everything<i></i></div>}
+      : entries.length > 0 && <div class="end">that's everything<i></i></div>}
 
     <LightboxData group="tl" moments={singles} />
   </main>
@@ -79,10 +74,7 @@ const shownYear = entries[0]?.date.slice(0, 4);
   .filters a.on::before, .years a.on::before { content: '['; }
   .filters a.on::after, .years a.on::after { content: ']'; }
   .empty { margin-top: 40px; color: var(--dim); }
-  .mh { display: flex; align-items: center; gap: 10px; margin: 44px 0 18px; color: var(--dim); white-space: nowrap; }
-  .mh::before { content: '──'; color: var(--faint); }
-  .mh::after { content: ''; flex: 1; border-top: 1px solid var(--faint); }
-  .mh b { color: var(--fg); font-weight: 400; }
+  .entries { margin-top: 36px; }
   .more { display: inline-block; margin-top: 40px; color: var(--fg); text-decoration: none; }
   .more::before { content: '$ '; color: var(--dim); }
   .more:hover { text-decoration: underline; }

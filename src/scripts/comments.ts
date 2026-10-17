@@ -10,7 +10,8 @@ const $ = (sel: string, root: { querySelector(s: string): unknown }) => root.que
 const esc = (t: string) => t.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
 const signedIn = document.body.dataset.signedIn === '1';
 const isOwner = document.body.dataset.owner === '1';
-const day = (iso: string) => new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }).toLowerCase();
+// dd-mm-yy in the viewer's own time zone (comment times are UTC instants).
+const day = (iso: string) => { const d = new Date(iso); return [d.getDate(), d.getMonth() + 1, d.getFullYear() % 100].map((n) => String(n).padStart(2, '0')).join('-'); };
 
 function render(thread: El, on: string, list: C[]) {
   const loginHref = `/auth/login?next=${encodeURIComponent(location.pathname + location.search)}`;

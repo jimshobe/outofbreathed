@@ -25,16 +25,12 @@ export type Entry<M extends TimelineMoment> =
 
 // taken_at is the camera's local wall-clock time with its offset (e.g. 2026-10-10T09:12:00+10:00).
 // Show the date as the photographer saw it: read the date part directly instead of converting zones.
-const localDate = (iso: string) => new Date(`${iso.slice(0, 10)}T00:00:00Z`);
-const fmt = (iso: string, o: Intl.DateTimeFormatOptions) => localDate(iso).toLocaleDateString('en-AU', { ...o, timeZone: 'UTC' }).toLowerCase();
+/** dd-mm-yy, e.g. "17-10-26". */
+export const fmtDay = (iso: string) => `${iso.slice(8, 10)}-${iso.slice(5, 7)}-${iso.slice(2, 4)}`;
 
-export const fmtDay = (iso: string) => fmt(iso, { day: 'numeric', month: 'short' });
-export const fmtMonth = (iso: string) => fmt(iso, { month: 'long', year: 'numeric' });
-
-/** "30 sep – 2 oct", "14 sep", or with years when they differ: "30 dec 2025 – 2 jan 2026". */
+/** "30-09-26 – 02-10-26", or one date when the range is a single day. */
 export function fmtRange(start: string, end: string): string {
   if (start.slice(0, 10) === end.slice(0, 10)) return fmtDay(start);
-  if (start.slice(0, 4) !== end.slice(0, 4)) return `${fmt(start, { day: 'numeric', month: 'short', year: 'numeric' })} – ${fmt(end, { day: 'numeric', month: 'short', year: 'numeric' })}`;
   return `${fmtDay(start)} – ${fmtDay(end)}`;
 }
 
@@ -63,17 +59,6 @@ export function buildEntries<M extends TimelineMoment>(moments: M[], sets: SetIn
     });
   }
   return entries.sort((a, b) => b.date.localeCompare(a.date));
-}
-
-export function groupEntriesByMonth<M extends TimelineMoment>(entries: Entry<M>[]) {
-  const months: { label: string; entries: Entry<M>[] }[] = [];
-  for (const e of entries) {
-    const label = fmtMonth(e.date);
-    const last = months[months.length - 1];
-    if (last?.label === label) last.entries.push(e);
-    else months.push({ label, entries: [e] });
-  }
-  return months;
 }
 
 /** Start of the month containing a local timestamp, in the same sortable form as taken_at. */

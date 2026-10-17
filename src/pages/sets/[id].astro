@@ -33,7 +33,7 @@ const mapJson = route?.length
       <h2>{set.title.toLowerCase()}</h2>
       {moments.length > 0 && (
         <p class="meta">
-          {fmtRange(moments[0].taken_at, moments[moments.length - 1].taken_at)} · {moments.length} {moments.length === 1 ? 'item' : 'items'}
+          {fmtRange(moments[0].taken_at, moments[moments.length - 1].taken_at)}
           {places.length > 0 && ' · '}
           {places.map((p, i) => {
             const g = googleMapsUrl(p);

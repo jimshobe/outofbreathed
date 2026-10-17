@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildEntries, groupEntriesByMonth, fmtRange, assemblePage } from '../timeline';
+import { buildEntries, fmtRange, fmtDay, assemblePage } from '../timeline';
 
 const m = (id: string, taken_at: string, set_id: string | null = null, place_name: string | null = 'Perth') => ({ id, taken_at, set_id, place_name });
 const perth = { id: 's1', title: 'Perth', caption: 'Long weekend', cover_id: null };
@@ -20,7 +20,7 @@ describe('buildEntries', () => {
     expect(set.moments.map((x) => x.id)).toEqual(['p1', 'p2', 'p3']);
     expect(set.cover.id).toBe('p1');
     expect(set.places).toEqual(['Perth', 'West Perth']);
-    expect(fmtRange(set.start, set.end)).toBe('30 sept – 2 oct');
+    expect(fmtRange(set.start, set.end)).toBe('30-09-26 – 02-10-26');
   });
 
   it('uses the chosen cover, and treats moments of unknown or empty sets as singles', () => {
@@ -32,16 +32,15 @@ describe('buildEntries', () => {
     expect(entries.some((e) => e.type === 'moment' && e.moment.id === 'x')).toBe(true);
   });
 
-  it('places a set spanning two months under its first month', () => {
-    const months = groupEntriesByMonth(buildEntries([m('p1', '2026-09-30T10:00:00', 's1'), m('p2', '2026-10-02T10:00:00', 's1')], [perth]));
-    expect(months.map((g) => g.label)).toEqual(['september 2026']);
-  });
 });
 
 describe('fmtRange', () => {
   it('shows one day, a range, or a range across years', () => {
-    expect(fmtRange('2026-09-14T08:00:00', '2026-09-14T20:00:00')).toBe('14 sept');
-    expect(fmtRange('2025-12-30T08:00:00', '2026-01-02T08:00:00')).toBe('30 dec 2025 – 2 jan 2026');
+    expect(fmtRange('2026-09-14T08:00:00', '2026-09-14T20:00:00')).toBe('14-09-26');
+    expect(fmtRange('2025-12-30T08:00:00', '2026-01-02T08:00:00')).toBe('30-12-25 – 02-01-26');
+  });
+  it('reads the date as written, ignoring the offset', () => {
+    expect(fmtDay('2026-10-17T23:30:00+10:00')).toBe('17-10-26');
   });
 });
 
