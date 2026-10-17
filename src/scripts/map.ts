@@ -2,21 +2,16 @@
 //
 // Places are ~100 m spots with photos (see listPlaces), embedded in the page as JSON. Markers are an
 // HTML overlay positioned each frame and grouped by on-screen distance: small white squares, "+" for
-// groups, names when zoomed in. A place opens a panel with its photos (lightbox); the ↗ by its name swaps to "about"
-// (Wikipedia, via /map/about.json). #@lat,lng (optionally /about) in the URL opens a place directly.
+// groups, names when zoomed in. A place opens a panel with its photos (lightbox); the ↗s by its name link
+// out to Google Maps / Wikipedia, as everywhere (src/lib/maps-link.ts). #@lat,lng in the URL opens a place.
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { openLightbox, initLightbox, type LbItem } from './lightbox';
 import { darkStyle, addRouteLayers, fade } from './map-style';
-import { googleMapsUrl, splitVenue } from '../lib/maps-link';
+import { placeParts } from '../lib/maps-link';
 
 interface Place { spot_lat: number; spot_lng: number; lat: number; lng: number; n: number; name: string | null; latest: string; zoned: number; spots?: Place[] }
 interface PlaceMoment extends LbItem { thumb: string | null; date: string; taken_at: string; set: { id: string; title: string } | null }
-interface About {
-  title: string; description: string | null; extract: string; url: string;
-  photos: { src: string; thumb: string; page: string; caption: string; credit: string }[];
-  error?: string;
-}
 
 // Worker types in the shared tsconfig redefine DOM `Element`, so DOM lookups are cast through these.
 type El = HTMLElement;
@@ -102,10 +97,10 @@ marks.addEventListener('click', (e) => {
   if (!mk) return;
   stopSpin();
   const members = mk.dataset.keys!.split(';').map((k) => byKey.get(k)!);
-  if (members.length === 1) return openPanel(members[0], 'photos');
+  if (members.length === 1) return openPanel(members[0]);
   // Spots this close would still overlap after zooming in, so open them together; otherwise zoom in to
   // pull them apart (at zoom 15 pins ~150 m apart separate, so the next tap either splits or merges).
-  if (spread(members) < 400) return openPanel(merge(members), 'photos');
+  if (spread(members) < 400) return openPanel(merge(members));
   const b = new maplibregl.LngLatBounds();
   members.forEach((p) => b.extend([p.lng, p.lat]));
   map.fitBounds(b, { padding: 120, maxZoom: 15, duration: 1800 });
@@ -134,95 +129,62 @@ function merge(ps: Place[]): Place {
   };
 }
 
-// ---- place panel: my photos, or "about" from Wikipedia ----
+// ---- place panel: my photos ----
 const panel = $('#panel');
-let current: { place: Place; mode: 'photos' | 'about' } | null = null;
+let current: Place | null = null;
 const photoCache = new Map<string, PlaceMoment[]>();
-const aboutCache = new Map<string, About>();
 
 function flyTo(p: Place) {
   const offset: [number, number] = innerWidth > 700 ? [-200, 0] : [0, -innerHeight * 0.25];
   map.flyTo({ center: [p.lng, p.lat], zoom: Math.max(map.getZoom(), 9), offset, duration: map.getZoom() < 5 ? 3000 : 1200 });
 }
 
-// The ↗ after the name swaps the panel to the place's summary (Wikipedia, and Google Maps for venues);
-// in the summary, "< photos" swaps back. Elsewhere on the site ↗ links straight out (src/lib/maps-link.ts).
-function head(p: Place, mode: string) {
-  const about = mode === 'about';
+// The name with its ↗ links ("stable ↗, tugun ↗"), like PlaceLinks.astro on the other pages.
+function head(p: Place) {
+  const parts = placeParts(p.name, p.zoned, p.spot_lat, p.spot_lng);
+  const name = parts.length
+    ? parts.map((x) => `${esc(x.text.toLowerCase())} <a class="gm" href="${esc(x.href)}" target="_blank" rel="noopener" aria-label="${esc(x.label)}">↗</a>`).join(', ')
+    : esc(label(p));
   return `<button class="x" aria-label="Close">[esc]</button>
-    <div class="cmd">&gt; <b>${esc(label(p))}</b> <button class="ab${about ? ' on' : ''}" data-mode="${about ? 'photos' : 'about'}"
-      aria-label="${about ? 'Back to photos' : `About ${esc(label(p))}`}" aria-pressed="${about}">↗</button></div>
-    <div class="sub">${about ? '<button class="back" data-mode="photos">&lt; photos</button>' : p.zoned ? 'general area' : '&nbsp;'}</div>`;
+    <div class="cmd">&gt; <b>${name}</b></div>
+    <div class="sub">${p.zoned ? 'general area' : '&nbsp;'}</div>`;
 }
 
 const loading = (text: string) => `<div class="loading">${text}<i></i></div>`;
 
-async function openPanel(p: Place, mode: 'photos' | 'about', fly = true) {
-  current = { place: p, mode };
-  panel.innerHTML = head(p, mode) + loading(mode === 'about' ? 'fetching wikipedia' : 'loading');
+async function openPanel(p: Place, fly = true) {
+  current = p;
+  panel.innerHTML = head(p) + loading('loading');
   panel.classList.add('open');
-  history.replaceState(null, '', `#@${key(p)}${mode === 'about' ? '/about' : ''}`);
+  history.replaceState(null, '', `#@${key(p)}`);
   if (fly) flyTo(p);
-  const stillHere = () => current?.place === p && current.mode === mode;
-  if (mode === 'photos') {
-    const lists = await Promise.all((p.spots ?? [p]).map(async (s) => {
-      let items = photoCache.get(key(s));
-      if (!items) {
-        const res = await fetch(`/map/place.json?lat=${s.spot_lat}&lng=${s.spot_lng}`);
-        items = res.ok ? ((await res.json()) as { moments: PlaceMoment[] }).moments : [];
-        photoCache.set(key(s), items);
-      }
-      return items;
-    }));
-    const items = lists.flat().sort((a, b) => b.taken_at.localeCompare(a.taken_at)); // newest first, like one spot
-    if (stillHere()) renderPhotos(p, items);
-  } else {
-    let about = aboutCache.get(key(p));
-    if (!about) {
-      const res = await fetch(`/map/about.json?lat=${p.spot_lat}&lng=${p.spot_lng}&name=${encodeURIComponent(p.name ?? '')}`);
-      about = (await res.json().catch(() => ({ error: 'no response' }))) as About;
-      if (!about.error) aboutCache.set(key(p), about);
+  const lists = await Promise.all((p.spots ?? [p]).map(async (s) => {
+    let items = photoCache.get(key(s));
+    if (!items) {
+      const res = await fetch(`/map/place.json?lat=${s.spot_lat}&lng=${s.spot_lng}`);
+      items = res.ok ? ((await res.json()) as { moments: PlaceMoment[] }).moments : [];
+      photoCache.set(key(s), items);
     }
-    if (stillHere()) renderAbout(p, about);
-  }
+    return items;
+  }));
+  const items = lists.flat().sort((a, b) => b.taken_at.localeCompare(a.taken_at)); // newest first, like one spot
+  if (current === p) renderPhotos(p, items);
 }
 
 function renderPhotos(p: Place, items: PlaceMoment[]) {
   const sets = [...new Map(items.filter((m) => m.set).map((m) => [m.set!.id, m.set!])).values()];
   const viewable = items.filter((m) => m.src || m.youtube);
-  panel.innerHTML = head(p, 'photos') + `
+  panel.innerHTML = head(p) + `
     <div class="grid">${items.map((m) => (m.thumb
       ? `<button data-id="${m.id}">${`<img src="${m.thumb}" alt="" loading="lazy">`}${m.youtube ? '<span class="p">▶</span>' : ''}</button>` : '')).join('')}</div>
     ${sets.length ? `<div class="sets">${sets.map((s) => `<a href="/sets/${s.id}">▸ ${esc(s.title.toLowerCase())}</a>`).join('')}</div>` : ''}
     <ol>${items.map((m) => `<li data-id="${m.id}"><span>${esc(m.date)}</span><span>${esc(m.caption ?? '')}</span></li>`).join('')}</ol>`;
-  wire(p);
+  $('.x', panel).onclick = closePanel;
   const open = (id?: string) => {
     const i = viewable.findIndex((m) => m.id === id);
     if (i >= 0) openLightbox(viewable.map((m) => (m.youtube ? { ...m, src: null, meta: m.meta ?? m.date } : m)), i);
   };
   panel.querySelectorAll('[data-id]').forEach((el) => el.addEventListener('click', () => open((el as unknown as El).dataset.id)));
-}
-
-function renderAbout(p: Place, a: About) {
-  const venue = googleMapsUrl(p.name, p.zoned);
-  panel.innerHTML = head(p, 'about')
-    + (venue ? `<a class="src venue" href="${esc(venue)}" target="_blank" rel="noopener">-- ${esc(splitVenue(p.name!).venue.toLowerCase())} on google maps ↗</a>` : '')
-    + (a.error
-    ? `<div class="note">// ${esc(a.error)}</div>`
-    : `${a.description ? `<div class="desc">${esc(a.description.toLowerCase())}</div>` : ''}
-      <p class="blurb">${esc(a.extract)}</p>
-      <a class="src" href="${a.url}" target="_blank" rel="noopener">-- read more on wikipedia ↗</a>
-      ${a.photos.length ? `<div class="grid">${a.photos.map((ph, i) => `<button data-ext="${i}"><img src="${ph.thumb}" alt="" loading="lazy"></button>`).join('')}</div>
-      <div class="note">// photos from wikimedia commons, credited when opened</div>` : ''}`);
-  wire(p);
-  panel.querySelectorAll('[data-ext]').forEach((el) => el.addEventListener('click', () => {
-    openLightbox(a.photos.map((ph, i) => ({ id: `wm${i}`, src: ph.src, caption: ph.caption, meta: ph.credit })), Number((el as unknown as El).dataset.ext));
-  }));
-}
-
-function wire(p: Place) {
-  $('.x', panel).onclick = closePanel;
-  panel.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => openPanel(p, (b as unknown as El).dataset.mode as 'photos' | 'about', false)));
 }
 
 function closePanel() {
@@ -266,9 +228,9 @@ map.on('touchstart', stopSpin);
 
 initLightbox();
 
-// Deep link: #@lat,lng or #@lat,lng/about opens that place.
+// Deep link: #@lat,lng opens that place (an old /about suffix is ignored).
 const deep = location.hash.match(/^#@(-?[\d.]+),(-?[\d.]+)(\/about)?$/);
 if (deep) {
   const p = byKey.get(`${Number(deep[1])},${Number(deep[2])}`);
-  if (p) map.once('idle', () => openPanel(p, deep[3] ? 'about' : 'photos'));
+  if (p) map.once('idle', () => openPanel(p));
 }

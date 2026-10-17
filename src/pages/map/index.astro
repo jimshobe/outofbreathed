@@ -57,21 +57,10 @@ const routesJson = JSON.stringify(routes).replace(/</g, '\\u003c');
   .panel:global(.open) { display: block; }
   .panel :global(.cmd) { color: var(--dim); }
   .panel :global(.cmd b) { color: var(--fg); font-weight: 500; }
-  .panel :global(.sub), .panel :global(.desc), .panel :global(.note), .panel :global(.loading) { color: var(--dim); }
+  .panel :global(.sub), .panel :global(.note), .panel :global(.loading) { color: var(--dim); }
+  .panel :global(.cmd .gm) { color: var(--dim); text-decoration: none; }
+  .panel :global(.cmd .gm:hover) { color: var(--fg); }
   .panel :global(.sub) { margin-top: 2px; }
-  .panel :global(.ab) { color: var(--dim); padding: 0 2px; }
-  .panel :global(.ab:hover) { color: var(--fg); }
-  .panel :global(.ab.on) { color: var(--fg); }
-  .panel :global(.ab.on::before) { content: '['; }
-  .panel :global(.ab.on::after) { content: ']'; }
-  .panel :global(.back) { color: var(--dim); }
-  .panel :global(.back:hover) { color: var(--fg); }
-  .panel :global(.src.venue) { display: block; margin: 14px 0 4px; }
-  .panel :global(.src:hover) { color: var(--fg); }
-  .panel :global(.desc) { margin-top: 16px; }
-  .panel :global(.blurb) { margin-top: 8px; color: #cfcfcf; }
-  .panel :global(.src) { display: inline-block; margin-top: 6px; color: var(--dim); text-decoration: none; }
-  .panel :global(.src:hover) { color: var(--fg); }
   .panel :global(.grid) { margin-top: 18px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
   .panel :global(.grid button) { position: relative; aspect-ratio: 1; background: #111; overflow: hidden; cursor: zoom-in; }
   .panel :global(.grid img) { width: 100%; height: 100%; object-fit: cover; display: block; }
