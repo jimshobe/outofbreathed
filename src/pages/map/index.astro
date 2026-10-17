@@ -60,6 +60,8 @@ const routesJson = JSON.stringify(routes).replace(/</g, '\\u003c');
   .panel :global(.cmd b) { color: var(--fg); font-weight: 500; }
   .panel :global(.sub), .panel :global(.desc), .panel :global(.note), .panel :global(.loading) { color: var(--dim); }
   .panel :global(.sub) { margin-top: 2px; }
+  .panel :global(.gm) { color: var(--dim); text-decoration: none; }
+  .panel :global(.gm:hover) { color: var(--fg); }
   .panel :global(.tabs) { margin-top: 14px; display: flex; gap: 16px; }
   .panel :global(.tabs button) { color: var(--dim); }
   .panel :global(.tabs button:hover), .panel :global(.tabs .on) { color: var(--fg); }

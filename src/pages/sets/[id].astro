@@ -2,6 +2,7 @@
 // One set: title, dates, caption, then a thumbnail grid that opens the lightbox. YouTube videos play
 // inline below the grid.
 import Base from '../../layouts/Base.astro';
+import { googleMapsUrl } from '../../lib/maps-link';
 import Moment from '../../components/Moment.astro';
 import LightboxData from '../../components/LightboxData.astro';
 import { getSet, getSetRoute, listMoments, mediaUrl } from '../../lib/moments';
@@ -33,7 +34,11 @@ const mapJson = route?.length
       {moments.length > 0 && (
         <p class="meta">
           {fmtRange(moments[0].taken_at, moments[moments.length - 1].taken_at)} · {moments.length} {moments.length === 1 ? 'item' : 'items'}
-          {places.length > 0 && ` · ${places.map((p) => p.toLowerCase()).join(', ')}`}
+          {places.length > 0 && ' · '}
+          {places.map((p, i) => {
+            const g = googleMapsUrl(p);
+            return <>{i > 0 && ', '}{p.toLowerCase()}{g && <> <a class="gm" href={g} target="_blank" rel="noopener" title="Open in Google Maps" aria-label={`Open ${p} in Google Maps`}>↗</a></>}</>;
+          })}
         </p>
       )}
       {stats && <p class="stats">{stats}</p>}
@@ -77,6 +82,8 @@ const mapJson = route?.length
   h2 { font: 500 15px/1.4 var(--mono); }
   h2::before { content: '> '; color: var(--dim); }
   .meta { color: var(--dim); margin-top: 4px; }
+  .gm { color: var(--dim); text-decoration: none; }
+  .gm:hover { color: var(--fg); }
   .caption { margin-top: 10px; }
   .stats { margin-top: 4px; color: var(--fg); }
   .setmap { height: min(360px, 55vh); margin-bottom: 24px; background: #080808; }

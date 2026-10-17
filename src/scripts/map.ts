@@ -8,6 +8,7 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { openLightbox, initLightbox, type LbItem } from './lightbox';
 import { darkStyle, addRouteLayers, fade } from './map-style';
+import { googleMapsUrl } from '../lib/maps-link';
 
 interface Place { spot_lat: number; spot_lng: number; lat: number; lng: number; n: number; name: string | null; latest: string; zoned: number; spots?: Place[] }
 interface PlaceMoment extends LbItem { thumb: string | null; date: string; taken_at: string; set: { id: string; title: string } | null }
@@ -147,11 +148,16 @@ function flyTo(p: Place) {
   map.flyTo({ center: [p.lng, p.lat], zoom: Math.max(map.getZoom(), 9), offset, duration: map.getZoom() < 5 ? 3000 : 1200 });
 }
 
+function gmaps(p: Place) {
+  const url = googleMapsUrl(p.name, p.zoned);
+  return url ? ` · <a class="gm" href="${esc(url)}" target="_blank" rel="noopener">[google maps ↗]</a>` : '';
+}
+
 function head(p: Place, mode: string) {
   const tab = (m: string, text: string) => `<button data-mode="${m}" class="${mode === m ? 'on' : ''}">${text}</button>`;
   return `<button class="x" aria-label="Close">[esc]</button>
     <div class="cmd">&gt; <b>${esc(label(p))}</b></div>
-    <div class="sub">${p.n} ${p.n === 1 ? 'item' : 'items'}${p.zoned ? ' · general area' : ''}</div>
+    <div class="sub">${p.n} ${p.n === 1 ? 'item' : 'items'}${p.zoned ? ' · general area' : ''}${gmaps(p)}</div>
     <div class="tabs">${tab('photos', 'photos')}${tab('about', '[i] about')}</div>`;
 }
 
