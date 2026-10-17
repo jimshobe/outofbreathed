@@ -23,18 +23,23 @@ export const googleSearchUrl = (q: string) => GMAPS + encodeURIComponent(q);
 
 export interface PlacePart { text: string; href: string; label: string }
 
+/** Owner-chosen targets for a place name (place_links); null fields stay automatic. */
+export interface LinkOverride { gmaps_url: string | null; wiki_url: string | null }
+
 /**
  * The linked parts of a place name: [venue → Google Maps, suburb → Wikipedia] for venues, otherwise
  * [place → Wikipedia]. Wikipedia links pass the full name; /map/go looks up a venue's suburb itself.
+ * An owner override replaces the automatic target for its part.
  */
-export function placeParts(name: string | null | undefined, zoned: number | boolean, spotLat: number | null, spotLng: number | null): PlacePart[] {
+export function placeParts(name: string | null | undefined, zoned: number | boolean, spotLat: number | null, spotLng: number | null, override?: LinkOverride | null): PlacePart[] {
   if (!name) return [];
   const wiki = (text: string) => ({
     text,
-    href: spotLat != null && spotLng != null ? `/map/go?lat=${spotLat}&lng=${spotLng}&name=${encodeURIComponent(name)}` : googleSearchUrl(text),
+    href: override?.wiki_url
+      ?? (spotLat != null && spotLng != null ? `/map/go?lat=${spotLat}&lng=${spotLng}&name=${encodeURIComponent(name)}` : googleSearchUrl(text)),
     label: `Read about ${text}`,
   });
   if (!isVenue(name, zoned)) return [wiki(name)];
   const { venue, area } = splitVenue(name);
-  return [{ text: venue, href: googleMapsUrl(name, zoned)!, label: `${venue} on Google Maps` }, wiki(area)];
+  return [{ text: venue, href: override?.gmaps_url ?? googleMapsUrl(name, zoned)!, label: `${venue} on Google Maps` }, wiki(area)];
 }

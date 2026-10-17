@@ -7,11 +7,15 @@ import { listZones, shownDistanceM } from '../lib/zones';
 import { pendingComments } from '../lib/comments';
 import { fmtStats } from '../lib/route';
 import { CATEGORIES } from '../lib/categories';
+import { listPlaceNames, listPlaceLinks } from '../lib/place-links';
+import { isVenue, splitVenue } from '../lib/maps-link';
 
 // "recent" shows 60 at a time; ?older=<taken_at> pages back.
 const older = Astro.url.searchParams.get('older') ?? undefined;
 const PAGE = 60;
-const [recent, sets, counts, zones, pending] = await Promise.all([listMoments({ limit: PAGE, before: older }), listSets(), setCounts(), listZones(), pendingComments()]);
+const [recent, sets, counts, zones, pending, placeNames, placeLinks] = await Promise.all([
+  listMoments({ limit: PAGE, before: older }), listSets(), setCounts(), listZones(), pendingComments(), listPlaceNames(), listPlaceLinks(),
+]);
 const setTitle = new Map(sets.map((s) => [s.id, s.title]));
 const fmtWhen = fmtDay;
 const RADII = [200, 300, 500, 1000, 2000];
@@ -26,6 +30,7 @@ const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
       <button data-tab="recent">recent</button>
       <button data-tab="sets">sets</button>
       <button data-tab="comments">comments{pending.length > 0 && <b class="badge">{pending.length}</b>}</button>
+      <button data-tab="places">places</button>
       <button data-tab="zones">zones</button>
     </nav>
 
@@ -97,6 +102,10 @@ const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
           <button type="button" data-bulk="tag-add">[+ tag]</button>
           <button type="button" data-bulk="tag-remove">[− tag]</button>
         </span>
+        <span class="grp">
+          <input class="bplace" type="text" list="place-names" maxlength="120" placeholder="place, e.g. STABLE, Tugun" aria-label="place for selected" />
+          <button type="button" data-bulk="place">[rename]</button>
+        </span>
         <button type="button" data-bulk="delete" class="danger">[delete]</button>
         <button type="button" class="bclear">[done]</button>
         <span class="bstatus"></span>
@@ -134,6 +143,26 @@ const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
             <div class="cact"><button data-status="approved">[approve]</button><button data-status="rejected">[reject]</button><span class="status"></span></div>
           </div>
         ))}
+    </section>
+
+    <section data-panel="places" class="places" hidden>
+      <div class="cmd">&gt; <b>places</b></div>
+      <p class="note">// where each place's ↗ goes. leave blank for automatic (a google maps search for a venue, the wikipedia article for its suburb or the place). paste a link to fix one. to fix a name, rename its photos in recent → [select].</p>
+      <datalist id="place-names">{placeNames.map((p) => <option value={p.name} />)}</datalist>
+      {placeNames.length === 0 && <p class="note">// no named places yet</p>}
+      {placeNames.map((p) => {
+        const venue = isVenue(p.name, p.zoned), o = placeLinks.get(p.name);
+        return (
+          <div class="placerow" data-name={p.name}>
+            <span class="pname">{p.name.toLowerCase()}</span>
+            {venue && <label class="plink"><span>{splitVenue(p.name).venue.toLowerCase()} ↗</span>
+              <input class="pg" type="url" value={o?.gmaps_url ?? ''} placeholder="automatic: google maps search" aria-label="google maps link" /></label>}
+            <label class="plink"><span>{(venue ? splitVenue(p.name).area : p.name).toLowerCase()} ↗</span>
+              <input class="pw" type="url" value={o?.wiki_url ?? ''} placeholder="automatic: wikipedia" aria-label="wikipedia link" /></label>
+            <span class="status"></span>
+          </div>
+        );
+      })}
     </section>
 
     <section data-panel="zones" class="zones" hidden>
@@ -230,11 +259,30 @@ const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
       payload.set_id = v === '__none' ? null : v;
     }
     if (action.startsWith('tag')) payload.category = pick<HTMLSelectElement>(bulkBar, '.btag').value;
+    if (action === 'place') {
+      payload.place_name = pick<HTMLInputElement>(bulkBar, '.bplace').value.trim();
+      if (!payload.place_name) { st.textContent = 'type a place'; return; }
+    }
     if (action === 'delete' && !confirm(`Delete ${ids.length} photo${ids.length === 1 ? '' : 's'} and their files? This cannot be undone.`)) return;
     st.textContent = '…';
     const res = await fetch('/api/moments/bulk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     if (res.ok) location.reload(); else st.textContent = (await body(res)).error ?? 'error';
   }));
+
+  // ---- places: link overrides save as you leave a field ----
+  document.querySelectorAll('.placerow').forEach((row) => {
+    const r = row as unknown as HTMLElement, st = pick<HTMLElement>(r, '.status');
+    const save = async () => {
+      st.textContent = '…';
+      const g = r.querySelector('.pg') as unknown as HTMLInputElement | null;
+      const res = await fetch('/api/place-links', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: r.dataset.name, gmaps_url: g?.value ?? '', wiki_url: pick<HTMLInputElement>(r, '.pw').value }),
+      });
+      st.textContent = res.ok ? 'saved' : (await body(res)).error ?? 'error';
+    };
+    r.querySelectorAll('input').forEach((i) => i.addEventListener('change', save));
+  });
 
   // Comment moderation.
   (document.querySelectorAll('.crow') as unknown as HTMLElement[]).forEach((row) => {
@@ -375,6 +423,16 @@ const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
   button:hover { text-decoration: underline; }
   button:disabled { color: var(--dim); }
   .note { color: var(--dim); margin: 0 0 12px; }
+  /* places */
+  .placerow { display: grid; gap: 6px; padding: 14px 0; border-bottom: 1px solid #111; }
+  .pname { color: var(--fg); }
+  .plink { display: grid; grid-template-columns: minmax(0, 220px) 1fr; gap: 12px; align-items: center; color: var(--dim); }
+  .plink span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .plink input, .bplace { font: inherit; color: var(--fg); background: #000; border: 0; border-bottom: 1px solid var(--faint); padding: 6px 0; border-radius: 0; width: 100%; }
+  .plink input:focus, .bplace:focus { outline: none; border-color: var(--fg); }
+  .bplace { width: 220px; }
+  @media (max-width: 700px) { .plink { grid-template-columns: 1fr; gap: 2px; } }
+
   /* tabs */
   .tabs { position: sticky; top: 46px; z-index: 5; display: flex; gap: 4px 18px; flex-wrap: wrap; padding: 10px 0; background: var(--bg); border-bottom: 1px solid var(--faint); }
   .tabs button { color: var(--dim); padding: 4px 0; }

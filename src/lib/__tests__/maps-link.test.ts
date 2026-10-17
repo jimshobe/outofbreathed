@@ -29,4 +29,11 @@ describe('placeParts', () => {
   it('splits on the last comma', () => {
     expect(splitVenue('Bar, Grill, Southport')).toEqual({ venue: 'Bar, Grill', area: 'Southport' });
   });
+  it('uses owner overrides where given, automatic links elsewhere', () => {
+    const gm = 'https://maps.app.goo.gl/abc', wp = 'https://en.wikipedia.org/wiki/Tugun,_Queensland';
+    const [venue, area] = placeParts('STABLE, Tugun', 0, -28.137, 153.487, { gmaps_url: gm, wiki_url: null });
+    expect(venue.href).toBe(gm);
+    expect(area.href).toMatch(/^\/map\/go/);
+    expect(placeParts('Tugun', 0, 1, 2, { gmaps_url: null, wiki_url: wp })[0].href).toBe(wp);
+  });
 });

@@ -7,11 +7,12 @@ import { CATEGORIES, type Category } from '../../../lib/categories';
 // Owner-only (middleware): one change applied to several moments, using the same rules as single edits.
 //   { ids, action: 'set', set_id: string | null }   put into a set, or take out of their set
 //   { ids, action: 'tag-add' | 'tag-remove', category }
+//   { ids, action: 'place', place_name }            rename (photos with GPS keep their position)
 //   { ids, action: 'delete' }
 const MAX = 200;
 
 export const POST: APIRoute = async ({ request }) => {
-  const b = (await request.json().catch(() => null)) as { ids?: unknown; action?: unknown; set_id?: unknown; category?: unknown } | null;
+  const b = (await request.json().catch(() => null)) as { ids?: unknown; action?: unknown; set_id?: unknown; category?: unknown; place_name?: unknown } | null;
   const ids = Array.isArray(b?.ids) ? b.ids.filter((x): x is string => typeof x === 'string') : [];
   if (!b || !ids.length) return Response.json({ error: 'choose some photos first' }, { status: 400 });
   if (ids.length > MAX) return Response.json({ error: `at most ${MAX} at a time` }, { status: 400 });
@@ -32,6 +33,9 @@ export const POST: APIRoute = async ({ request }) => {
         const next = b.action === 'tag-add' ? [...new Set([...cats, b.category as string])] : cats.filter((c) => c !== b.category);
         if (next.length !== cats.length && (await updateMoment(m.id, { categories: next }))) changed++;
       }
+    } else if (b.action === 'place') {
+      if (typeof b.place_name !== 'string' || !b.place_name.trim()) return Response.json({ error: 'type a place' }, { status: 400 });
+      for (const id of ids) if (await updateMoment(id, { place_name: b.place_name })) changed++;
     } else if (b.action === 'delete') {
       for (const id of ids) if (await deleteMoment(id)) changed++;
     } else {

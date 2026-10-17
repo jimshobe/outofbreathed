@@ -2,9 +2,11 @@
 import Base from '../../layouts/Base.astro';
 import { listPlaces } from '../../lib/moments';
 import { listRoutes } from '../../lib/routes';
+import { placeLinksFor } from '../../lib/place-links';
 
 // Every place (a ~100 m spot with photos) is embedded; panels load their photos on demand.
-const [places, routes] = await Promise.all([listPlaces(), listRoutes()]);
+const [found, routes, links] = await Promise.all([listPlaces(), listRoutes(), placeLinksFor(Astro.locals)]);
+const places = found.map((p) => ({ ...p, link: (p.name && links.get(p.name)) || null }));
 const json = JSON.stringify(places).replace(/</g, '\\u003c');
 const routesJson = JSON.stringify(routes).replace(/</g, '\\u003c');
 ---

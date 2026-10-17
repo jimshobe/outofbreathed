@@ -8,9 +8,9 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { openLightbox, initLightbox, type LbItem } from './lightbox';
 import { darkStyle, addRouteLayers, fade } from './map-style';
-import { placeParts } from '../lib/maps-link';
+import { placeParts, type LinkOverride } from '../lib/maps-link';
 
-interface Place { spot_lat: number; spot_lng: number; lat: number; lng: number; n: number; name: string | null; latest: string; zoned: number; spots?: Place[] }
+interface Place { spot_lat: number; spot_lng: number; lat: number; lng: number; n: number; name: string | null; latest: string; zoned: number; link: LinkOverride | null; spots?: Place[] }
 interface PlaceMoment extends LbItem { thumb: string | null; date: string; taken_at: string; set: { id: string; title: string } | null }
 
 // Worker types in the shared tsconfig redefine DOM `Element`, so DOM lookups are cast through these.
@@ -141,7 +141,7 @@ function flyTo(p: Place) {
 
 // The name with its ↗ links ("stable ↗, tugun ↗"), like PlaceLinks.astro on the other pages.
 function head(p: Place) {
-  const parts = placeParts(p.name, p.zoned, p.spot_lat, p.spot_lng);
+  const parts = placeParts(p.name, p.zoned, p.spot_lat, p.spot_lng, p.link);
   const name = parts.length
     ? parts.map((x) => `${esc(x.text.toLowerCase())} <a class="gm" href="${esc(x.href)}" target="_blank" rel="noopener" aria-label="${esc(x.label)}">↗</a>`).join(', ')
     : esc(label(p));

@@ -2,10 +2,11 @@
 // A place name with its links: each part opens our map (when the spot is known), and the ↗ after it
 // opens Google Maps (a venue) or Wikipedia (a suburb or landmark). "stable ↗, tugun ↗". See maps-link.ts.
 import { placeParts } from '../lib/maps-link';
+import { placeLinksFor } from '../lib/place-links';
 
 interface Props { name: string | null; zoned: number; spot_lat: number | null; spot_lng: number | null }
 const { name, zoned, spot_lat, spot_lng } = Astro.props;
-const parts = placeParts(name, zoned, spot_lat, spot_lng);
+const parts = placeParts(name, zoned, spot_lat, spot_lng, name ? (await placeLinksFor(Astro.locals)).get(name) : null);
 const mapHref = spot_lat != null && spot_lng != null ? `/map#@${spot_lat},${spot_lng}` : null;
 ---
 
