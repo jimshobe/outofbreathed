@@ -13,6 +13,7 @@ export const GET: APIRoute = async ({ url }) => {
       thumb: m.thumb_key ? `/media/${m.thumb_key}` : m.youtube_id ? `https://i.ytimg.com/vi/${m.youtube_id}/mqdefault.jpg` : null,
       youtube: m.youtube_id,
       date: `${fmtDay(m.taken_at)} ${m.taken_at.slice(0, 4)}`,
+      taken_at: m.taken_at,
       set: m.set_id ? { id: m.set_id, title: setTitle.get(m.set_id) ?? '' } : null,
     })),
   });

@@ -9,8 +9,8 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { openLightbox, initLightbox, type LbItem } from './lightbox';
 import { darkStyle, addRouteLayers, fade } from './map-style';
 
-interface Place { spot_lat: number; spot_lng: number; lat: number; lng: number; n: number; name: string | null; latest: string; zoned: number }
-interface PlaceMoment extends LbItem { thumb: string | null; date: string; set: { id: string; title: string } | null }
+interface Place { spot_lat: number; spot_lng: number; lat: number; lng: number; n: number; name: string | null; latest: string; zoned: number; spots?: Place[] }
+interface PlaceMoment extends LbItem { thumb: string | null; date: string; taken_at: string; set: { id: string; title: string } | null }
 interface About {
   title: string; description: string | null; extract: string; url: string;
   photos: { src: string; thumb: string; page: string; caption: string; credit: string }[];
@@ -103,15 +103,38 @@ marks.addEventListener('click', (e) => {
   stopSpin();
   const info = target.closest('[data-info]') as unknown as El | null;
   if (info) return openPanel(byKey.get(info.dataset.info!)!, 'about');
-  const keys = mk.dataset.keys!.split(';');
-  if (keys.length > 1) {
-    const b = new maplibregl.LngLatBounds();
-    keys.forEach((k) => { const p = byKey.get(k)!; b.extend([p.lng, p.lat]); });
-    map.fitBounds(b, { padding: 120, maxZoom: 11, duration: 1800 });
-  } else {
-    openPanel(byKey.get(keys[0])!, 'photos');
-  }
+  const members = mk.dataset.keys!.split(';').map((k) => byKey.get(k)!);
+  if (members.length === 1) return openPanel(members[0], 'photos');
+  // Spots this close would still overlap after zooming in, so open them together; otherwise zoom in to
+  // pull them apart (at zoom 15 pins ~150 m apart separate, so the next tap either splits or merges).
+  if (spread(members) < 400) return openPanel(merge(members), 'photos');
+  const b = new maplibregl.LngLatBounds();
+  members.forEach((p) => b.extend([p.lng, p.lat]));
+  map.fitBounds(b, { padding: 120, maxZoom: 15, duration: 1800 });
 });
+
+/** Largest distance in metres between any two of the places. */
+function spread(ps: Place[]) {
+  let max = 0;
+  for (const a of ps) for (const b of ps) {
+    const x = (b.lng - a.lng) * DEG * Math.cos(((a.lat + b.lat) / 2) * DEG), y = (b.lat - a.lat) * DEG;
+    max = Math.max(max, Math.hypot(x, y) * 6_371_000);
+  }
+  return max;
+}
+
+/** Several neighbouring spots as one place: named after the biggest, photos from all of them. */
+function merge(ps: Place[]): Place {
+  const n = ps.reduce((s, p) => s + p.n, 0);
+  const top = [...ps].sort((a, b) => b.n - a.n)[0];
+  return {
+    ...top, n, spots: ps,
+    lat: ps.reduce((s, p) => s + p.lat * p.n, 0) / n,
+    lng: ps.reduce((s, p) => s + p.lng * p.n, 0) / n,
+    latest: ps.map((p) => p.latest).sort().at(-1)!,
+    zoned: Math.max(...ps.map((p) => p.zoned)),
+  };
+}
 
 // ---- place panel: my photos, or "about" from Wikipedia ----
 const panel = $('#panel');
@@ -142,12 +165,16 @@ async function openPanel(p: Place, mode: 'photos' | 'about', fly = true) {
   if (fly) flyTo(p);
   const stillHere = () => current?.place === p && current.mode === mode;
   if (mode === 'photos') {
-    let items = photoCache.get(key(p));
-    if (!items) {
-      const res = await fetch(`/map/place.json?lat=${p.spot_lat}&lng=${p.spot_lng}`);
-      items = res.ok ? ((await res.json()) as { moments: PlaceMoment[] }).moments : [];
-      photoCache.set(key(p), items);
-    }
+    const lists = await Promise.all((p.spots ?? [p]).map(async (s) => {
+      let items = photoCache.get(key(s));
+      if (!items) {
+        const res = await fetch(`/map/place.json?lat=${s.spot_lat}&lng=${s.spot_lng}`);
+        items = res.ok ? ((await res.json()) as { moments: PlaceMoment[] }).moments : [];
+        photoCache.set(key(s), items);
+      }
+      return items;
+    }));
+    const items = lists.flat().sort((a, b) => b.taken_at.localeCompare(a.taken_at)); // newest first, like one spot
     if (stillHere()) renderPhotos(p, items);
   } else {
     let about = aboutCache.get(key(p));
