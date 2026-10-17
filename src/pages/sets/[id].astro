@@ -2,7 +2,7 @@
 // One set: title, dates, caption, then a thumbnail grid that opens the lightbox. YouTube videos play
 // inline below the grid.
 import Base from '../../layouts/Base.astro';
-import { googleMapsUrl } from '../../lib/maps-link';
+import { placeInfoUrl } from '../../lib/maps-link';
 import Moment from '../../components/Moment.astro';
 import LightboxData from '../../components/LightboxData.astro';
 import { getSet, getSetRoute, listMoments, mediaUrl } from '../../lib/moments';
@@ -16,7 +16,9 @@ if (!set) return new Response('Not found', { status: 404 });
 const moments = await listMoments({ setId: set.id });
 const photos = moments.filter((m) => m.media_key);
 const videos = moments.filter((m) => m.source === 'youtube');
-const places = [...new Set(moments.map((m) => m.place_name).filter(Boolean))] as string[];
+// Each place once, with the map spot of its first photo (for its ↗).
+const places = [...new Map(moments.filter((m) => m.place_name).map((m) => [m.place_name!, m] as const)).values()]
+  .map((m) => ({ name: m.place_name!, info: placeInfoUrl(m.place_name, m.zoned, m.spot_lat, m.spot_lng) }));
 const count = (await commentCounts([], [set.id])).get(`s:${set.id}`) ?? 0;
 const route = await getSetRoute(set.id);
 const stats = set.route_km != null ? fmtStats({ km: set.route_km, secs: set.route_secs ?? null, climb_m: set.route_climb_m ?? null }) : '';
@@ -35,10 +37,7 @@ const mapJson = route?.length
         <p class="meta">
           {fmtRange(moments[0].taken_at, moments[moments.length - 1].taken_at)}
           {places.length > 0 && ' · '}
-          {places.map((p, i) => {
-            const g = googleMapsUrl(p);
-            return <>{i > 0 && ', '}{p.toLowerCase()}{g && <> <a class="gm" href={g} target="_blank" rel="noopener" title="Open in Google Maps" aria-label={`Open ${p} in Google Maps`}>↗</a></>}</>;
-          })}
+          {places.map((p, i) => <>{i > 0 && ', '}{p.name.toLowerCase()}{p.info && <> <a class="gm" href={p.info} target="_blank" rel="noopener" aria-label={`About ${p.name}`}>↗</a></>}</>)}
         </p>
       )}
       {stats && <p class="stats">{stats}</p>}

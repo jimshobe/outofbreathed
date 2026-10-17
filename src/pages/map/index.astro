@@ -45,8 +45,7 @@ const routesJson = JSON.stringify(routes).replace(/</g, '\\u003c');
   #marks :global(.mk:hover .sq) { box-shadow: 0 0 0 3px #000, 0 0 0 4px var(--fg); }
   #marks :global(.lbl) { color: var(--dim); opacity: 0; transition: opacity .2s; display: flex; gap: 8px; align-items: center; }
   #marks :global(.mk:hover .lbl), #marks:global(.labels) :global(.mk:not(.nolabel) .lbl) { opacity: 1; }
-  #marks :global(.nm:hover), #marks :global(.i:hover) { color: var(--fg); }
-  #marks :global(.i) { color: var(--dim); }
+  #marks :global(.nm:hover) { color: var(--fg); }
   #marks :global(.mk.group) { transform: translate(-50%, -50%); }
   #marks :global(.group .n) { padding: 2px 4px; background: #000; outline: 1px solid var(--fg); color: var(--fg); }
   #marks :global(.group:hover .n) { background: var(--fg); color: #000; }
@@ -60,13 +59,15 @@ const routesJson = JSON.stringify(routes).replace(/</g, '\\u003c');
   .panel :global(.cmd b) { color: var(--fg); font-weight: 500; }
   .panel :global(.sub), .panel :global(.desc), .panel :global(.note), .panel :global(.loading) { color: var(--dim); }
   .panel :global(.sub) { margin-top: 2px; }
-  .panel :global(.gm) { color: var(--dim); text-decoration: none; }
-  .panel :global(.gm:hover) { color: var(--fg); }
-  .panel :global(.tabs) { margin-top: 14px; display: flex; gap: 16px; }
-  .panel :global(.tabs button) { color: var(--dim); }
-  .panel :global(.tabs button:hover), .panel :global(.tabs .on) { color: var(--fg); }
-  .panel :global(.tabs .on[data-mode='photos']::before) { content: '['; }
-  .panel :global(.tabs .on[data-mode='photos']::after) { content: ']'; }
+  .panel :global(.ab) { color: var(--dim); padding: 0 2px; }
+  .panel :global(.ab:hover) { color: var(--fg); }
+  .panel :global(.ab.on) { color: var(--fg); }
+  .panel :global(.ab.on::before) { content: '['; }
+  .panel :global(.ab.on::after) { content: ']'; }
+  .panel :global(.back) { color: var(--dim); }
+  .panel :global(.back:hover) { color: var(--fg); }
+  .panel :global(.src.venue) { display: block; margin: 14px 0 4px; }
+  .panel :global(.src:hover) { color: var(--fg); }
   .panel :global(.desc) { margin-top: 16px; }
   .panel :global(.blurb) { margin-top: 8px; color: #cfcfcf; }
   .panel :global(.src) { display: inline-block; margin-top: 6px; color: var(--dim); text-decoration: none; }

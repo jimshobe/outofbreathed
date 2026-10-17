@@ -1,8 +1,8 @@
 // The globe map (approved prototype: mocks/index.html), on real places.
 //
 // Places are ~100 m spots with photos (see listPlaces), embedded in the page as JSON. Markers are an
-// HTML overlay positioned each frame and grouped by on-screen distance: small white squares, "[n]" for
-// groups, names with [i] when zoomed in. A place opens a panel with its photos (lightbox) or "about"
+// HTML overlay positioned each frame and grouped by on-screen distance: small white squares, "+" for
+// groups, names when zoomed in. A place opens a panel with its photos (lightbox); the ↗ by its name swaps to "about"
 // (Wikipedia, via /map/about.json). #@lat,lng (optionally /about) in the URL opens a place directly.
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -78,7 +78,7 @@ function drawMarks() {
   const placed: { x0: number; x1: number; y0: number; y1: number }[] = [];
   for (const c of clusters) {
     if (c.members.length > 1) { placed.push({ x0: c.xy.x - 16, x1: c.xy.x + 16, y0: c.xy.y - 12, y1: c.xy.y + 12 }); continue; }
-    const p = c.members[0].p, w = (label(p).length + 5) * 7.8 + 24;
+    const p = c.members[0].p, w = (label(p).length + 1) * 7.8 + 24;
     const box = { x0: c.xy.x - 6, x1: c.xy.x + w, y0: c.xy.y - 10, y1: c.xy.y + 10 };
     c.nolabel = placed.some((b) => box.x0 < b.x1 && box.x1 > b.x0 && box.y0 < b.y1 && box.y1 > b.y0);
     placed.push(c.nolabel ? { x0: c.xy.x - 6, x1: c.xy.x + 6, y0: c.xy.y - 6, y1: c.xy.y + 6 } : box);
@@ -91,7 +91,7 @@ function drawMarks() {
     }
     const p = c.members[0].p, k = key(p);
     return `<div class="mk${p === newest ? ' here' : ''}${p.zoned ? ' approx' : ''}${c.nolabel ? ' nolabel' : ''}" style="${style}" data-keys="${k}">
-      <span class="sq"></span><span class="lbl"><span class="nm">${esc(label(p))}</span><button class="i" data-info="${k}" aria-label="About ${esc(label(p))}">[i]</button></span></div>`;
+      <span class="sq"></span><span class="lbl"><span class="nm">${esc(label(p))}</span></span></div>`;
   }).join('');
 }
 map.on('render', drawMarks);
@@ -101,8 +101,6 @@ marks.addEventListener('click', (e) => {
   const mk = target.closest('.mk') as unknown as El | null;
   if (!mk) return;
   stopSpin();
-  const info = target.closest('[data-info]') as unknown as El | null;
-  if (info) return openPanel(byKey.get(info.dataset.info!)!, 'about');
   const members = mk.dataset.keys!.split(';').map((k) => byKey.get(k)!);
   if (members.length === 1) return openPanel(members[0], 'photos');
   // Spots this close would still overlap after zooming in, so open them together; otherwise zoom in to
@@ -147,17 +145,14 @@ function flyTo(p: Place) {
   map.flyTo({ center: [p.lng, p.lat], zoom: Math.max(map.getZoom(), 9), offset, duration: map.getZoom() < 5 ? 3000 : 1200 });
 }
 
-function gmaps(p: Place) {
-  const url = googleMapsUrl(p.name, p.zoned);
-  return url ? `<a class="gm" href="${esc(url)}" target="_blank" rel="noopener">[google maps ↗]</a>` : '';
-}
-
+// The ↗ after the name swaps the panel to the place's summary (Wikipedia, and Google Maps for venues);
+// in the summary, "< photos" swaps back. Elsewhere on the site ↗ links straight out (src/lib/maps-link.ts).
 function head(p: Place, mode: string) {
-  const tab = (m: string, text: string) => `<button data-mode="${m}" class="${mode === m ? 'on' : ''}">${text}</button>`;
+  const about = mode === 'about';
   return `<button class="x" aria-label="Close">[esc]</button>
-    <div class="cmd">&gt; <b>${esc(label(p))}</b></div>
-    <div class="sub">${[p.zoned ? 'general area' : '', gmaps(p)].filter(Boolean).join(' · ') || '&nbsp;'}</div>
-    <div class="tabs">${tab('photos', 'photos')}${tab('about', '[i] about')}</div>`;
+    <div class="cmd">&gt; <b>${esc(label(p))}</b> <button class="ab${about ? ' on' : ''}" data-mode="${about ? 'photos' : 'about'}"
+      aria-label="${about ? 'Back to photos' : `About ${esc(label(p))}`}" aria-pressed="${about}">↗</button></div>
+    <div class="sub">${about ? '<button class="back" data-mode="photos">&lt; photos</button>' : p.zoned ? 'general area' : '&nbsp;'}</div>`;
 }
 
 const loading = (text: string) => `<div class="loading">${text}<i></i></div>`;
@@ -209,7 +204,10 @@ function renderPhotos(p: Place, items: PlaceMoment[]) {
 }
 
 function renderAbout(p: Place, a: About) {
-  panel.innerHTML = head(p, 'about') + (a.error
+  const venue = googleMapsUrl(p.name, p.zoned);
+  panel.innerHTML = head(p, 'about')
+    + (venue ? `<a class="src venue" href="${esc(venue)}" target="_blank" rel="noopener">-- ${esc(label(p))} on google maps ↗</a>` : '')
+    + (a.error
     ? `<div class="note">// ${esc(a.error)}</div>`
     : `${a.description ? `<div class="desc">${esc(a.description.toLowerCase())}</div>` : ''}
       <p class="blurb">${esc(a.extract)}</p>
@@ -224,10 +222,7 @@ function renderAbout(p: Place, a: About) {
 
 function wire(p: Place) {
   $('.x', panel).onclick = closePanel;
-  $('.tabs', panel).onclick = (e) => {
-    const b = (e.target as unknown as El).closest('[data-mode]') as unknown as El | null;
-    if (b) openPanel(p, b.dataset.mode as 'photos' | 'about', false);
-  };
+  panel.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => openPanel(p, (b as unknown as El).dataset.mode as 'photos' | 'about', false)));
 }
 
 function closePanel() {

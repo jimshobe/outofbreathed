@@ -2,12 +2,13 @@
 // One photo or YouTube video, full column width, with its date · place · caption line.
 import { mediaUrl, fmtDay, type MomentView } from '../lib/moments';
 import Comments from './Comments.astro';
-import { googleMapsUrl } from '../lib/maps-link';
+import { placeInfoUrl, isVenue } from '../lib/maps-link';
 
 interface Props { m: MomentView; /** Lightbox group this photo opens in. */ group: string; /** Approved comments; omit to hide comments. */ comments?: number }
 const { m, group, comments } = Astro.props;
 // Clamp very tall shots so one photo never fills much more than a screen.
-const gmaps = googleMapsUrl(m.place_name, m.zoned);
+const info = placeInfoUrl(m.place_name, m.zoned, m.spot_lat, m.spot_lng);
+const infoLabel = isVenue(m.place_name, m.zoned) ? 'Open in Google Maps' : 'Read about this place';
 const ratio = m.width && m.height ? Math.max(m.width / m.height, 0.8) : 4 / 5;
 ---
 
@@ -29,7 +30,7 @@ const ratio = m.width && m.height ? Math.max(m.width / m.height, 0.8) : 4 / 5;
       {m.spot_lat != null && m.spot_lng != null
         ? <a class="pl" href={`/map#@${m.spot_lat},${m.spot_lng}`}>{m.place_name?.toLowerCase() ?? 'map'}</a>
         : <span class="pl">{m.place_name?.toLowerCase()}</span>}
-      {gmaps && <a class="gm" href={gmaps} target="_blank" rel="noopener" title="Open in Google Maps" aria-label="Open in Google Maps">↗</a>}
+      {info && <a class="gm" href={info} target="_blank" rel="noopener" title={infoLabel} aria-label={infoLabel}>↗</a>}
     </span>
     <span class="c">{m.caption}</span>
   </div>
