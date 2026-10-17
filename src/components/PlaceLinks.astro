@@ -1,0 +1,21 @@
+---
+// A place name with its links: each part opens our map (when the spot is known), and the ↗ after it
+// opens Google Maps (a venue) or Wikipedia (a suburb or landmark). "stable ↗, tugun ↗". See maps-link.ts.
+import { placeParts } from '../lib/maps-link';
+
+interface Props { name: string | null; zoned: number; spot_lat: number | null; spot_lng: number | null }
+const { name, zoned, spot_lat, spot_lng } = Astro.props;
+const parts = placeParts(name, zoned, spot_lat, spot_lng);
+const mapHref = spot_lat != null && spot_lng != null ? `/map#@${spot_lat},${spot_lng}` : null;
+---
+
+{parts.map((p, i) => (
+  <>{i > 0 && ', '}{mapHref ? <a class="pl" href={mapHref}>{p.text.toLowerCase()}</a> : p.text.toLowerCase()}<a class="gm" href={p.href} target="_blank" rel="noopener" title={p.label} aria-label={p.label}>↗</a></>
+))}
+
+<style>
+  .pl { color: inherit; text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; }
+  .pl:hover { color: var(--fg); text-decoration-color: var(--fg); }
+  .gm { color: var(--dim); text-decoration: none; margin-left: 0.4em; }
+  .gm:hover { color: var(--fg); }
+</style>

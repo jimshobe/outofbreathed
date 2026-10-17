@@ -22,23 +22,43 @@ type GeoSearch = { query?: { geosearch?: { title: string }[] } };
 type ImageInfo = { title: string; imageinfo?: { thumburl: string; descriptionurl: string; extmetadata?: Record<string, { value: string }> }[] };
 type ImageInfoResponse = { query?: { pages?: Record<string, ImageInfo> } };
 
+import { isVenue, splitVenue } from './maps-link';
+
 const stripTags = (h?: string) => (h ?? '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+
+/** Wikipedia title from an OSM object's tags (its `wikipedia`, else its Wikidata item's English article). */
+async function titleFromTags(tags: Record<string, string> | undefined): Promise<string | null> {
+  const wp = tags?.wikipedia;
+  if (wp?.startsWith('en:')) return wp.slice(3);
+  const qid = tags?.wikidata;
+  if (!qid) return null;
+  const wd = await getJson<{ entities?: Record<string, { sitelinks?: { enwiki?: { title: string } } }> }>(
+    `https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&props=sitelinks&sitefilter=enwiki&ids=${qid}`,
+  ).catch(() => null);
+  return wd?.entities?.[qid]?.sitelinks?.enwiki?.title ?? null;
+}
+
+/** The article for a named suburb near a point: OSM's own object for that name, searched within ~15 km. */
+async function areaTitle(lat: number, lng: number, area: string): Promise<string | null> {
+  const d = 0.15;
+  const hits = await getJson<{ extratags?: Record<string, string> }[]>(
+    `https://nominatim.openstreetmap.org/search?format=jsonv2&extratags=1&limit=5&accept-language=en&bounded=1`
+      + `&viewbox=${lng - d},${lat + d},${lng + d},${lat - d}&q=${encodeURIComponent(area)}`,
+  ).catch(() => []);
+  for (const h of hits) {
+    const t = await titleFromTags(h.extratags);
+    if (t) return t;
+  }
+  return null;
+}
 
 /** The English Wikipedia article for the place at a point, via OpenStreetMap's own links. */
 async function articleTitle(lat: number, lng: number, name: string | null): Promise<string | null> {
   const osm = await getJson<{ extratags?: Record<string, string>; address?: Record<string, string> }>(
     `https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=14&extratags=1&accept-language=en&lat=${lat}&lon=${lng}`,
   ).catch(() => null);
-  const wp = osm?.extratags?.wikipedia;
-  if (wp?.startsWith('en:')) return wp.slice(3);
-  const qid = osm?.extratags?.wikidata;
-  if (qid) {
-    const wd = await getJson<{ entities?: Record<string, { sitelinks?: { enwiki?: { title: string } } }> }>(
-      `https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&props=sitelinks&sitefilter=enwiki&ids=${qid}`,
-    ).catch(() => null);
-    const t = wd?.entities?.[qid]?.sitelinks?.enwiki?.title;
-    if (t) return t;
-  }
+  const tagged = await titleFromTags(osm?.extratags);
+  if (tagged) return tagged;
   // Fallback: the nearest article, preferring one whose title starts with the place's name.
   const near = await getJson<GeoSearch>(
     `${WIKI}/w/api.php?action=query&list=geosearch&format=json&gsradius=5000&gslimit=10&gscoord=${lat}|${lng}`,
@@ -69,7 +89,9 @@ export function rankPhotos(articleTitles: string[], nearbyTitles: string[], plac
 }
 
 async function build(lat: number, lng: number, name: string | null): Promise<About | null> {
-  const title = await articleTitle(lat, lng, name);
+  // A venue's summary is about its suburb ("STABLE, Tugun" → Tugun); the venue itself links to Google Maps.
+  const area = isVenue(name) ? splitVenue(name!).area : null;
+  const title = area ? (await areaTitle(lat, lng, area)) ?? (await articleTitle(lat, lng, area)) : await articleTitle(lat, lng, name);
   if (!title) return null;
   const t = encodeURIComponent(title.replace(/ /g, '_'));
   const [sum, media, near] = await Promise.all([
@@ -114,7 +136,8 @@ async function build(lat: number, lng: number, name: string | null): Promise<Abo
  * (The Cache API only works on a custom domain; on workers.dev every call fetches fresh.)
  */
 export async function aboutPlace(spot: { lat: number; lng: number }, lookup: { lat: number; lng: number }, name: string | null): Promise<Response> {
-  const key = new Request(`https://cache.outofbreathed.internal/about/v1/${spot.lat},${spot.lng}`);
+  const area = isVenue(name) ? splitVenue(name!).area : '';
+  const key = new Request(`https://cache.outofbreathed.internal/about/v2/${spot.lat},${spot.lng}/${encodeURIComponent(area)}`);
   const cache = (caches as unknown as { default: Cache }).default;
   const hit = await cache.match(key);
   if (hit) return hit;

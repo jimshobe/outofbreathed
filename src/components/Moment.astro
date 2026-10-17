@@ -2,13 +2,11 @@
 // One photo or YouTube video, full column width, with its date · place · caption line.
 import { mediaUrl, fmtDay, type MomentView } from '../lib/moments';
 import Comments from './Comments.astro';
-import { placeInfoUrl, isVenue } from '../lib/maps-link';
+import PlaceLinks from './PlaceLinks.astro';
 
 interface Props { m: MomentView; /** Lightbox group this photo opens in. */ group: string; /** Approved comments; omit to hide comments. */ comments?: number }
 const { m, group, comments } = Astro.props;
 // Clamp very tall shots so one photo never fills much more than a screen.
-const info = placeInfoUrl(m.place_name, m.zoned, m.spot_lat, m.spot_lng);
-const infoLabel = isVenue(m.place_name, m.zoned) ? 'Open in Google Maps' : 'Read about this place';
 const ratio = m.width && m.height ? Math.max(m.width / m.height, 0.8) : 4 / 5;
 ---
 
@@ -27,10 +25,9 @@ const ratio = m.width && m.height ? Math.max(m.width / m.height, 0.8) : 4 / 5;
   <div class="line">
     <span class="d">{fmtDay(m.taken_at)}</span>
     <span class="plw">
-      {m.spot_lat != null && m.spot_lng != null
-        ? <a class="pl" href={`/map#@${m.spot_lat},${m.spot_lng}`}>{m.place_name?.toLowerCase() ?? 'map'}</a>
-        : <span class="pl">{m.place_name?.toLowerCase()}</span>}
-      {info && <a class="gm" href={info} target="_blank" rel="noopener" title={infoLabel} aria-label={infoLabel}>↗</a>}
+      {m.place_name
+        ? <PlaceLinks name={m.place_name} zoned={m.zoned} spot_lat={m.spot_lat} spot_lng={m.spot_lng} />
+        : m.spot_lat != null && m.spot_lng != null && <a class="pl" href={`/map#@${m.spot_lat},${m.spot_lng}`}>map</a>}
     </span>
     <span class="c">{m.caption}</span>
   </div>
@@ -43,13 +40,9 @@ const ratio = m.width && m.height ? Math.max(m.width / m.height, 0.8) : 4 / 5;
   a.media { cursor: zoom-in; }
   .media img, .media iframe { width: 100%; height: 100%; object-fit: cover; display: block; border: 0; }
   .line { margin-top: 10px; display: grid; grid-template-columns: max-content minmax(0, max-content) 1fr; gap: 0 14px; align-items: baseline; }
-  .d, .pl { color: var(--dim); }
-  .plw { display: flex; gap: 6px; min-width: 0; max-width: 220px; }
-  .pl { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .gm { color: var(--dim); text-decoration: none; }
-  .gm:hover { color: var(--fg); }
-  a.pl { text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; }
-  a.pl:hover { color: var(--fg); text-decoration-color: var(--fg); }
+  .d, .plw { color: var(--dim); }
+  .plw { min-width: 0; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .plw > a { color: inherit; text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; }
   @media (max-width: 700px) {
     .line { grid-template-columns: auto 1fr; gap: 2px 12px; }
     .c { grid-column: 1 / -1; }

@@ -8,7 +8,7 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { openLightbox, initLightbox, type LbItem } from './lightbox';
 import { darkStyle, addRouteLayers, fade } from './map-style';
-import { googleMapsUrl } from '../lib/maps-link';
+import { googleMapsUrl, splitVenue } from '../lib/maps-link';
 
 interface Place { spot_lat: number; spot_lng: number; lat: number; lng: number; n: number; name: string | null; latest: string; zoned: number; spots?: Place[] }
 interface PlaceMoment extends LbItem { thumb: string | null; date: string; taken_at: string; set: { id: string; title: string } | null }
@@ -206,7 +206,7 @@ function renderPhotos(p: Place, items: PlaceMoment[]) {
 function renderAbout(p: Place, a: About) {
   const venue = googleMapsUrl(p.name, p.zoned);
   panel.innerHTML = head(p, 'about')
-    + (venue ? `<a class="src venue" href="${esc(venue)}" target="_blank" rel="noopener">-- ${esc(label(p))} on google maps ↗</a>` : '')
+    + (venue ? `<a class="src venue" href="${esc(venue)}" target="_blank" rel="noopener">-- ${esc(splitVenue(p.name!).venue.toLowerCase())} on google maps ↗</a>` : '')
     + (a.error
     ? `<div class="note">// ${esc(a.error)}</div>`
     : `${a.description ? `<div class="desc">${esc(a.description.toLowerCase())}</div>` : ''}

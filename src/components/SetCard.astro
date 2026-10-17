@@ -5,7 +5,7 @@ import { mediaUrl, type MomentView } from '../lib/moments';
 import LightboxData from './LightboxData.astro';
 import Comments from './Comments.astro';
 import { fmtRange, type SetInfo } from '../lib/timeline';
-import { placeInfoUrl } from '../lib/maps-link';
+import PlaceLinks from './PlaceLinks.astro';
 import { fmtStats } from '../lib/route';
 
 interface Props { set: SetInfo; moments: MomentView[]; cover: MomentView; start: string; end: string; places: string[]; comments?: number }
@@ -21,9 +21,8 @@ const more = moments.length - 1 - shown.length;
 const group = `set-${set.id}`;
 const opener = (m: MomentView) => (m.media_key ? { 'data-lb-open': group, 'data-lb-id': m.id } : {});
 const stats = set.route_km != null ? fmtStats({ km: set.route_km, secs: set.route_secs ?? null, climb_m: set.route_climb_m ?? null }) : '';
-// The first place, linked like a photo's: the name opens our map, ↗ opens Google Maps or Wikipedia.
+// The first place, linked like a photo's (see PlaceLinks).
 const first = places.length ? moments.find((m) => m.place_name === places[0]) : undefined;
-const info = first ? placeInfoUrl(first.place_name, first.zoned, first.spot_lat, first.spot_lng) : null;
 ---
 
 <article class="set" id={`set-${set.id}`}>
@@ -42,9 +41,7 @@ const info = first ? placeInfoUrl(first.place_name, first.zoned, first.spot_lat,
     <a class="title" href={`/sets/${set.id}`}>{set.title.toLowerCase()}</a>
     <span class="meta">
       {fmtRange(start, end)}
-      {first && <>{' · '}{first.spot_lat != null && first.spot_lng != null
-        ? <a class="pl" href={`/map#@${first.spot_lat},${first.spot_lng}`}>{places[0].toLowerCase()}</a>
-        : places[0].toLowerCase()}{info && <> <a class="gm" href={info} target="_blank" rel="noopener" aria-label={`About ${places[0]}`}>↗</a></>}{places.length > 1 && ` +${places.length - 1}`}</>}
+      {first && <>{' · '}<PlaceLinks name={first.place_name} zoned={first.zoned} spot_lat={first.spot_lat} spot_lng={first.spot_lng} />{places.length > 1 && ` +${places.length - 1}`}</>}
     </span>
   </div>
   {stats && <p class="stats">⤳ {stats}</p>}
@@ -70,10 +67,6 @@ const info = first ? placeInfoUrl(first.place_name, first.zoned, first.spot_lat,
   .title::before { content: '▸ '; color: var(--dim); }
   .title:hover { text-decoration: underline; }
   .meta { color: var(--dim); }
-  .pl { color: inherit; text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; }
-  .pl:hover { color: var(--fg); text-decoration-color: var(--fg); }
-  .gm { color: var(--dim); text-decoration: none; }
-  .gm:hover { color: var(--fg); }
   .caption { margin-top: 4px; }
   .stats { margin-top: 2px; color: var(--dim); }
 </style>

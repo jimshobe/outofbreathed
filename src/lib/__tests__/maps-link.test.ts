@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { googleMapsUrl, placeInfoUrl } from '../maps-link';
+import { googleMapsUrl, placeParts, splitVenue } from '../maps-link';
 
 describe('googleMapsUrl', () => {
   it('links venue names', () => {
@@ -12,13 +12,21 @@ describe('googleMapsUrl', () => {
   });
 });
 
-describe('placeInfoUrl', () => {
-  it('sends venues to Google Maps and other places to Wikipedia via /map/go', () => {
-    expect(placeInfoUrl('STABLE, Tugun', 0, -28.137, 153.487)).toMatch(/^https:\/\/www\.google\.com\/maps/);
-    expect(placeInfoUrl('Natural Bridge', 0, -28.23, 153.243)).toBe('/map/go?lat=-28.23&lng=153.243&name=Natural%20Bridge');
+describe('placeParts', () => {
+  it('splits a venue into Google Maps for the venue and Wikipedia for its suburb', () => {
+    const [venue, area] = placeParts('STABLE, Tugun', 0, -28.137, 153.487);
+    expect(venue.text).toBe('STABLE');
+    expect(venue.href).toMatch(/^https:\/\/www\.google\.com\/maps/);
+    expect(area).toMatchObject({ text: 'Tugun', href: '/map/go?lat=-28.137&lng=153.487&name=STABLE%2C%20Tugun' });
   });
-  it('treats a zoned name as a suburb, and needs a name', () => {
-    expect(placeInfoUrl('Okanui, Burleigh Heads', 1, -28.089, 153.452)).toMatch(/^\/map\/go/);
-    expect(placeInfoUrl(null, 0, 1, 2)).toBeNull();
+  it('links other places to Wikipedia, zoned names included', () => {
+    expect(placeParts('Natural Bridge', 0, -28.23, 153.243)).toEqual([
+      { text: 'Natural Bridge', href: '/map/go?lat=-28.23&lng=153.243&name=Natural%20Bridge', label: 'Read about Natural Bridge' },
+    ]);
+    expect(placeParts('Okanui, Burleigh Heads', 1, -28.089, 153.452)).toHaveLength(1);
+    expect(placeParts(null, 0, 1, 2)).toEqual([]);
+  });
+  it('splits on the last comma', () => {
+    expect(splitVenue('Bar, Grill, Southport')).toEqual({ venue: 'Bar, Grill', area: 'Southport' });
   });
 });
