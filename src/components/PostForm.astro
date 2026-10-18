@@ -80,6 +80,9 @@ const { sets } = Astro.props;
   .queue :global(.rm:hover) { color: #ff6b6b; }
   .queue :global(.f) { grid-column: 2 / -1; }
   .queue :global(li.error) { opacity: .6; }
+  .queue :global(.placepick) { display: flex; gap: 10px; align-items: center; color: var(--dim); }
+  .queue :global(.placepick select) { flex: 1; min-width: 0; font: inherit; color: var(--fg); background: #000; border: 0; border-bottom: 1px solid var(--faint); padding: 6px 0; border-radius: 0; color-scheme: dark; }
+  .queue :global(.placing) { color: var(--dim); }
   @media (max-width: 700px) {
     .brow { grid-template-columns: 1fr; gap: 4px; }
   }

@@ -4,8 +4,23 @@
 // place when the item lacks one. On post, photos are shrunk on the device (date and location are read
 // from the original first and sent as fields), uploaded three at a time, and retried on network errors.
 // Failed rows stay queued for [retry failed]. Tags and set are remembered for next time.
+//
+// Photos with GPS are grouped into spots (~100 m). Each spot looks up nearby place names once
+// (/api/places/nearby) and offers them in a dropdown on its rows, starting with the suggestion; picking
+// one (or typing "other…") sets the place for every photo at that spot.
 import { readJpegMeta } from '../lib/exif';
 import { shrink } from './shrink';
+import { fmtDay as day } from '../lib/timeline';
+
+interface Spot {
+  lat: number;
+  lng: number;
+  state: 'loading' | 'ready';
+  choices: string[];
+  chosen: string;        // '' = let the server decide
+  typing: boolean;       // "other…" picked: use `typed`
+  typed: string;
+}
 
 interface Item {
   id: number;
@@ -18,6 +33,7 @@ interface Item {
   lng?: number;
   caption: string;
   place: string;         // typed, only used when the item has no location
+  spot?: Spot;           // photos with GPS: where its place name comes from
   date: string;          // typed (yyyy-mm-dd), only used when the item has no date
   status: 'ready' | 'uploading' | 'done' | 'failed' | 'error';
   message: string;
@@ -40,6 +56,7 @@ const catBoxes = () => Array.from(form.querySelectorAll('[name=category]') as un
 
 let items: Item[] = [];
 let nextId = 1;
+const spots: Spot[] = [];
 
 // ---- remembered choices (per device; harmless if storage is unavailable) ----
 const remember = (k: string, v: string) => { try { localStorage.setItem(`post.${k}`, v); } catch { /* private mode */ } };
@@ -49,8 +66,7 @@ catBoxes().forEach((b) => { b.checked = savedCats.includes(b.value); });
 setInput.value = recall('set');
 
 // ---- helpers ----
-const day = (iso: string) =>
-  new Date(`${iso.slice(0, 10)}T00:00:00Z`).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).toLowerCase();
+
 
 function nowLocal() {
   const now = new Date(), off = -now.getTimezoneOffset();
@@ -61,6 +77,46 @@ function nowLocal() {
 const isJpeg = (f: File) => f.type === 'image/jpeg' || /\.jpe?g$/i.test(f.name);
 const needsPlace = (it: Item) => it.lat == null;
 const needsDate = (it: Item) => !it.takenAt;
+
+// ---- spots: nearby place names, looked up one at a time (Nominatim allows 1 request a second) ----
+const metres = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
+  const k = Math.PI / 180;
+  return Math.hypot((b.lat - a.lat) * k, (b.lng - a.lng) * k * Math.cos(a.lat * k)) * 6_371_000;
+};
+let lookups = Promise.resolve();
+function spotFor(lat: number, lng: number): Spot {
+  const near = spots.find((s) => metres(s, { lat, lng }) < 100);
+  if (near) return near;
+  const spot: Spot = { lat, lng, state: 'loading', choices: [], chosen: '', typing: false, typed: '' };
+  spots.push(spot);
+  lookups = lookups.then(async () => {
+    try {
+      const res = await fetch(`/api/places/nearby?lat=${lat}&lng=${lng}`);
+      const r = (await res.json()) as { suggested?: string | null; choices?: string[] };
+      spot.choices = r.choices ?? [];
+      if (!spot.chosen && !spot.typing) spot.chosen = r.suggested ?? '';
+    } catch { /* the server names it on upload instead */ }
+    spot.state = 'ready';
+    renderSpot(spot);
+  });
+  return spot;
+}
+
+function placeField(s: Spot) {
+  if (s.state === 'loading') return `<span class="f placing">place: finding nearby places…</span>`;
+  const opts = s.choices.map((c) => `<option value="${esc(c)}"${!s.typing && c === s.chosen ? ' selected' : ''}>${esc(c.toLowerCase())}</option>`).join('');
+  return `<label class="f placepick">place <select data-spot>${opts || '<option value="">(automatic)</option>'}<option value="__other"${s.typing ? ' selected' : ''}>other… (type it)</option></select></label>
+    ${s.typing ? `<input class="f" type="text" data-spot-typed value="${esc(s.typed)}" maxlength="120" placeholder="name, suburb, e.g. Seoul Kitchen, Southport">` : ''}`;
+}
+
+/** Re-render just the rows at one spot (keeps focus elsewhere). */
+function renderSpot(s: Spot) {
+  for (const it of items) {
+    if (it.spot !== s) continue;
+    const li = queueEl.querySelector(`li[data-id="${it.id}"]`) as unknown as El | null;
+    if (li) li.outerHTML = rowHtml(it);
+  }
+}
 
 // ---- rendering ----
 function rowHtml(it: Item) {
@@ -74,7 +130,8 @@ function rowHtml(it: Item) {
   const fields = it.status === 'error' ? '' : `
     <input class="f" type="text" data-f="caption" value="${esc(it.caption)}" maxlength="300" placeholder="caption">
     ${needsPlace(it) ? `<input class="f" type="text" data-f="place" value="${esc(it.place)}" maxlength="120" placeholder="where? e.g. Springbrook, QLD">` : ''}
-    ${needsDate(it) ? `<input class="f" type="date" data-f="date" value="${esc(it.date)}" aria-label="date taken">` : ''}`;
+    ${needsDate(it) ? `<input class="f" type="date" data-f="date" value="${esc(it.date)}" aria-label="date taken">` : ''}
+    ${it.spot ? placeField(it.spot) : ''}`;
   return `<li data-id="${it.id}" class="${it.status}">
     <span class="th">${thumb}</span>
     <span class="info">${info}</span>
@@ -131,6 +188,7 @@ fileInput.addEventListener('change', async () => {
     if (it.status === 'error' || !isJpeg(it.file!)) continue;
     const meta = readJpegMeta(new Uint8Array(await it.file!.slice(0, 512 * 1024).arrayBuffer()));
     Object.assign(it, { takenAt: meta.takenAt, lat: meta.lat, lng: meta.lng });
+    if (meta.lat != null && meta.lng != null) it.spot = spotFor(meta.lat, meta.lng);
   }
   render();
 });
@@ -146,9 +204,31 @@ queueEl.addEventListener('input', (e) => {
   const input = e.target as unknown as HTMLInputElement;
   const li = input.closest('li') as unknown as El | null;
   const it = items.find((x) => String(x.id) === li?.dataset.id);
+  if (it?.spot && input.dataset.spotTyped !== undefined) {
+    it.spot.typed = input.value;
+    // Mirror into the spot's other rows without re-rendering this one.
+    queueEl.querySelectorAll('[data-spot-typed]').forEach((other) => {
+      const o = other as unknown as HTMLInputElement, oit = items.find((x) => String(x.id) === (o.closest('li') as unknown as El).dataset.id);
+      if (o !== input && oit?.spot === it.spot) o.value = input.value;
+    });
+    return;
+  }
   if (!it || !input.dataset.f) return;
   (it as unknown as Record<string, string>)[input.dataset.f] = input.value;
   if (it.status === 'failed') { it.status = 'ready'; it.message = ''; updateRow(it); }
+});
+
+// Picking a place applies to every photo at that spot.
+queueEl.addEventListener('change', (e) => {
+  const sel = e.target as unknown as HTMLSelectElement;
+  if (sel.dataset.spot === undefined) return;
+  const it = items.find((x) => String(x.id) === (sel.closest('li') as unknown as El).dataset.id);
+  const s = it?.spot;
+  if (!s) return;
+  s.typing = sel.value === '__other';
+  if (!s.typing) s.chosen = sel.value;
+  renderSpot(s);
+  if (s.typing) ($<HTMLInputElement>(`li[data-id="${it.id}"] [data-spot-typed]`, queueEl))?.focus();
 });
 
 queueEl.addEventListener('click', (e) => {
@@ -166,6 +246,7 @@ setInput.addEventListener('input', updateCaptionLabel);
 $('.clear', form).addEventListener('click', () => {
   items.forEach((it) => it.preview && URL.revokeObjectURL(it.preview));
   items = [];
+  spots.length = 0;
   summary.textContent = '';
   render();
 });
@@ -183,7 +264,11 @@ async function buildForm(it: Item, shared: { categories: string[]; setId: string
   // Values read from the photo go as fields, so shrinking (which drops all metadata) loses nothing.
   if (it.takenAt) fd.append('taken_at', it.takenAt);
   else fd.append('fallback_taken_at', it.date ? `${it.date}T12:00:00` : nowLocal());
-  if (it.lat != null && it.lng != null) { fd.append('lat', String(it.lat)); fd.append('lng', String(it.lng)); }
+  if (it.lat != null && it.lng != null) {
+    fd.append('lat', String(it.lat)); fd.append('lng', String(it.lng));
+    const place = it.spot ? (it.spot.typing ? it.spot.typed.trim() : it.spot.chosen) : '';
+    if (place) fd.append('place_name', place);
+  }
   else if (it.place.trim()) fd.append('fallback_place', it.place.trim());
   if (it.kind === 'youtube') {
     fd.append('youtube', (it.url ?? '').trim());
