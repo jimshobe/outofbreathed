@@ -2,7 +2,7 @@
 // Owner-only (enforced in middleware): upload from a browser, and edit or delete recent moments.
 import Base from '../layouts/Base.astro';
 import PostForm from '../components/PostForm.astro';
-import { listMoments, listSets, setCounts, mediaUrl, fmtDay } from '../lib/moments';
+import { listMoments, listSets, setPlaces, mediaUrl, fmtDay } from '../lib/moments';
 import { listZones, shownDistanceM } from '../lib/zones';
 import { pendingComments } from '../lib/comments';
 import { fmtStats } from '../lib/route';
@@ -13,8 +13,8 @@ import { isVenue, splitVenue } from '../lib/maps-link';
 // "recent" shows 60 at a time; ?older=<taken_at> pages back.
 const older = Astro.url.searchParams.get('older') ?? undefined;
 const PAGE = 60;
-const [recent, sets, counts, zones, pending, placeNames, placeLinks] = await Promise.all([
-  listMoments({ limit: PAGE, before: older }), listSets(), setCounts(), listZones(), pendingComments(), listPlaceNames(), listPlaceLinks(),
+const [recent, sets, places, zones, pending, placeNames, placeLinks] = await Promise.all([
+  listMoments({ limit: PAGE, before: older }), listSets(), setPlaces(), listZones(), pendingComments(), listPlaceNames(), listPlaceLinks(),
 ]);
 const setTitle = new Map(sets.map((s) => [s.id, s.title]));
 const fmtWhen = fmtDay;
@@ -119,8 +119,21 @@ const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
           <div class="setrow" data-set={s.id}>
             <input class="stitle" type="text" value={s.title} maxlength="80" aria-label="set title" />
             <input class="scaption" type="text" value={s.caption ?? ''} placeholder="set caption" maxlength="300" aria-label="set caption" />
-            <span class="scount"><a href={`/sets/${s.id}`}>{counts.get(s.id) ?? 0} items</a></span>
+            <span class="scount"><a href={`/sets/${s.id}`}>[view]</a></span>
             <button class="ungroup" type="button">[ungroup]</button>
+            {(() => {
+              const p = places.get(s.id);
+              if (!p) return null;
+              const one = p.names.length === 1 ? p.names[0] : '';
+              return (
+                <label class="splace"><span>place</span>
+                  <input class="splacein" type="text" list={`sp-${s.id}`} value={one} maxlength="120"
+                    placeholder={p.names.length > 1 ? `mixed: ${p.names.join(' / ')}` : 'place, e.g. STABLE, Tugun'}
+                    data-ids={p.ids.join(',')} data-lat={p.lat ?? ''} data-lng={p.lng ?? ''} aria-label="place for every photo in this set" />
+                  <datalist id={`sp-${s.id}`}>{placeNames.map((n) => <option value={n.name} />)}</datalist>
+                </label>
+              );
+            })()}
             <span class="route">
               {s.route_km != null
                 ? <>⤳ {fmtStats({ km: s.route_km, secs: s.route_secs ?? null, climb_m: s.route_climb_m ?? null })} <button class="rmroute" type="button">[remove route]</button></>
@@ -284,6 +297,11 @@ const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
     r.querySelectorAll('input').forEach((i) => i.addEventListener('change', save));
   });
 
+  // /post?set=<id>#sets (the [edit] link on a set page): bring that set into view.
+  const want = new URLSearchParams(location.search).get('set');
+  const wantRow = want ? (document.querySelector(`.setrow[data-set="${CSS.escape(want)}"]`) as unknown as HTMLElement | null) : null;
+  if (wantRow) { wantRow.classList.add('focus'); wantRow.scrollIntoView({ block: 'center' }); }
+
   // Comment moderation.
   (document.querySelectorAll('.crow') as unknown as HTMLElement[]).forEach((row) => {
     row.querySelectorAll('[data-status]').forEach((b) => b.addEventListener('click', async (e) => {
@@ -335,6 +353,28 @@ const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
     };
     pick<HTMLElement>(row, '.stitle').addEventListener('change', (e) => save({ title: (e.target as HTMLInputElement).value }));
     pick<HTMLElement>(row, '.scaption').addEventListener('change', (e) => save({ caption: (e.target as HTMLInputElement).value }));
+    // Place: renames every photo in the set. Suggestions are the venues near the set's first GPS photo.
+    const placeIn = row.querySelector('.splacein') as unknown as HTMLInputElement | null;
+    if (placeIn) {
+      let suggested = false;
+      placeIn.addEventListener('focus', async () => {
+        if (suggested || !placeIn.dataset.lat) return;
+        suggested = true;
+        const res = await fetch(`/api/places/nearby?lat=${placeIn.dataset.lat}&lng=${placeIn.dataset.lng}`);
+        const r = res.ok ? ((await res.json()) as { choices?: string[] }) : {};
+        const list = pick<HTMLElement>(row, 'datalist');
+        // Nearby venues first, then names used elsewhere.
+        list.innerHTML = (r.choices ?? []).map((c) => `<option value="${c.replace(/"/g, '&quot;')}">`).join('') + list.innerHTML;
+      });
+      placeIn.addEventListener('change', async () => {
+        const name = placeIn.value.trim();
+        if (!name) return;
+        const ids = placeIn.dataset.ids!.split(',');
+        status.textContent = '…';
+        const res = await fetch('/api/moments/bulk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids, action: 'place', place_name: name }) });
+        status.textContent = res.ok ? 'saved' : ((await body(res)).error ?? 'error');
+      });
+    }
     // Ride route: upload a GPX; the server trims it out of privacy zones and works out the stats.
     pick<HTMLInputElement>(row, '.addroute input').addEventListener('change', async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
@@ -463,6 +503,10 @@ const covers = new Set(sets.map((s) => s.cover_id).filter(Boolean));
   .setrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto auto auto; gap: 8px 14px; align-items: center; padding: 8px 0; border-bottom: 1px solid #111; color: var(--dim); }
   .setrow a { color: var(--dim); }
   .ungroup { color: var(--dim); }
+  .setrow .splace { grid-column: 1 / -1; display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; }
+  .setrow .splace input { font: inherit; color: var(--fg); background: #000; border: 0; border-bottom: 1px solid var(--faint); padding: 6px 0; border-radius: 0; width: 100%; }
+  .setrow .splace input:focus { outline: none; border-color: var(--fg); }
+  .setrow.focus { background: #0d0d0d; }
   .setrow .route { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--dim); }
   .addroute, .rmroute { color: var(--dim); cursor: pointer; }
   .addroute:hover, .rmroute:hover { color: var(--fg); }

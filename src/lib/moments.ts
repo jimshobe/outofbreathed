@@ -67,6 +67,21 @@ export async function setCounts(): Promise<Map<string, number>> {
   return new Map(results.map((r) => [r.set_id, r.n]));
 }
 
+/** Owner view of each set's photos: ids, distinct place names, and one GPS position (for nearby suggestions). */
+export async function setPlaces(): Promise<Map<string, { ids: string[]; names: string[]; lat: number | null; lng: number | null }>> {
+  const { results } = await env.DB.prepare('SELECT set_id, id, place_name, lat, lng FROM moments WHERE set_id IS NOT NULL ORDER BY taken_at')
+    .all<{ set_id: string; id: string; place_name: string | null; lat: number | null; lng: number | null }>();
+  const out = new Map<string, { ids: string[]; names: string[]; lat: number | null; lng: number | null }>();
+  for (const r of results) {
+    const s = out.get(r.set_id) ?? { ids: [], names: [], lat: null, lng: null };
+    s.ids.push(r.id);
+    if (r.place_name && !s.names.includes(r.place_name)) s.names.push(r.place_name);
+    if (s.lat == null && r.lat != null) { s.lat = r.lat; s.lng = r.lng; }
+    out.set(r.set_id, s);
+  }
+  return out;
+}
+
 /** A set's public route (zone-trimmed JSON), if it has one. */
 export async function getSetRoute(id: string): Promise<[number, number][][] | null> {
   const r = await env.DB.prepare('SELECT route FROM sets WHERE id = ?').bind(id).first<{ route: string | null }>();

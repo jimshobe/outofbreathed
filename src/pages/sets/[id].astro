@@ -30,6 +30,7 @@ const mapJson = route?.length
 <Base current="timeline">
   <main class="tl">
     <a class="back" href={`/#set-${set.id}`}>&lt; timeline</a>
+    {Astro.locals.viewer.isOwner && <a class="edit" href={`/post?set=${set.id}#sets`}>[edit]</a>}
     <header>
       <h2>{set.title.toLowerCase()}</h2>
       {moments.length > 0 && (
@@ -76,6 +77,8 @@ const mapJson = route?.length
   .tl { max-width: 900px; margin: 0 auto; padding: 64px 20px 90px; }
   .back { color: var(--dim); text-decoration: none; }
   .back:hover { color: var(--fg); }
+  .edit { float: right; color: var(--dim); text-decoration: none; }
+  .edit:hover { color: var(--fg); }
   header { margin: 24px 0 24px; max-width: 640px; }
   h2 { font: 500 15px/1.4 var(--mono); }
   h2::before { content: '> '; color: var(--dim); }
