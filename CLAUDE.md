@@ -20,7 +20,7 @@ Migration facts not in the plan:
 
 ## Branches
 
-`rebuild` holds the new Cloudflare app. `main` still holds the old Firebase/Vercel blog (no longer served; a copy of its posts is in the git-ignored `backup/old-blog/`); consult it (e.g. `git show main:src/lib/firebase-admin.ts`) when exporting old content.
+`main` is the new Cloudflare app (fast-forwarded from `rebuild` on 2026-10-20; both are on GitHub, which is public, so never commit secrets). Deploys are manual (`wrangler deploy`); nothing builds from GitHub, and the old Vercel blog project was deleted. The old Firebase/Vercel blog is in history before `f653963` (e.g. `git show f653963:src/lib/firebase-admin.ts`); a copy of its posts is in the git-ignored `backup/old-blog/`.
 
 ## Commands
 
