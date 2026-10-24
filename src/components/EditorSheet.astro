@@ -1,0 +1,42 @@
+---
+// The full-screen sheet the photo editor (src/scripts/photo-editor.ts) draws into, with its styles.
+---
+
+<div id="sheet" class="sheet" hidden></div>
+
+<style is:global>
+  body.sheet-open { overflow: hidden; }
+  .sheet { position: fixed; inset: 0; z-index: 40; background: var(--bg); overflow-y: auto; padding: max(14px, env(safe-area-inset-top)) 16px max(40px, env(safe-area-inset-bottom)); }
+  .sheet .in { max-width: 760px; margin: 0 auto; }
+  .sheet button { color: var(--dim); }
+  .sheet button:hover:not(:disabled) { color: var(--fg); }
+  .sheet button:disabled { color: var(--faint); }
+  .sheet a { color: var(--dim); text-decoration: none; }
+  .sheet a:hover { color: var(--fg); }
+  .sheet .note { color: var(--dim); margin: 4px 0; }
+  .sheethead { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+  .sheethead .pager { display: flex; gap: 16px; }
+  .preview { position: relative; width: 100%; height: min(52vh, 460px); background: #0d0d0d; display: grid; place-items: center; overflow: hidden; }
+  .preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .preview .play { position: absolute; left: 10px; bottom: 8px; color: #fff; text-shadow: 0 1px 2px #000; }
+  .efields { display: grid; gap: 14px; margin-top: 16px; }
+  .erow { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 6px 12px; align-items: center; color: var(--dim); }
+  .erow input[type='text'], .erow input[type='datetime-local'], .erow select {
+    font: inherit; color: var(--fg); background: var(--bg); border: 0; border-bottom: 1px solid var(--faint); padding: 6px 0; border-radius: 0; width: 100%; color-scheme: dark;
+  }
+  .erow input:focus, .erow select:focus { outline: none; border-color: var(--fg); }
+  .chips { grid-column: 2; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+  .chips button::before { content: '+ '; color: var(--faint); }
+  .etags { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--fg); }
+  .etags label { white-space: nowrap; }
+  .etags input { accent-color: var(--fg); }
+  .eactions { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; margin-top: 4px; }
+  .sheet .danger:hover { color: #ff6b6b; }
+  .sheet .confirm, .sheet .confirm button { color: #ff6b6b; }
+  .sheet .confirm [data-act$='-no'] { color: var(--dim); }
+  .sheet .status { color: var(--dim); }
+  @media (max-width: 560px) {
+    .erow { grid-template-columns: 1fr; gap: 4px; }
+    .chips { grid-column: 1; }
+  }
+</style>

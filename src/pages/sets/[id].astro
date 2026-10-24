@@ -30,7 +30,7 @@ const mapJson = route?.length
 <Base current="timeline">
   <main class="tl">
     <a class="back" href={`/#set-${set.id}`}>&lt; timeline</a>
-    {Astro.locals.viewer.isOwner && <a class="edit" href={`/post?set=${set.id}#sets`}>[edit]</a>}
+    {Astro.locals.viewer.isOwner && <a class="edit" href={`/manage/sets/${set.id}`}>[edit]</a>}
     <header>
       <h2>{set.title.toLowerCase()}</h2>
       {moments.length > 0 && (

@@ -6,6 +6,14 @@ export interface TimelineMoment {
   taken_at: string;
   place_name: string | null;
   set_id: string | null;
+  /** Position within its set (owner-chosen order); null sorts after positioned ones, by time. */
+  set_pos?: number | null;
+}
+
+/** A set's moments in display order: owner-chosen position first, then time. */
+export function setOrder<M extends TimelineMoment>(list: M[]): M[] {
+  const pos = (m: M) => m.set_pos ?? Number.MAX_SAFE_INTEGER;
+  return [...list].sort((a, b) => pos(a) - pos(b) || a.taken_at.localeCompare(b.taken_at));
 }
 
 export interface SetInfo {
@@ -36,7 +44,6 @@ export function fmtRange(start: string, end: string): string {
 
 /** Newest-first entries. `moments` may be in any order; sets without loaded moments are skipped. */
 export function buildEntries<M extends TimelineMoment>(moments: M[], sets: SetInfo[]): Entry<M>[] {
-  const byDate = (a: { taken_at: string }, b: { taken_at: string }) => a.taken_at.localeCompare(b.taken_at);
   const members = new Map<string, M[]>();
   const entries: Entry<M>[] = [];
   for (const m of moments) {
@@ -49,13 +56,15 @@ export function buildEntries<M extends TimelineMoment>(moments: M[], sets: SetIn
     }
   }
   for (const set of sets) {
-    const list = members.get(set.id)?.sort(byDate);
-    if (!list?.length) continue;
+    const found = members.get(set.id);
+    if (!found?.length) continue;
+    const list = setOrder(found);
+    const times = list.map((m) => m.taken_at).sort();
     const places = [...new Set(list.map((m) => m.place_name).filter((p): p is string => !!p))];
     entries.push({
-      type: 'set', date: list[0].taken_at, set, moments: list,
+      type: 'set', date: times[0], set, moments: list,
       cover: list.find((m) => m.id === set.cover_id) ?? list[0],
-      start: list[0].taken_at, end: list[list.length - 1].taken_at, places,
+      start: times[0], end: times[times.length - 1], places,
     });
   }
   return entries.sort((a, b) => b.date.localeCompare(a.date));

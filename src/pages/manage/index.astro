@@ -1,0 +1,415 @@
+---
+// Owner-only (middleware): everything after posting. Photos (a filterable grid with a per-photo editor and
+// bulk changes), sets (each opens /manage/sets/<id>), and settings (comments, privacy zones, place links).
+// Tabs are client-side, kept in the URL hash (#photos, #sets, #settings).
+import Base from '../../layouts/Base.astro';
+import EditorSheet from '../../components/EditorSheet.astro';
+import { libraryPage, managedSets, LIBRARY_PAGE, type LibraryFilter } from '../../lib/manage';
+import { mediaUrl, fmtDay } from '../../lib/moments';
+import { fmtRange } from '../../lib/timeline';
+import { listZones, shownDistanceM } from '../../lib/zones';
+import { pendingComments } from '../../lib/comments';
+import { CATEGORIES } from '../../lib/categories';
+import { listPlaceNames, listPlaceLinks } from '../../lib/place-links';
+import { isVenue, splitVenue } from '../../lib/maps-link';
+
+const q = Astro.url.searchParams;
+const filter = (['noplace', 'noset'].includes(q.get('f') ?? '') ? q.get('f') : 'all') as LibraryFilter;
+const tag = CATEGORIES.includes(q.get('tag') as never) ? q.get('tag')! : '';
+const older = q.get('older') ?? undefined;
+const ids = q.get('ids')?.split(',').filter(Boolean).slice(0, 200);
+const [photos, sets, pending, zones, placeNames, placeLinks] = await Promise.all([
+  libraryPage({ filter, tag, before: older, ids }), managedSets(), pendingComments(), listZones(), listPlaceNames(), listPlaceLinks(),
+]);
+const setTitle = new Map(sets.map((s) => [s.id, s.title]));
+const link = (o: { f?: string; tag?: string; older?: string }) => {
+  const p = new URLSearchParams();
+  if (o.f && o.f !== 'all') p.set('f', o.f);
+  if (o.tag) p.set('tag', o.tag);
+  if (o.older) p.set('older', o.older);
+  const s = p.toString();
+  return `/manage${s ? `?${s}` : ''}#photos`;
+};
+const thumb = (m: (typeof photos)[number]) =>
+  m.thumb_key ?? (m.kind === 'photo' ? m.media_key : null) ? mediaUrl((m.thumb_key ?? m.media_key)!) : m.youtube_id ? `https://i.ytimg.com/vi/${m.youtube_id}/mqdefault.jpg` : null;
+const label = (m: { taken_at: string; place_name: string | null }) => [fmtDay(m.taken_at), m.place_name?.toLowerCase()].filter(Boolean).join(' · ');
+const editorSets = JSON.stringify(sets.map((s) => ({ id: s.id, title: s.title, cover_id: s.cover_id }))).replace(/</g, '\\u003c');
+const RADII = [200, 300, 500, 1000, 2000];
+const km = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`);
+---
+
+<Base current="manage">
+  <main class="manage">
+    <nav class="tabs" aria-label="manage sections">
+      <button data-tab="photos">photos</button>
+      <button data-tab="sets">sets</button>
+      <button data-tab="settings">settings{pending.length > 0 && <b class="badge">{pending.length}</b>}</button>
+    </nav>
+
+    <section data-panel="photos" class="photos">
+      <div class="cmd"><span>&gt; <b>photos</b>{ids ? ' · just posted' : older ? ` · before ${fmtDay(older)}` : ''}</span><button type="button" class="selmode">[select]</button></div>
+      {ids
+        ? <div class="filters"><a href="/manage#photos">[show all photos]</a></div>
+        : <div class="filters">
+            <a href={link({ tag })} aria-current={filter === 'all' ? 'true' : undefined}>all</a>
+            <a href={link({ f: 'noplace', tag })} aria-current={filter === 'noplace' ? 'true' : undefined}>no place</a>
+            <a href={link({ f: 'noset', tag })} aria-current={filter === 'noset' ? 'true' : undefined}>no set</a>
+            <select id="tagf" aria-label="filter by tag" data-f={filter}>
+              <option value="">any tag</option>
+              {CATEGORIES.map((c) => <option value={c} selected={c === tag}>{c}</option>)}
+            </select>
+          </div>}
+      <div class="grid" id="lib">
+        {photos.map((m) => (
+          <button type="button" class="tile" data-id={m.id} aria-label={label(m)}>
+            {thumb(m) && <img src={thumb(m)} alt="" loading="lazy" />}
+            {!m.place_name && <span class="flag">no place</span>}
+            {m.youtube_id && <span class="yt">▶</span>}
+            <span class="lbl">{label(m)}</span>
+            <span class="chk"></span>
+          </button>
+        ))}
+      </div>
+      {photos.length === 0 && <p class="note">// nothing matches</p>}
+      <div class="pager">
+        {older && <a href={link({ f: filter, tag })}>[newest]</a>}
+        {!ids && photos.length === LIBRARY_PAGE && <a href={link({ f: filter, tag, older: photos[photos.length - 1].taken_at })}>[load older ↓]</a>}
+      </div>
+
+      <div class="bulk" hidden>
+        <span class="count">0 selected</span>
+        <span class="grp">
+          <select class="bset" aria-label="set for selected">
+            <option value="">set…</option>
+            <option value="__none">no set (take out)</option>
+            {sets.map((s) => <option value={s.id}>{s.title.toLowerCase()}</option>)}
+          </select>
+          <button type="button" data-bulk="set">[apply]</button>
+        </span>
+        <span class="grp">
+          <input class="bplace" type="text" list="place-names" maxlength="120" placeholder="place, e.g. Seoul Kitchen, Southport" aria-label="place for selected" />
+          <button type="button" data-bulk="place">[rename]</button>
+        </span>
+        <span class="grp">
+          <select class="btag" aria-label="tag for selected">{CATEGORIES.map((c) => <option value={c}>{c}</option>)}</select>
+          <button type="button" data-bulk="tag-add">[+ tag]</button>
+          <button type="button" data-bulk="tag-remove">[− tag]</button>
+        </span>
+        <button type="button" data-bulk="delete" class="danger">[delete]</button>
+        <button type="button" class="bdone">[done]</button>
+        <span class="bstatus"></span>
+      </div>
+      <datalist id="place-names">{placeNames.map((p) => <option value={p.name} />)}</datalist>
+    </section>
+
+    <section data-panel="sets" class="sets" hidden>
+      <div class="cmd"><span>&gt; <b>sets</b></span><span>newest first</span></div>
+      <p class="note">// make a set when posting, or select photos and choose a set. tap a set to edit it.</p>
+      {sets.map((s) => {
+        const cover = s.moments.find((m) => m.id === s.cover_id) ?? s.moments[0];
+        const times = s.moments.map((m) => m.taken_at).sort();
+        const places = [...new Set(s.moments.map((m) => m.place_name).filter(Boolean))] as string[];
+        return (
+          <a class="setrow" href={`/manage/sets/${s.id}`}>
+            <span class="th">{cover && thumb(cover) && <img src={thumb(cover)} alt="" loading="lazy" />}</span>
+            <span class="t">{s.title.toLowerCase()}
+              <span>{times.length ? fmtRange(times[0], times[times.length - 1]) : 'empty'}{places.length > 0 && ` · ${places[0].toLowerCase()}${places.length > 1 ? ` +${places.length - 1}` : ''}`}</span></span>
+            <span class="go">edit ›</span>
+          </a>
+        );
+      })}
+      {sets.length === 0 && <p class="note">// no sets yet</p>}
+    </section>
+
+    <section data-panel="settings" class="settings" hidden>
+      <div class="block pending">
+        <div class="cmd"><span>&gt; <b>comments waiting</b></span></div>
+        <p class="note">{pending.length ? "// approving someone's comment also lets their future comments appear straight away." : '// nothing waiting.'}</p>
+        {pending.map((c) => (
+          <div class="crow" data-comment={c.id}>
+            <div class="cwho">{c.avatar_url && <img src={c.avatar_url} alt="" referrerpolicy="no-referrer" />}<b>{c.first_name.toLowerCase()}</b> <span>{c.email}</span>
+              · <a href={c.set_id ? `/sets/${c.set_id}` : `/#m-${c.moment_id}`}>on {c.set_id ? (setTitle.get(c.set_id)?.toLowerCase() ?? 'a set') : 'a photo'}</a></div>
+            <p class="cbody">{c.body}</p>
+            <div class="cact"><button type="button" data-status="approved">[approve]</button><button type="button" data-status="rejected">[reject]</button><span class="status"></span></div>
+          </div>
+        ))}
+      </div>
+
+      <div class="block">
+        <div class="cmd"><span>&gt; <b>privacy zones</b></span></div>
+        <p class="note">// photos taken inside a zone show only its suburb, on the map and the timeline. zones are never shown to visitors.</p>
+        {zones.map((z) => (
+          <div class="zonerow" data-zone={z.id}>
+            <input class="zlabel" type="text" value={z.label} maxlength="40" aria-label="zone label" />
+            <span class="zaddr">{z.address}</span>
+            <select class="zradius" aria-label="radius">{RADII.map((r) => <option value={r} selected={r === z.radius_m}>{km(r)}</option>)}</select>
+            <span class="zshown">shown as {(z.area_name ?? 'the suburb').toLowerCase()} ({km(shownDistanceM(z))} away)</span>
+            <button class="zrm" type="button">[remove]</button>
+            <span class="status"></span>
+          </div>
+        ))}
+        <form id="zone-add" class="zoneadd" autocomplete="off">
+          <input name="label" type="text" placeholder="label (e.g. home)" maxlength="40" required />
+          <input name="address" type="text" placeholder="address, suburb, state" maxlength="200" required />
+          <select name="radius_m" aria-label="radius">{RADII.map((r) => <option value={r} selected={r === 300}>{km(r)}</option>)}</select>
+          <button type="submit">[ add zone ]</button>
+          <span class="status"></span>
+        </form>
+      </div>
+
+      <div class="block">
+        <div class="cmd"><span>&gt; <b>place links</b></span></div>
+        <p class="note">// where each place's ↗ goes. blank is automatic (google maps for a venue, wikipedia for its suburb or the place). paste a link to fix one. to rename a place, edit its photos or set.</p>
+        {placeNames.length === 0 && <p class="note">// no named places yet</p>}
+        {placeNames.map((p) => {
+          const venue = isVenue(p.name, p.zoned), o = placeLinks.get(p.name);
+          return (
+            <div class="placerow" data-name={p.name}>
+              <span class="pname">{p.name.toLowerCase()}</span>
+              {venue && <label class="plink"><span>{splitVenue(p.name).venue.toLowerCase()} ↗</span>
+                <input class="pg" type="url" value={o?.gmaps_url ?? ''} placeholder="automatic: google maps search" aria-label="google maps link" /></label>}
+              <label class="plink"><span>{(venue ? splitVenue(p.name).area : p.name).toLowerCase()} ↗</span>
+                <input class="pw" type="url" value={o?.wiki_url ?? ''} placeholder="automatic: wikipedia" aria-label="wikipedia link" /></label>
+              <span class="status"></span>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  </main>
+  <EditorSheet />
+  <script type="application/json" id="editor-sets" set:html={editorSets} />
+</Base>
+
+<script>
+  import { openPhotoEditor, tileLabel, type EditorSet } from '../../scripts/photo-editor';
+
+  type El = HTMLElement;
+  const pick = <T = El,>(root: { querySelector(sel: string): unknown }, sel: string) => root.querySelector(sel) as T;
+  const all = <T = El,>(root: { querySelectorAll(sel: string): unknown }, sel: string) => Array.from(root.querySelectorAll(sel) as unknown as T[]);
+  const body = async (res: Response) => (await res.json().catch(() => ({}))) as { error?: string };
+  const sets = JSON.parse(pick(document, '#editor-sets').textContent ?? '[]') as EditorSet[];
+
+  // ---- tabs ----
+  const tabs = all(document, '.tabs [data-tab]'), panels = all(document, '[data-panel]');
+  function showTab(name: string) {
+    if (!panels.some((p) => p.dataset.panel === name)) name = 'photos';
+    panels.forEach((p) => { p.hidden = p.dataset.panel !== name; });
+    tabs.forEach((t) => t.setAttribute('aria-current', t.dataset.tab === name ? 'page' : 'false'));
+  }
+  tabs.forEach((t) => t.addEventListener('click', () => {
+    history.replaceState(null, '', `${location.pathname}${location.search}#${t.dataset.tab}`);
+    showTab(t.dataset.tab!);
+  }));
+  showTab(location.hash.slice(1));
+
+  // ---- photos: tap to edit; [select] to change several ----
+  const lib = pick(document, '#lib'), bulk = pick(document, '.bulk');
+  const tiles = () => all(lib, '.tile');
+  const selected = () => tiles().filter((t) => t.classList.contains('sel')).map((t) => t.dataset.id!);
+  const selecting = () => lib.classList.contains('selecting');
+  const updateCount = () => { pick(bulk, '.count').textContent = `${selected().length} selected`; };
+  function setSelecting(on: boolean) {
+    lib.classList.toggle('selecting', on);
+    bulk.hidden = !on;
+    pick(document, '.selmode').textContent = on ? '[done]' : '[select]';
+    if (!on) tiles().forEach((t) => t.classList.remove('sel'));
+    updateCount();
+  }
+  pick(document, '.selmode').addEventListener('click', () => setSelecting(!selecting()));
+  pick(bulk, '.bdone').addEventListener('click', () => setSelecting(false));
+
+  function openEditor(id: string) {
+    const list = tiles().map((t) => t.dataset.id!);
+    openPhotoEditor(id, {
+      list: list.includes(id) ? list : [id],
+      sets,
+      onChange: (m) => {
+        const t = pick<El | null>(lib, `.tile[data-id="${m.id}"]`);
+        if (!t) return;
+        pick(t, '.lbl').textContent = tileLabel(m);
+        t.querySelector('.flag')?.remove();
+        if (!m.place_name) t.insertAdjacentHTML('beforeend', '<span class="flag">no place</span>');
+      },
+      onDelete: (id) => pick<El | null>(lib, `.tile[data-id="${id}"]`)?.remove(),
+    });
+  }
+  lib.addEventListener('click', (e) => {
+    const t = (e.target as El).closest('.tile') as El | null;
+    if (!t) return;
+    if (selecting()) { t.classList.toggle('sel'); updateCount(); return; }
+    openEditor(t.dataset.id!);
+  });
+  // /manage?edit=<id> (the [edit] on a timeline photo) opens that photo straight away.
+  const want = new URLSearchParams(location.search).get('edit');
+  if (want) openEditor(want);
+
+  pick<HTMLSelectElement>(document, '#tagf')?.addEventListener('change', (e) => {
+    const s = e.target as HTMLSelectElement, p = new URLSearchParams();
+    if (s.dataset.f && s.dataset.f !== 'all') p.set('f', s.dataset.f);
+    if (s.value) p.set('tag', s.value);
+    location.href = `/manage${p.toString() ? `?${p}` : ''}#photos`;
+  });
+
+  all(bulk, '[data-bulk]').forEach((btn) => btn.addEventListener('click', async () => {
+    const action = btn.dataset.bulk!, ids = selected(), st = pick(bulk, '.bstatus');
+    if (!ids.length) { st.textContent = 'select some photos first'; return; }
+    const payload: Record<string, unknown> = { ids, action };
+    if (action === 'set') {
+      const v = pick<HTMLSelectElement>(bulk, '.bset').value;
+      if (!v) { st.textContent = 'choose a set'; return; }
+      payload.set_id = v === '__none' ? null : v;
+    }
+    if (action.startsWith('tag')) payload.category = pick<HTMLSelectElement>(bulk, '.btag').value;
+    if (action === 'place') {
+      payload.place_name = pick<HTMLInputElement>(bulk, '.bplace').value.trim();
+      if (!payload.place_name) { st.textContent = 'type a place'; return; }
+    }
+    if (action === 'delete' && !confirm(`Delete ${ids.length} photo${ids.length === 1 ? '' : 's'} and their files? This can't be undone.`)) return;
+    st.textContent = '…';
+    const res = await fetch('/api/moments/bulk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (res.ok) location.reload(); else st.textContent = (await body(res)).error ?? 'error';
+  }));
+
+  // ---- settings: comments ----
+  all(document, '.crow').forEach((row) => {
+    all(row, '[data-status]').forEach((b) => b.addEventListener('click', async () => {
+      const res = await fetch(`/api/comments/${row.dataset.comment}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: b.dataset.status }) });
+      if (res.ok) row.remove(); else pick(row, '.status').textContent = (await body(res)).error ?? 'error';
+    }));
+  });
+
+  // ---- settings: privacy zones (add looks up the address; relabel, radius, remove) ----
+  const zoneForm = pick<HTMLFormElement>(document, '#zone-add');
+  zoneForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const st = pick(zoneForm, '.status'), fd = new FormData(zoneForm);
+    st.textContent = 'looking up address…';
+    const res = await fetch('/api/zones', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label: fd.get('label'), address: fd.get('address'), radius_m: Number(fd.get('radius_m')) }) });
+    if (res.ok) location.reload(); else st.textContent = (await body(res)).error ?? 'error';
+  });
+  all(document, '.zonerow').forEach((row) => {
+    const id = row.dataset.zone!, st = pick(row, '.status');
+    const patch = async (edit: Record<string, unknown>, reload = false) => {
+      st.textContent = '…';
+      const res = await fetch(`/api/zones/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(edit) });
+      if (res.ok && reload) return location.reload();
+      st.textContent = res.ok ? 'saved' : ((await body(res)).error ?? 'error');
+    };
+    pick(row, '.zlabel').addEventListener('change', (e) => patch({ label: (e.target as HTMLInputElement).value }));
+    pick(row, '.zradius').addEventListener('change', (e) => patch({ radius_m: Number((e.target as HTMLSelectElement).value) }, true));
+    pick(row, '.zrm').addEventListener('click', async () => {
+      if (!confirm('Remove this zone? Photos inside it will show their exact location again.')) return;
+      const res = await fetch(`/api/zones/${id}`, { method: 'DELETE' });
+      if (res.ok) location.reload(); else st.textContent = 'remove failed';
+    });
+  });
+
+  // ---- settings: place links save as you leave a field ----
+  all(document, '.placerow').forEach((r) => {
+    const st = pick(r, '.status');
+    const save = async () => {
+      st.textContent = '…';
+      const g = r.querySelector('.pg') as unknown as HTMLInputElement | null;
+      const res = await fetch('/api/place-links', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: r.dataset.name, gmaps_url: g?.value ?? '', wiki_url: pick<HTMLInputElement>(r, '.pw').value }) });
+      st.textContent = res.ok ? 'saved' : (await body(res)).error ?? 'error';
+    };
+    all(r, 'input').forEach((i) => i.addEventListener('change', save));
+  });
+</script>
+
+<style>
+  .manage { max-width: 760px; margin: 0 auto; padding: 64px 20px 120px; }
+  .tabs { position: sticky; top: 46px; z-index: 5; display: flex; gap: 4px 18px; flex-wrap: wrap; padding: 10px 0; background: var(--bg); border-bottom: 1px solid var(--faint); }
+  .tabs button { color: var(--dim); padding: 4px 0; }
+  .tabs button:hover, .tabs button[aria-current='page'] { color: var(--fg); }
+  .tabs button[aria-current='page']::before { content: '['; }
+  .tabs button[aria-current='page']::after { content: ']'; }
+  .badge { margin-left: 6px; padding: 0 5px; background: #ffb547; color: #000; font-weight: 500; }
+  .cmd { color: var(--dim); margin: 20px 0 10px; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .cmd b { color: var(--fg); font-weight: 500; }
+  .note { color: var(--dim); margin: 0 0 12px; }
+  button { color: var(--dim); }
+  button:hover { color: var(--fg); }
+  input[type='text'], input[type='url'], select { font: inherit; color: var(--fg); background: #000; border: 0; border-bottom: 1px solid var(--faint); padding: 6px 0; border-radius: 0; }
+  input:focus, select:focus { outline: none; border-color: var(--fg); }
+  .status { color: var(--dim); }
+
+  /* photos */
+  .filters { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; margin-bottom: 12px; }
+  .filters a { color: var(--dim); text-decoration: none; }
+  .filters a:hover, .filters a[aria-current] { color: var(--fg); }
+  .filters a[aria-current]::before { content: '['; }
+  .filters a[aria-current]::after { content: ']'; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 4px; }
+  .grid > * { min-width: 0; }
+  .tile { position: relative; aspect-ratio: 1; overflow: hidden; background: #0d0d0d; display: block; width: 100%; padding: 0; }
+  .tile img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .tile .lbl { position: absolute; left: 6px; right: 6px; bottom: 4px; font-size: 11px; color: #fff; text-shadow: 0 1px 2px #000, 0 0 6px #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+  .tile .flag { position: absolute; top: 4px; left: 6px; font-size: 11px; color: #ffb547; text-shadow: 0 1px 2px #000; }
+  .tile .yt { position: absolute; top: 4px; right: 8px; color: #fff; text-shadow: 0 1px 2px #000; }
+  .tile .chk { position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; border: 1px solid #fff; background: #0006; display: none; }
+  .selecting .tile .chk { display: block; }
+  .selecting .tile .yt { display: none; }
+  .tile.sel { outline: 2px solid var(--fg); outline-offset: -2px; }
+  .tile.sel .chk { background: var(--fg); }
+  .tile.sel .chk::after { content: '✓'; color: #000; position: absolute; inset: 0; display: grid; place-items: center; font-size: 13px; }
+  .pager { display: flex; gap: 18px; margin-top: 16px; }
+  .pager a { color: var(--fg); }
+  .bulk { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center;
+    padding: 12px 20px max(12px, env(safe-area-inset-bottom)); background: #000; border-top: 1px solid var(--fg); }
+  .bulk .count { color: var(--fg); }
+  .bulk .grp { display: inline-flex; gap: 8px; align-items: center; }
+  .bulk .bplace { width: 230px; }
+  .bulk .danger:hover { color: #ff6b6b; }
+
+  /* sets */
+  .setrow { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 8px 0; border-bottom: 1px solid #111; color: var(--fg); text-decoration: none; }
+  .setrow .th { width: 56px; height: 56px; background: #0d0d0d; overflow: hidden; }
+  .setrow .th img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .setrow .t { display: grid; min-width: 0; }
+  .setrow .t span { color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .setrow .go { color: var(--dim); }
+  .setrow:hover .go { color: var(--fg); }
+
+  /* settings */
+  .block { border-top: 1px solid var(--faint); margin-top: 22px; }
+  .block:first-child { border-top: 0; margin-top: 0; }
+  .crow { padding: 10px 0; border-bottom: 1px solid #111; }
+  .cwho { color: var(--dim); display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .cwho img { width: 18px; height: 18px; border-radius: 50%; }
+  .cwho b { color: var(--fg); font-weight: 400; }
+  .cwho a { color: var(--dim); }
+  .cbody { margin: 6px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .cact { display: flex; gap: 14px; }
+  .cact button[data-status='rejected']:hover { color: #ff6b6b; }
+  .zonerow { display: grid; grid-template-columns: 110px minmax(0, 1fr) auto; gap: 4px 14px; align-items: center; padding: 8px 0; border-bottom: 1px solid #111; color: var(--dim); }
+  .zonerow input { width: 100%; }
+  .zaddr { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg); }
+  .zshown { grid-column: 1 / 3; }
+  .zrm { justify-self: end; }
+  .zrm:hover { color: #ff6b6b; }
+  .zoneadd { display: grid; grid-template-columns: 140px minmax(0, 1fr) auto auto; gap: 8px 14px; align-items: center; margin-top: 12px; }
+  .zoneadd input { width: 100%; }
+  .zoneadd button { color: var(--fg); }
+  .zoneadd .status { grid-column: 1 / -1; }
+  .placerow { display: grid; gap: 6px; padding: 14px 0; border-bottom: 1px solid #111; }
+  .pname { color: var(--fg); }
+  .plink { display: grid; grid-template-columns: minmax(0, 220px) 1fr; gap: 12px; align-items: center; color: var(--dim); }
+  .plink span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .plink input { width: 100%; }
+
+  @media (max-width: 700px) {
+    .manage { padding: 56px 16px 120px; }
+    .tabs { top: 42px; }
+    .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .bulk .bplace { width: 170px; }
+    .plink { grid-template-columns: 1fr; gap: 2px; }
+    .zonerow { grid-template-columns: 1fr auto; }
+    .zaddr, .zshown { grid-column: 1 / -1; }
+    .zoneadd { grid-template-columns: 1fr auto; }
+    .zoneadd [name=address] { grid-column: 1 / -1; grid-row: 2; }
+  }
+</style>

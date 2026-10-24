@@ -1,0 +1,335 @@
+---
+// Owner-only (middleware): one set's editor. Title, caption, a place for every photo, ride route, and its
+// photos in display order: reorder (drag or ‹ ›, saved to moments.set_pos), take out, add from the
+// library, or tap one to open the photo editor.
+import Base from '../../../layouts/Base.astro';
+import EditorSheet from '../../../components/EditorSheet.astro';
+import { managedSet, managedSets, libraryPage } from '../../../lib/manage';
+import { mediaUrl, fmtDay } from '../../../lib/moments';
+import { fmtRange } from '../../../lib/timeline';
+import { fmtStats } from '../../../lib/route';
+
+const set = await managedSet(Astro.params.id!);
+if (!set) return Astro.redirect('/manage#sets');
+const [allSets, others] = await Promise.all([managedSets(), libraryPage({ excludeSet: set.id, limit: 300 })]);
+const thumb = (m: (typeof set.moments)[number]) =>
+  m.thumb_key ?? (m.kind === 'photo' ? m.media_key : null) ? mediaUrl((m.thumb_key ?? m.media_key)!) : m.youtube_id ? `https://i.ytimg.com/vi/${m.youtube_id}/mqdefault.jpg` : null;
+const places = [...new Set(set.moments.map((m) => m.place_name).filter(Boolean))] as string[];
+const times = set.moments.map((m) => m.taken_at).sort();
+const gps = set.moments.find((m) => m.lat != null);
+const setTitle = new Map(allSets.map((s) => [s.id, s.title]));
+const editorSets = JSON.stringify(allSets.map((s) => ({ id: s.id, title: s.title, cover_id: s.cover_id }))).replace(/</g, '\\u003c');
+---
+
+<Base current="manage">
+  <main class="sedit" data-set={set.id} data-cover={set.cover_id ?? ''}>
+    <div class="head"><a href="/manage#sets">&lt; sets</a><a href={`/sets/${set.id}`} target="_blank" rel="noopener">[view on site ↗]</a></div>
+    <p class="sub">{times.length ? fmtRange(times[0], times[times.length - 1]) : 'no photos yet'}</p>
+
+    <div class="fields">
+      <label class="row"><span>title</span><input id="s-title" type="text" value={set.title} maxlength="80" /></label>
+      <label class="row"><span>caption</span><input id="s-caption" type="text" value={set.caption ?? ''} placeholder="about the whole set" maxlength="300" /></label>
+      <div class="row"><label for="s-place">place</label>
+        <input id="s-place" type="text" value={places.length === 1 ? places[0] : ''} maxlength="120"
+          placeholder={places.length > 1 ? `mixed: ${places.join(' / ').toLowerCase()}` : 'name, suburb, e.g. Seoul Kitchen, Southport'}
+          data-lat={gps?.lat ?? ''} data-lng={gps?.lng ?? ''} />
+        <span class="chips" id="s-chips">{gps && <span class="note">finding nearby places…</span>}</span>
+        <span class="hint">// sets the place on every photo in the set</span></div>
+      <div class="row"><span>route</span>
+        <span class="route">
+          {set.route_km != null && <span>⤳ {fmtStats({ km: set.route_km, secs: set.route_secs ?? null, climb_m: set.route_climb_m ?? null })}</span>}
+          <label class="addroute">{set.route_km != null ? '[replace]' : '[+ add gpx route]'}<input type="file" accept=".gpx,application/gpx+xml" hidden /></label>
+          {set.route_km != null && <button type="button" class="rmroute">[remove]</button>}
+        </span></div>
+      <span class="status" id="s-status"></span>
+    </div>
+
+    <div class="cmd"><span>&gt; <b>photos</b></span>
+      <span class="acts"><button type="button" class="reorder-btn">[reorder]</button><button type="button" class="add-btn">[+ add photos]</button></span></div>
+    <p class="note mode-note">// tap a photo to edit it. × takes it out of the set (it stays on the timeline). ★ is the cover.</p>
+    <p class="confirm" id="rm-confirm" hidden>take this photo out of the set? <button type="button" class="rm-yes">[yes, take out]</button> <button type="button" class="rm-no">[keep]</button></p>
+    <div class="grid" id="setgrid">
+      {set.moments.map((m, i) => (
+        <div class="tile" data-id={m.id} role="button" tabindex="0" aria-label={`${fmtDay(m.taken_at)} ${m.place_name ?? ''}`}>
+          {thumb(m) && <img src={thumb(m)} alt="" loading="lazy" draggable="false" />}
+          <span class="pos">{i + 1}</span>
+          {set.cover_id === m.id && <span class="star">★</span>}
+          <span class="lbl">{fmtDay(m.taken_at)}</span>
+          <button type="button" class="x" aria-label="take out of set">×</button>
+          <button type="button" class="mv l" data-mv="-1" aria-label="move earlier">‹</button>
+          <button type="button" class="mv r" data-mv="1" aria-label="move later">›</button>
+        </div>
+      ))}
+    </div>
+    {set.moments.length === 0 && <p class="note">// no photos yet. [+ add photos] to pick some.</p>}
+
+    <div class="foot">
+      <button type="button" class="danger ungroup">[ungroup set]</button>
+      <span class="confirm" id="ungroup-confirm" hidden>ungroup this set? its photos stay on the timeline. <button type="button" class="ug-yes">[yes, ungroup]</button> <button type="button" class="ug-no">[keep]</button></span>
+    </div>
+
+    <section class="picker" id="picker" hidden>
+      <div class="head"><button type="button" class="pick-cancel">&lt; {set.title.toLowerCase()}</button><button type="button" class="pick-add">[add 0]</button></div>
+      <p class="note">// tap photos to add them to this set. a photo already in another set moves here. showing the latest {others.length}.</p>
+      <div class="grid selecting" id="pickgrid">
+        {others.map((m) => (
+          <button type="button" class="tile" data-id={m.id}>
+            {thumb(m) && <img src={thumb(m)} alt="" loading="lazy" />}
+            {m.set_id && <span class="flag">in {setTitle.get(m.set_id)?.toLowerCase()}</span>}
+            <span class="lbl">{[fmtDay(m.taken_at), m.place_name?.toLowerCase()].filter(Boolean).join(' · ')}</span>
+            <span class="chk"></span>
+          </button>
+        ))}
+      </div>
+    </section>
+  </main>
+  <EditorSheet />
+  <script type="application/json" id="editor-sets" set:html={editorSets} />
+</Base>
+
+<script>
+  import { openPhotoEditor, tileLabel, type EditorSet } from '../../../scripts/photo-editor';
+
+  type El = HTMLElement;
+  const pick = <T = El,>(root: { querySelector(sel: string): unknown }, sel: string) => root.querySelector(sel) as T;
+  const all = <T = El,>(root: { querySelectorAll(sel: string): unknown }, sel: string) => Array.from(root.querySelectorAll(sel) as unknown as T[]);
+  const json = (method: string, body: unknown) => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const errorOf = async (res: Response) => ((await res.json().catch(() => ({}))) as { error?: string }).error ?? 'error';
+
+  const main = pick(document, '.sedit'), id = main.dataset.set!;
+  const sets = JSON.parse(pick(document, '#editor-sets').textContent ?? '[]') as EditorSet[];
+  const grid = pick(document, '#setgrid'), statusEl = pick(document, '#s-status');
+  const status = (t: string) => { statusEl.textContent = t; if (t === 'saved') setTimeout(() => { if (statusEl.textContent === 'saved') statusEl.textContent = ''; }, 1500); };
+  const tiles = () => all(grid, '.tile');
+  const ids = () => tiles().map((t) => t.dataset.id!);
+
+  // ---- set fields ----
+  const patchSet = async (edit: Record<string, unknown>) => {
+    status('…');
+    const res = await fetch(`/api/sets/${id}`, json('PATCH', edit));
+    status(res.ok ? 'saved' : await errorOf(res));
+  };
+  pick(document, '#s-title').addEventListener('change', (e) => patchSet({ title: (e.target as HTMLInputElement).value }));
+  pick(document, '#s-caption').addEventListener('change', (e) => patchSet({ caption: (e.target as HTMLInputElement).value }));
+
+  // Place for every photo in the set; nearby venues for the set's first GPS photo as chips.
+  const placeIn = pick<HTMLInputElement>(document, '#s-place');
+  async function setPlace(name: string) {
+    if (!name.trim() || !ids().length) return;
+    status('…');
+    const res = await fetch('/api/moments/bulk', json('POST', { ids: ids(), action: 'place', place_name: name.trim() }));
+    if (!res.ok) return status(await errorOf(res));
+    placeIn.value = name.trim(); placeIn.placeholder = '';
+    status('saved');
+  }
+  placeIn.addEventListener('change', () => setPlace(placeIn.value));
+  if (placeIn.dataset.lat) {
+    fetch(`/api/places/nearby?lat=${placeIn.dataset.lat}&lng=${placeIn.dataset.lng}`).then((r) => (r.ok ? r.json() : {})).then((r: { choices?: string[] }) => {
+      const chips = pick(document, '#s-chips');
+      chips.innerHTML = '';
+      for (const c of r.choices ?? []) {
+        if (c === placeIn.value) continue;
+        const b = document.createElement('button') as unknown as El;
+        b.setAttribute('type', 'button'); b.textContent = c.toLowerCase();
+        b.addEventListener('click', () => setPlace(c));
+        chips.appendChild(b as never);
+      }
+    }).catch(() => { pick(document, '#s-chips').innerHTML = ''; });
+  }
+
+  // Ride route: the server trims it out of privacy zones and works out the stats.
+  pick<HTMLInputElement>(document, '.addroute input').addEventListener('change', async (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    status('reading route…');
+    const fd = new FormData(); fd.append('file', file);
+    const res = await fetch(`/api/sets/${id}/route`, { method: 'POST', body: fd });
+    if (res.ok) location.reload(); else status(await errorOf(res));
+  });
+  pick<El | null>(document, '.rmroute')?.addEventListener('click', async () => {
+    const res = await fetch(`/api/sets/${id}/route`, { method: 'DELETE' });
+    if (res.ok) location.reload(); else status('remove failed');
+  });
+
+  // ---- order: drag (pointer events, touch and mouse) or ‹ ›; saved after each change ----
+  const renumber = () => tiles().forEach((t, i) => { pick(t, '.pos').textContent = String(i + 1); });
+  async function saveOrder() {
+    renumber();
+    status('…');
+    const res = await fetch(`/api/sets/${id}/order`, json('PUT', { ids: ids() }));
+    status(res.ok ? 'saved' : await errorOf(res));
+  }
+  const reorderBtn = pick(document, '.reorder-btn'), modeNote = pick(document, '.mode-note');
+  reorderBtn.addEventListener('click', () => {
+    const on = !grid.classList.contains('reorder');
+    grid.classList.toggle('reorder', on);
+    reorderBtn.textContent = on ? '[done reordering]' : '[reorder]';
+    modeNote.textContent = on
+      ? '// drag photos into order, or nudge one with ‹ ›. the set page shows them in this order.'
+      : '// tap a photo to edit it. × takes it out of the set (it stays on the timeline). ★ is the cover.';
+  });
+  let drag: El | null = null, over: El | null = null;
+  grid.addEventListener('pointerdown', (e) => {
+    const t = (e.target as El).closest('.tile') as El | null;
+    if (!t || !grid.classList.contains('reorder') || (e.target as El).closest('.mv')) return;
+    drag = t; t.classList.add('dragging');
+    try { t.setPointerCapture(e.pointerId); } catch { /* not a live pointer */ }
+  });
+  grid.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const el = (document.elementFromPoint(e.clientX, e.clientY) as El | null)?.closest('#setgrid .tile') as El | null;
+    if (over && over !== el) over.classList.remove('over');
+    over = el && el !== drag ? el : null;
+    over?.classList.add('over');
+  });
+  const endDrag = () => {
+    if (!drag) return;
+    drag.classList.remove('dragging');
+    if (over) {
+      over.classList.remove('over');
+      const list = tiles();
+      // Dropping on a later photo puts it after that one; on an earlier one, before it.
+      if (list.indexOf(drag) < list.indexOf(over)) over.after(drag as never); else over.before(drag as never);
+      saveOrder();
+    }
+    drag = over = null;
+  };
+  grid.addEventListener('pointerup', endDrag);
+  grid.addEventListener('pointercancel', endDrag);
+
+  // ---- taps: move, take out, or open the editor ----
+  let removing: El | null = null;
+  const rmConfirm = pick(document, '#rm-confirm');
+  grid.addEventListener('click', (e) => {
+    const target = e.target as El, t = target.closest('.tile') as El | null;
+    if (!t) return;
+    const mv = target.closest('.mv') as El | null;
+    if (mv) {
+      const list = tiles(), i = list.indexOf(t), j = i + Number(mv.dataset.mv);
+      if (j < 0 || j >= list.length) return;
+      if (j > i) list[j].after(t as never); else list[j].before(t as never);
+      saveOrder();
+      return;
+    }
+    if (target.closest('.x')) { removing = t; rmConfirm.hidden = false; rmConfirm.scrollIntoView({ block: 'nearest' }); return; }
+    if (grid.classList.contains('reorder')) return;
+    openEditor(t.dataset.id!);
+  });
+  grid.addEventListener('keydown', (e) => { if (e.key === 'Enter') ((e.target as El).closest('.tile') as El | null)?.click(); });
+  pick(rmConfirm, '.rm-no').addEventListener('click', () => { removing = null; rmConfirm.hidden = true; });
+  pick(rmConfirm, '.rm-yes').addEventListener('click', async () => {
+    if (!removing) return;
+    const res = await fetch(`/api/moments/${removing.dataset.id}`, json('PATCH', { set_id: null }));
+    if (!res.ok) return status(await errorOf(res));
+    removing.remove(); removing = null; rmConfirm.hidden = true;
+    renumber(); status('saved');
+  });
+
+  function openEditor(photo: string) {
+    openPhotoEditor(photo, {
+      list: ids(), sets,
+      onChange: (m) => {
+        const t = pick<El | null>(grid, `.tile[data-id="${m.id}"]`);
+        if (!t) return;
+        if (m.set_id !== id) { t.remove(); renumber(); return; } // moved to another set
+        pick(t, '.lbl').textContent = tileLabel(m).split(' · ')[0];
+        const cover = sets.find((s) => s.id === id)?.cover_id;
+        tiles().forEach((x) => { x.querySelector('.star')?.remove(); if (x.dataset.id === cover) x.insertAdjacentHTML('beforeend', '<span class="star">★</span>'); });
+      },
+      onDelete: (gone) => { pick<El | null>(grid, `.tile[data-id="${gone}"]`)?.remove(); renumber(); },
+    });
+  }
+
+  // ---- add photos from the library ----
+  const picker = pick(document, '#picker'), pickGrid = pick(document, '#pickgrid'), addBtn = pick(document, '.pick-add');
+  const chosen = () => all(pickGrid, '.tile.sel').map((t) => t.dataset.id!);
+  pick(document, '.add-btn').addEventListener('click', () => { picker.hidden = false; document.body.classList.add('sheet-open'); });
+  pick(document, '.pick-cancel').addEventListener('click', () => { picker.hidden = true; document.body.classList.remove('sheet-open'); });
+  pickGrid.addEventListener('click', (e) => {
+    const t = (e.target as El).closest('.tile') as El | null;
+    if (!t) return;
+    t.classList.toggle('sel');
+    addBtn.textContent = `[add ${chosen().length}]`;
+  });
+  addBtn.addEventListener('click', async () => {
+    if (!chosen().length) return;
+    addBtn.textContent = '…';
+    const res = await fetch('/api/moments/bulk', json('POST', { ids: chosen(), action: 'set', set_id: id }));
+    if (res.ok) location.reload(); else addBtn.textContent = await errorOf(res);
+  });
+
+  // ---- ungroup ----
+  const ugConfirm = pick(document, '#ungroup-confirm'), ugBtn = pick(document, '.ungroup');
+  ugBtn.addEventListener('click', () => { ugConfirm.hidden = false; ugBtn.hidden = true; });
+  pick(ugConfirm, '.ug-no').addEventListener('click', () => { ugConfirm.hidden = true; ugBtn.hidden = false; });
+  pick(ugConfirm, '.ug-yes').addEventListener('click', async () => {
+    const res = await fetch(`/api/sets/${id}`, { method: 'DELETE' });
+    if (res.ok) location.href = '/manage#sets'; else status('ungroup failed');
+  });
+</script>
+
+<style>
+  .sedit { max-width: 760px; margin: 0 auto; padding: 64px 20px 80px; }
+  .head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .head a, .head button { color: var(--dim); text-decoration: none; }
+  .head a:hover, .head button:hover { color: var(--fg); }
+  .sub { color: var(--dim); margin: 6px 0 0; }
+  .fields { display: grid; gap: 14px; margin-top: 18px; }
+  .row { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 6px 12px; align-items: center; color: var(--dim); }
+  .row input[type='text'] { font: inherit; color: var(--fg); background: #000; border: 0; border-bottom: 1px solid var(--faint); padding: 6px 0; border-radius: 0; width: 100%; }
+  .row input:focus { outline: none; border-color: var(--fg); }
+  .chips { grid-column: 2; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+  .chips :global(button) { color: var(--dim); }
+  .chips :global(button:hover) { color: var(--fg); }
+  .chips :global(button)::before { content: '+ '; color: var(--faint); }
+  .hint { grid-column: 2; color: var(--faint); }
+  .route { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--fg); }
+  .addroute, .rmroute { color: var(--dim); cursor: pointer; }
+  .addroute:hover, .rmroute:hover { color: var(--fg); }
+  .status { color: var(--dim); min-height: 1.4em; }
+  .cmd { color: var(--dim); margin: 22px 0 10px; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .cmd b { color: var(--fg); font-weight: 500; }
+  .acts { display: flex; gap: 16px; }
+  button { color: var(--dim); }
+  button:hover { color: var(--fg); }
+  .note { color: var(--dim); margin: 0 0 10px; }
+  .confirm, .confirm button { color: #ff6b6b; }
+  .confirm .rm-no, .confirm .ug-no { color: var(--dim); }
+  .danger:hover { color: #ff6b6b; }
+  .foot { margin-top: 26px; display: flex; gap: 14px; flex-wrap: wrap; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 4px; }
+  .grid > * { min-width: 0; }
+  .tile { position: relative; aspect-ratio: 1; overflow: hidden; background: #0d0d0d; display: block; width: 100%; padding: 0; cursor: pointer; user-select: none; -webkit-user-select: none; }
+  .tile img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+  .tile .lbl { position: absolute; left: 6px; right: 6px; bottom: 4px; font-size: 11px; color: #fff; text-shadow: 0 1px 2px #000, 0 0 6px #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+  .tile .star { position: absolute; top: 4px; left: 6px; color: #fff; text-shadow: 0 1px 2px #000; }
+  .tile .pos { position: absolute; top: 4px; left: 6px; font-size: 11px; color: #fff; text-shadow: 0 1px 2px #000; display: none; }
+  .tile .x { position: absolute; top: 2px; right: 2px; width: 28px; height: 28px; background: #000a; color: #fff; display: grid; place-items: center; }
+  .tile .mv { position: absolute; bottom: 4px; width: 30px; height: 30px; background: #000a; color: #fff; display: none; place-items: center; }
+  .tile .mv.l { left: 4px; }
+  .tile .mv.r { right: 4px; }
+  .reorder .tile { cursor: grab; touch-action: none; }
+  .reorder .tile .mv { display: grid; }
+  .reorder .tile .pos { display: block; }
+  .reorder .tile .x, .reorder .tile .lbl, .reorder .tile .star { display: none; }
+  .reorder .tile.dragging { opacity: .35; }
+  .reorder .tile.over { outline: 2px dashed var(--fg); outline-offset: -2px; }
+
+  .picker { position: fixed; inset: 0; z-index: 30; background: var(--bg); overflow-y: auto; padding: max(14px, env(safe-area-inset-top)) 16px 40px; }
+  .picker > * { max-width: 760px; margin-left: auto; margin-right: auto; }
+  .picker .pick-add { color: var(--fg); }
+  .picker .grid { margin-top: 8px; }
+  .picker .flag { position: absolute; top: 4px; left: 6px; font-size: 11px; color: #fff; text-shadow: 0 1px 2px #000; }
+  .picker .chk { position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; border: 1px solid #fff; background: #0006; }
+  .picker .tile.sel { outline: 2px solid var(--fg); outline-offset: -2px; }
+  .picker .tile.sel .chk { background: var(--fg); }
+  .picker .tile.sel .chk::after { content: '✓'; color: #000; position: absolute; inset: 0; display: grid; place-items: center; font-size: 13px; }
+
+  @media (max-width: 700px) {
+    .sedit { padding: 56px 16px 80px; }
+    .row { grid-template-columns: 1fr; gap: 4px; }
+    .chips, .hint { grid-column: 1; }
+    .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+</style>

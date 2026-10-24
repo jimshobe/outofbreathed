@@ -43,6 +43,7 @@ const first = places.length ? moments.find((m) => m.place_name === places[0]) : 
       {fmtRange(start, end)}
       {first && <>{' · '}<PlaceLinks name={first.place_name} zoned={first.zoned} spot_lat={first.spot_lat} spot_lng={first.spot_lng} />{places.length > 1 && ` +${places.length - 1}`}</>}
     </span>
+    {Astro.locals.viewer.isOwner && <a class="ed" href={`/manage/sets/${set.id}`}>[edit]</a>}
   </div>
   {stats && <p class="stats">⤳ {stats}</p>}
   {set.caption && <p class="caption">{set.caption}</p>}
@@ -63,6 +64,8 @@ const first = places.length ? moments.find((m) => m.place_name === places[0]) : 
   .grid a:hover img { opacity: .85; }
   .t b { position: absolute; inset: 0; display: grid; place-items: center; background: #000a; color: var(--fg); font-weight: 400; }
   .line { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 2px 12px; align-items: baseline; }
+  .ed { margin-left: auto; color: var(--faint); text-decoration: none; }
+  .ed:hover { color: var(--fg); }
   .title { color: var(--fg); text-decoration: none; }
   .title::before { content: '▸ '; color: var(--dim); }
   .title:hover { text-decoration: underline; }

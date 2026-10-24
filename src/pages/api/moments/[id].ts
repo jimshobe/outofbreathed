@@ -1,9 +1,16 @@
 import type { APIRoute } from 'astro';
 import { updateMoment, deleteMoment, type MomentEdit } from '../../../lib/edit';
 import { UploadError } from '../../../lib/ingest';
+import { ownerMoment } from '../../../lib/manage';
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+
+// Owner-only (middleware): one photo as the editor sees it (real place name and position, even inside a zone).
+export const GET: APIRoute = async ({ params }) => {
+  const m = await ownerMoment(params.id!);
+  return m ? json(m) : json({ error: 'not found' }, 404);
+};
 
 export const PATCH: APIRoute = async ({ params, request }) => {
   let edit: MomentEdit;

@@ -30,6 +30,7 @@ const ratio = m.width && m.height ? Math.max(m.width / m.height, 0.8) : 4 / 5;
         : m.spot_lat != null && m.spot_lng != null && <a class="pl" href={`/map#@${m.spot_lat},${m.spot_lng}`}>map</a>}
     </span>
     <span class="c">{m.caption}</span>
+    {Astro.locals.viewer.isOwner && <a class="ed" href={`/manage?edit=${m.id}`}>[edit]</a>}
   </div>
   {comments !== undefined && <Comments on={`m:${m.id}`} count={comments} />}
 </article>
@@ -39,12 +40,15 @@ const ratio = m.width && m.height ? Math.max(m.width / m.height, 0.8) : 4 / 5;
   .media { display: block; width: 100%; background: #0d0d0d; overflow: hidden; }
   a.media { cursor: zoom-in; }
   .media img, .media iframe { width: 100%; height: 100%; object-fit: cover; display: block; border: 0; }
-  .line { margin-top: 10px; display: grid; grid-template-columns: max-content minmax(0, max-content) 1fr; gap: 0 14px; align-items: baseline; }
+  .line { margin-top: 10px; display: grid; grid-template-columns: max-content minmax(0, max-content) 1fr auto; gap: 0 14px; align-items: baseline; }
   .d, .plw { color: var(--dim); }
+  .ed { color: var(--faint); text-decoration: none; justify-self: end; }
+  .ed:hover { color: var(--fg); }
   .plw { min-width: 0; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .plw > a { color: inherit; text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; }
   @media (max-width: 700px) {
-    .line { grid-template-columns: auto 1fr; gap: 2px 12px; }
+    .line { grid-template-columns: auto 1fr auto; gap: 2px 12px; }
+    .ed { grid-row: 1; grid-column: 3; }
     .c { grid-column: 1 / -1; }
   }
 </style>

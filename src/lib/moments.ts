@@ -18,6 +18,7 @@ export interface MomentView {
   width: number | null;
   height: number | null;
   set_id: string | null;
+  set_pos: number | null;
   /** Where the photo was taken, as shown on the map. */
   display_lat: number | null;
   display_lng: number | null;
@@ -32,14 +33,14 @@ export interface MomentView {
 // zone's suburb name, and exact lat/lng aren't available at all.
 const PUBLIC = 'moments_public AS moments';
 
-const MOMENT_COLUMNS = `id, kind, taken_at, place_name, category, caption, media_key, thumb_key, youtube_id, source, width, height, set_id,
+const MOMENT_COLUMNS = `id, kind, taken_at, place_name, category, caption, media_key, thumb_key, youtube_id, source, width, height, set_id, set_pos,
   display_lat, display_lng, round(display_lat, 3) AS spot_lat, round(display_lng, 3) AS spot_lng, zoned,
   (SELECT group_concat(category) FROM moment_categories WHERE moment_id = moments.id) AS categories`;
 
 /** Newest first (optionally only those older than `before`); or every moment of one set, oldest first. */
 export async function listMoments(opts: { limit?: number; setId?: string; before?: string } = {}): Promise<MomentView[]> {
   const stmt = opts.setId
-    ? env.DB.prepare(`SELECT ${MOMENT_COLUMNS} FROM ${PUBLIC} WHERE set_id = ? ORDER BY taken_at`).bind(opts.setId)
+    ? env.DB.prepare(`SELECT ${MOMENT_COLUMNS} FROM ${PUBLIC} WHERE set_id = ? ORDER BY set_pos IS NULL, set_pos, taken_at`).bind(opts.setId)
     : env.DB.prepare(`SELECT ${MOMENT_COLUMNS} FROM ${PUBLIC} WHERE taken_at < ? ORDER BY taken_at DESC LIMIT ?`).bind(opts.before ?? '9999', opts.limit ?? 200);
   return withCategories((await stmt.all<Row>()).results);
 }

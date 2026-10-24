@@ -36,6 +36,7 @@ interface Item {
   spot?: Spot;           // photos with GPS: where its place name comes from
   date: string;          // typed (yyyy-mm-dd), only used when the item has no date
   status: 'ready' | 'uploading' | 'done' | 'failed' | 'error';
+  posted?: string;       // the new moment's id, once uploaded
   message: string;
 }
 
@@ -292,7 +293,7 @@ async function upload(it: Item, shared: Parameters<typeof buildForm>[1]) {
     try {
       const res = await fetch('/api/moments', { method: 'POST', body: fd });
       const r = await json(res);
-      if (res.ok) { it.status = 'done'; updateRow(it); return; }
+      if (res.ok) { it.status = 'done'; it.posted = r.id; updateRow(it); return; }
       if (res.status < 500) { it.status = 'failed'; it.message = r.error ?? `error ${res.status}`; updateRow(it); return; }
     } catch { /* network: retry */ }
     if (attempt < 3) await new Promise((r) => setTimeout(r, 1500 * attempt));
@@ -335,9 +336,8 @@ async function postAll() {
   if (failed) {
     summary.textContent = `${done} posted, ${failed} failed (fix or retry them)`;
   } else {
-    summary.innerHTML = `${done} posted · <a href="${setId ? `/sets/${setId}` : '/'}">view</a>`;
-    // Refresh so "recent" and "sets" below include the new posts.
-    setTimeout(() => location.reload(), 1500);
+    const ids = items.filter((it) => it.posted).map((it) => it.posted).join(',');
+    summary.innerHTML = `${done} posted · <a href="${setId ? `/sets/${setId}` : '/'}">[view]</a> · <a href="${setId ? `/manage/sets/${setId}` : `/manage?ids=${ids}#photos`}">[edit these]</a>`;
   }
 }
 

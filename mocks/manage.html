@@ -1,0 +1,490 @@
+<title>Outofbreathed Manage Mock</title>
+<style>
+  /* Layout: one phone-width column; tabs on top, a full-screen editor sheet over the library, a bulk bar pinned to the bottom. */
+  :root {
+    --bg: #000;
+    --panel: #0b0b0b;
+    --fg: #f2f2f2;
+    --dim: #8a8a8a;
+    --faint: #2a2a2a;
+    --warn: #ffb547;
+    --bad: #ff6b6b;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { background: var(--bg); color: var(--fg); }
+  body { font: 13px/1.55 var(--mono); padding-inline: 16px; padding-block: 0 120px; }
+  button, input, select { font: inherit; color: inherit; }
+  button { background: none; border: 0; padding: 0; cursor: pointer; color: var(--dim); }
+  button:hover, button:focus-visible { color: var(--fg); }
+  :focus-visible { outline: 1px solid var(--fg); outline-offset: 2px; }
+  a { color: inherit; }
+  .wrap { max-width: 760px; margin: 0 auto; }
+
+  .top > * { min-width: 0; }
+  .top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding-block: 14px 10px; }
+  .top b { font-weight: 500; }
+  .nav { display: flex; gap: 14px; flex-wrap: wrap; }
+  .nav button[aria-current="page"] { color: var(--fg); }
+  .nav button[aria-current="page"]::before { content: "["; }
+  .nav button[aria-current="page"]::after { content: "]"; }
+  .mocknote { color: var(--dim); border: 1px dashed var(--faint); padding: 8px 10px; margin-block: 4px 14px; }
+
+  .tabs { display: flex; gap: 18px; padding-block: 8px; border-bottom: 1px solid var(--faint); position: sticky; top: calc(env(safe-area-inset-top, 0px) + 46px); background: var(--bg); z-index: 9; }
+  .tabs button[aria-current="page"] { color: var(--fg); }
+  .tabs button[aria-current="page"]::before { content: "["; }
+  .tabs button[aria-current="page"]::after { content: "]"; }
+  .badge { margin-left: 6px; padding: 0 5px; background: var(--warn); color: #000; }
+
+  .cmd { color: var(--dim); margin-block: 18px 10px; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .cmd b { color: var(--fg); font-weight: 500; }
+  .note { color: var(--dim); margin: 0 0 12px; }
+
+  .filters { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-bottom: 12px; align-items: center; }
+  .filters button[aria-pressed="true"] { color: var(--fg); }
+  .filters button[aria-pressed="true"]::before { content: "["; }
+  .filters button[aria-pressed="true"]::after { content: "]"; }
+  select, input[type="text"], input[type="date"] { background: var(--bg); border: 0; border-bottom: 1px solid var(--faint); padding: 6px 0; border-radius: 0; color: var(--fg); }
+  select:focus, input:focus { outline: none; border-color: var(--fg); }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 4px; }
+  .grid > * { min-width: 0; }
+  .tile { position: relative; aspect-ratio: 1; overflow: hidden; display: block; width: 100%; color: var(--fg); touch-action: manipulation; }
+  .tile .ph { position: absolute; inset: 0; }
+  .tile .lbl { position: absolute; left: 6px; bottom: 4px; right: 6px; font-size: 11px; color: #fff; text-shadow: 0 1px 2px #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+  .tile .flag { position: absolute; top: 4px; left: 6px; font-size: 11px; color: var(--warn); text-shadow: 0 1px 2px #000; }
+  .tile .chk { position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; border: 1px solid #fff; background: #0006; display: none; }
+  .selecting .tile .chk { display: block; }
+  .tile.sel .chk { background: var(--fg); }
+  .tile.sel .chk::after { content: "✓"; color: #000; position: absolute; inset: 0; display: grid; place-items: center; font-size: 13px; }
+  .tile.sel { outline: 2px solid var(--fg); outline-offset: -2px; }
+  .more { margin-top: 14px; }
+
+  .bulk { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: #000; border-top: 1px solid var(--fg); padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); }
+  .bulk .in { max-width: 760px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+  .bulk .count { color: var(--fg); }
+  .grp { display: inline-flex; gap: 8px; align-items: center; }
+  .grp input { width: 190px; }
+  .danger:hover { color: var(--bad); }
+  .confirm { color: var(--bad); }
+  .confirm button { color: var(--bad); text-decoration: underline; }
+  .status { color: var(--dim); }
+
+  /* editor sheet */
+  .sheet { position: fixed; inset: 0; z-index: 30; background: var(--bg); overflow-y: auto; padding-inline: 16px; padding-block: calc(env(safe-area-inset-top, 0px) + 14px) calc(env(safe-area-inset-bottom, 0px) + 40px); }
+  .sheet .in { max-width: 760px; margin: 0 auto; }
+  .sheethead { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+  .pager { display: flex; gap: 14px; }
+  .preview { position: relative; width: 100%; aspect-ratio: 4 / 3; max-height: 52vh; overflow: hidden; }
+  .preview .ph { position: absolute; inset: 0; }
+  .fields { display: grid; gap: 14px; margin-top: 16px; }
+  .row { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 12px; align-items: center; color: var(--dim); }
+  .row input[type="text"], .row select, .row input[type="date"] { width: 100%; }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px 12px; grid-column: 2; }
+  .chips button { color: var(--dim); }
+  .chips button::before { content: "+ "; color: var(--faint); }
+  .tags { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--fg); }
+  .tags label { white-space: nowrap; }
+  input[type="checkbox"] { accent-color: var(--fg); }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 6px; }
+
+  /* sets */
+  .setrow { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding-block: 8px; border-bottom: 1px solid #111; width: 100%; text-align: left; color: var(--fg); }
+  .setrow .th { width: 56px; height: 56px; position: relative; overflow: hidden; }
+  .setrow .th .ph { position: absolute; inset: 0; }
+  .setrow .t { display: grid; min-width: 0; }
+  .setrow .t span { color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .setrow .go { color: var(--dim); }
+
+  .reorder .tile { cursor: grab; touch-action: none; }
+  .reorder .tile.dragging { opacity: .35; }
+  .reorder .tile.over { outline: 2px dashed var(--fg); outline-offset: -2px; }
+  .tile .mv { position: absolute; bottom: 4px; display: none; width: 28px; height: 28px; background: #000a; color: #fff; }
+  .reorder .tile .mv { display: grid; place-items: center; }
+  .reorder .tile .lbl { display: none; }
+  .tile .mv.l { left: 4px; }
+  .tile .mv.r { right: 4px; }
+  .tile .pos { position: absolute; top: 4px; left: 6px; font-size: 11px; color: #fff; text-shadow: 0 1px 2px #000; display: none; }
+  .reorder .tile .pos { display: block; }
+  .tile .x { position: absolute; top: 2px; right: 2px; width: 26px; height: 26px; background: #000a; color: #fff; display: grid; place-items: center; }
+  .reorder .tile .x { display: none; }
+  .tile .cover { position: absolute; top: 4px; left: 6px; font-size: 11px; color: #fff; text-shadow: 0 1px 2px #000; }
+  .reorder .tile .cover { display: none; }
+
+  /* settings */
+  section.block { border-top: 1px solid var(--faint); margin-top: 22px; }
+  .crow { padding-block: 10px; border-bottom: 1px solid #111; display: grid; gap: 4px; }
+  .crow b { font-weight: 500; }
+  .crow .who { color: var(--dim); }
+  .crow .who b { color: var(--fg); }
+  .lrow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding-block: 8px; border-bottom: 1px solid #111; color: var(--dim); }
+  .lrow span:first-child { color: var(--fg); }
+
+  /* timeline preview */
+  .tl .card { margin-block: 18px 28px; }
+  .tl .imgs { display: grid; grid-template-columns: 2fr 1fr; gap: 4px; aspect-ratio: 3 / 2; }
+  .tl .imgs > div { position: relative; overflow: hidden; }
+  .tl .imgs .side { display: grid; gap: 4px; }
+  .tl .imgs .side > div { position: relative; overflow: hidden; }
+  .tl .ph { position: absolute; inset: 0; }
+  .tl .line { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+  .tl .line .meta { color: var(--dim); }
+  .tl .line .ed { margin-left: auto; }
+  .tl .single { aspect-ratio: 4 / 3; position: relative; overflow: hidden; }
+  .postnote { color: var(--dim); margin-top: 18px; }
+  @media (max-width: 520px) {
+    .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .row { grid-template-columns: 1fr; gap: 4px; }
+    .chips { grid-column: 1; }
+    .grp input { width: 150px; }
+  }
+  @media (prefers-reduced-motion: no-preference) { .sheet { animation: up .16s ease-out; } @keyframes up { from { transform: translateY(12px); opacity: .6; } } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <b>outofbreathed.com</b>
+    <nav class="nav" id="nav">
+      <button data-page="timeline">timeline</button>
+      <button data-page="post">post</button>
+      <button data-page="manage" aria-current="page">manage</button>
+    </nav>
+  </header>
+  <p class="mocknote">// mock with sample photos (coloured tiles). nothing here saves; reload to reset.</p>
+  <main id="app"></main>
+</div>
+<div id="bulk" class="bulk" hidden></div>
+<div id="sheet" class="sheet" hidden></div>
+
+<script>
+// ---------- sample data, shaped like the real site ----------
+const TAGS = ['family', 'travel', 'moto', 'food'];
+const photos = [];
+let n = 0;
+function add(count, o) { for (let i = 0; i < count; i++) photos.push({ id: 'p' + (++n), hue: (o.hue + i * 9) % 360, caption: '', tags: [], set: null, ...o, label: o.label + (count > 1 ? ' ' + (i + 1) : ''), time: o.date + 'T' + String(10 + i).padStart(2, '0') }); }
+add(4, { hue: 20, label: 'lunch', date: '2026-10-17', place: 'Southport Community Centre, Southport', tags: ['food'], set: 'vk' });
+add(4, { hue: 190, label: 'beach', date: '2026-10-16', place: 'Okanui, Burleigh Heads', set: 'bh' });
+add(3, { hue: 110, label: 'lookout', date: '2026-10-12', place: 'Mount Coot-tha', tags: ['travel'], set: 'mc' });
+add(1, { hue: 60, label: 'sunset', date: '2026-10-11', place: 'Palm Beach' });
+add(1, { hue: 300, label: 'bike', date: '2026-10-10', place: null, tags: ['moto'] });
+add(3, { hue: 30, label: 'stable', date: '2026-09-28', place: 'STABLE, Tugun', tags: ['food'], set: 'st' });
+add(6, { hue: 140, label: 'waterfall', date: '2026-08-31', place: 'Natural Bridge', tags: ['travel'], set: 'nb' });
+add(2, { hue: 220, label: 'street', date: '2026-08-02', place: 'Perth', tags: ['travel'] });
+photos[0].caption = 'Vegan bibimbap';
+const sets = [
+  { id: 'vk', title: 'Veg Korean', caption: 'Lunch with the kids', cover: 'p1' },
+  { id: 'bh', title: 'Burleigh morning', caption: '', cover: 'p6' },
+  { id: 'mc', title: 'Mount Coot-tha', caption: '', cover: 'p9', route: '⤳ 24.1 km · 1h 12m · 412 m climb' },
+  { id: 'st', title: 'Lunch at Stable', caption: '', cover: 'p14' },
+  { id: 'nb', title: 'Natural Bridge walk', caption: 'Glow worms after dark', cover: 'p17' },
+];
+// Set order lives on the set (reorderable); start in time order.
+sets.forEach((s) => { s.order = photos.filter((p) => p.set === s.id).sort((a, b) => a.time.localeCompare(b.time)).map((p) => p.id); });
+const nearby = {
+  Southport: ['Mean Beans, Southport', 'Southport Community Centre, Southport', 'Bahn Mi Southport, Southport', 'Machi machi, Southport', 'Absolute Thai, Southport', 'Southport'],
+  'Burleigh Heads': ['Okanui, Burleigh Heads', 'Justin Lane, Burleigh Heads', 'Burleigh Gelato Co., Burleigh Heads', 'Burleigh Heads'],
+  Tugun: ['STABLE, Tugun', 'Quince, Tugun', 'Tugun'],
+};
+const comments = [
+  { id: 'c1', who: 'Sarah', email: 'sarah@example.com', on: 'Veg Korean', body: 'That bibimbap looks amazing! Where is this?' },
+  { id: 'c2', who: 'Mike', email: 'mike@example.com', on: 'Natural Bridge walk', body: 'We went last year, the glow worms are unreal.' },
+];
+const zones = [{ label: 'home', radius: '1 km', shown: 'burleigh heads' }];
+const links = [{ name: 'STABLE, Tugun', g: 'https://maps.app.goo.gl/…', w: '' }];
+
+// ---------- helpers ----------
+const $ = (s, r = document) => r.querySelector(s);
+const esc = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+const day = (d) => `${d.slice(8, 10)}-${d.slice(5, 7)}-${d.slice(2, 4)}`;
+const ph = (p) => `<span class="ph" style="background:linear-gradient(135deg,hsl(${p.hue} 45% 42%),hsl(${(p.hue + 50) % 360} 50% 18%))"></span>`;
+const byId = (id) => photos.find((p) => p.id === id);
+const setOf = (id) => sets.find((s) => s.id === id);
+const area = (place) => (place && place.includes(', ') ? place.slice(place.lastIndexOf(', ') + 2) : place);
+const suggest = (place) => nearby[area(place)] ?? (place ? [place] : []);
+const newest = () => [...photos].sort((a, b) => b.time.localeCompare(a.time));
+
+const state = { page: 'manage', tab: 'photos', filter: 'all', tag: '', selecting: false, selected: new Set(), pending: null };
+
+// ---------- pages ----------
+function render() {
+  document.querySelectorAll('#nav button').forEach((b) => b.setAttribute('aria-current', b.dataset.page === state.page ? 'page' : 'false'));
+  const app = $('#app');
+  if (state.page === 'timeline') app.innerHTML = timelineHtml();
+  else if (state.page === 'post') app.innerHTML = `<p class="postnote">// posting stays as it is today: add photos or youtube links, captions, place, tags, set, then [ post ]. nothing else on that page.<br><br>// after posting it says: 6 posted · [view] · [edit these]</p>`;
+  else app.innerHTML = tabsHtml() + ({ photos: photosHtml, sets: setsHtml, settings: settingsHtml })[state.tab]();
+  renderBulk();
+}
+
+function tabsHtml() {
+  const t = (k, label) => `<button data-tab="${k}" aria-current="${state.tab === k ? 'page' : 'false'}">${label}</button>`;
+  return `<nav class="tabs">${t('photos', 'photos')}${t('sets', 'sets')}${t('settings', `settings${comments.length ? `<b class="badge">${comments.length}</b>` : ''}`)}</nav>`;
+}
+
+function filtered() {
+  return newest().filter((p) => (state.filter === 'noplace' ? !p.place : state.filter === 'noset' ? !p.set : true) && (!state.tag || p.tags.includes(state.tag)));
+}
+
+function tileHtml(p, opts = {}) {
+  const flag = !p.place ? '<span class="flag">no place</span>' : '';
+  const sel = state.selected.has(p.id) ? ' sel' : '';
+  return `<button class="tile${sel}" data-open="${p.id}" aria-label="${esc(p.label)}">${ph(p)}${opts.noFlag ? '' : flag}<span class="lbl">${esc(day(p.date))} · ${esc((p.place ?? '').toLowerCase())}</span><span class="chk"></span></button>`;
+}
+
+function photosHtml() {
+  const f = (k, label) => `<button data-filter="${k}" aria-pressed="${state.filter === k}">${label}</button>`;
+  const list = filtered();
+  return `<div class="cmd"><span>&gt; <b>photos</b></span><button data-act="select">${state.selecting ? '[done]' : '[select]'}</button></div>
+    <div class="filters">${f('all', 'all')}${f('noplace', 'no place')}${f('noset', 'no set')}
+      <select id="tagf" aria-label="filter by tag"><option value="">any tag</option>${TAGS.map((t) => `<option${state.tag === t ? ' selected' : ''}>${t}</option>`).join('')}</select></div>
+    <div class="grid ${state.selecting ? 'selecting' : ''}" id="lib">${list.map((p) => tileHtml(p)).join('') || '<p class="note">// nothing matches</p>'}</div>
+    <button class="more">[load older ↓]</button>`;
+}
+
+function setsHtml() {
+  return `<div class="cmd"><span>&gt; <b>sets</b></span><span>newest first</span></div>
+    <p class="note">// make a set when posting, or select photos and choose [set]. tap a set to edit it.</p>
+    ${sets.map((s) => {
+      const ps = s.order.map(byId), cover = byId(s.cover) ?? ps[0];
+      const places = [...new Set(ps.map((p) => p.place).filter(Boolean))];
+      const dates = ps.map((p) => p.date).sort();
+      const range = dates[0] === dates[dates.length - 1] ? day(dates[0]) : `${day(dates[0])} – ${day(dates[dates.length - 1])}`;
+      return `<button class="setrow" data-set="${s.id}"><span class="th">${cover ? ph(cover) : ''}</span><span class="t">${esc(s.title.toLowerCase())}<span>${range}${places.length ? ' · ' + esc(places[0].toLowerCase()) + (places.length > 1 ? ` +${places.length - 1}` : '') : ''}</span></span><span class="go">edit ›</span></button>`;
+    }).join('')}`;
+}
+
+function settingsHtml() {
+  return `<div class="cmd"><span>&gt; <b>settings</b></span></div>
+    <section class="block"><div class="cmd"><span>&gt; <b>comments waiting</b></span></div>
+      ${comments.length ? '<p class="note">// approving someone also lets their future comments appear straight away.</p>' + comments.map((c) => `<div class="crow"><span class="who"><b>${esc(c.who.toLowerCase())}</b> ${esc(c.email)} · on ${esc(c.on.toLowerCase())}</span><span>${esc(c.body)}</span><span class="actions"><button data-approve="${c.id}">[approve]</button><button data-reject="${c.id}">[reject]</button></span></div>`).join('') : '<p class="note">// nothing waiting.</p>'}
+    </section>
+    <section class="block"><div class="cmd"><span>&gt; <b>privacy zones</b></span></div>
+      <p class="note">// photos inside a zone show only the nearby suburb. never shown to visitors.</p>
+      ${zones.map((z) => `<div class="lrow"><span>${esc(z.label)} · ${esc(z.radius)}</span><span>shown as ${esc(z.shown)}</span></div>`).join('')}
+      <div class="actions" style="margin-top:10px"><button>[+ add zone]</button></div>
+    </section>
+    <section class="block"><div class="cmd"><span>&gt; <b>place links</b></span></div>
+      <p class="note">// where a place's ↗ goes when the automatic link is wrong.</p>
+      ${links.map((l) => `<div class="lrow"><span>${esc(l.name.toLowerCase())}</span><span>google maps: custom</span></div>`).join('')}
+      <div class="actions" style="margin-top:10px"><button>[all places…]</button></div>
+    </section>`;
+}
+
+function timelineHtml() {
+  const s = setOf('vk'), ps = s.order.map(byId), single = byId('p13');
+  return `<div class="tl"><p class="note" style="margin-top:14px">// signed in as you, each photo and set gets a small [edit] that opens its editor. visitors don't see it.</p>
+    <div class="card"><div class="imgs"><div>${ph(byId(s.cover))}</div><div class="side"><div>${ph(ps[1])}</div><div>${ph(ps[2])}</div></div></div>
+      <div class="line"><span>▸ ${esc(s.title.toLowerCase())}</span><span class="meta">${day(ps[0].date)} · ${esc((ps[0].place ?? '').toLowerCase())} ↗</span><button class="ed" data-editset="vk">[edit]</button></div></div>
+    <div class="card"><div class="single">${ph(single)}</div>
+      <div class="line"><span class="meta">${day(single.date)} · ${esc((single.place ?? 'no place').toLowerCase())}</span><span>${esc(single.caption)}</span><button class="ed" data-editphoto="${single.id}">[edit]</button></div></div></div>`;
+}
+
+// ---------- bulk bar ----------
+function renderBulk() {
+  const bar = $('#bulk');
+  bar.hidden = !(state.page === 'manage' && state.tab === 'photos' && state.selecting);
+  if (bar.hidden) return;
+  const k = state.selected.size;
+  if (state.pending === 'bulkdelete') {
+    bar.innerHTML = `<div class="in confirm">delete ${k} photo${k === 1 ? '' : 's'} and their files? <button data-act="bulkdel-yes">[yes, delete]</button><button data-act="bulkdel-no" style="color:var(--dim);text-decoration:none">[keep]</button></div>`;
+    return;
+  }
+  bar.innerHTML = `<div class="in"><span class="count">${k} selected</span>
+    <span class="grp"><select id="bset" aria-label="set"><option value="">set…</option><option value="__none">no set</option>${sets.map((s) => `<option value="${s.id}">${esc(s.title.toLowerCase())}</option>`).join('')}</select><button data-act="bulkset">[apply]</button></span>
+    <span class="grp"><input id="bplace" type="text" placeholder="place, e.g. Seoul Kitchen, Southport" aria-label="place"><button data-act="bulkplace">[rename]</button></span>
+    <span class="grp"><select id="btag" aria-label="tag">${TAGS.map((t) => `<option>${t}</option>`).join('')}</select><button data-act="tagadd">[+ tag]</button><button data-act="tagrm">[− tag]</button></span>
+    <button class="danger" data-act="bulkdel">[delete]</button><span class="status" id="bstatus"></span></div>`;
+}
+
+// ---------- photo editor ----------
+let editing = null; // { id, list }
+function openPhoto(id, list) {
+  editing = { id, list: list ?? filtered().map((p) => p.id) };
+  state.pending = null;
+  renderPhoto();
+}
+function renderPhoto() {
+  const p = byId(editing.id), i = editing.list.indexOf(p.id);
+  const s = p.set ? setOf(p.set) : null;
+  const sheet = $('#sheet');
+  sheet.hidden = false;
+  sheet.innerHTML = `<div class="in">
+    <div class="sheethead"><button data-act="close">&lt; back</button><span class="pager"><button data-act="prev" ${i <= 0 ? 'disabled' : ''}>‹ prev</button><button data-act="next" ${i >= editing.list.length - 1 ? 'disabled' : ''}>next ›</button></span></div>
+    <div class="preview">${ph(p)}</div>
+    <div class="fields">
+      <label class="row"><span>caption</span><input id="fcap" type="text" value="${esc(p.caption)}" placeholder="caption" maxlength="300"></label>
+      <label class="row"><span>date</span><input id="fdate" type="date" value="${p.date}"></label>
+      <div class="row"><label for="fplace">place</label><input id="fplace" type="text" value="${esc(p.place ?? '')}" placeholder="name, suburb">
+        <span class="chips">${suggest(p.place).filter((c) => c !== p.place).map((c) => `<button data-pick="${esc(c)}">${esc(c.toLowerCase())}</button>`).join('')}</span></div>
+      <div class="row"><span>tags</span><span class="tags">${TAGS.map((t) => `<label><input type="checkbox" data-tag="${t}"${p.tags.includes(t) ? ' checked' : ''}> ${t}</label>`).join('')}</span></div>
+      <label class="row"><span>set</span><select id="fset"><option value="">no set</option>${sets.map((x) => `<option value="${x.id}"${x.id === p.set ? ' selected' : ''}>${esc(x.title.toLowerCase())}</option>`).join('')}</select></label>
+      <div class="actions">
+        ${s ? `<button data-act="cover">${s.cover === p.id ? '★ set cover' : '☆ make set cover'}</button>` : ''}
+        <button data-act="view">[view on site ↗]</button>
+        ${state.pending === 'delete' ? `<span class="confirm">delete this photo and its file? <button data-act="del-yes">[yes, delete]</button> <button data-act="del-no" style="color:var(--dim);text-decoration:none">[keep]</button></span>` : '<button class="danger" data-act="del">[delete]</button>'}
+        <span class="status" id="pstatus"></span>
+      </div>
+    </div></div>`;
+}
+const saved = (el = '#pstatus') => { const s = $(el); if (s) { s.textContent = 'saved'; clearTimeout(s._t); s._t = setTimeout(() => (s.textContent = ''), 1400); } };
+
+// ---------- set editor ----------
+let editingSet = null; // { id, reorder, picking, pickSel }
+function openSet(id) { editingSet = { id, reorder: false, picking: false, pickSel: new Set(), removing: null }; renderSet(); }
+function renderSet() {
+  const s = setOf(editingSet.id), ps = s.order.map(byId);
+  const places = [...new Set(ps.map((p) => p.place).filter(Boolean))];
+  const sheet = $('#sheet');
+  sheet.hidden = false;
+  if (editingSet.picking) {
+    const others = newest().filter((p) => p.set !== s.id);
+    sheet.innerHTML = `<div class="in"><div class="sheethead"><button data-act="pick-cancel">&lt; ${esc(s.title.toLowerCase())}</button><button data-act="pick-add" style="color:var(--fg)">[add ${editingSet.pickSel.size}]</button></div>
+      <p class="note">// tap photos to add them to this set. photos already in another set move here.</p>
+      <div class="grid selecting">${others.map((p) => `<button class="tile${editingSet.pickSel.has(p.id) ? ' sel' : ''}" data-pickphoto="${p.id}">${ph(p)}${p.set ? `<span class="flag" style="color:#fff">in ${esc(setOf(p.set).title.toLowerCase())}</span>` : ''}<span class="lbl">${day(p.date)} · ${esc((p.place ?? '').toLowerCase())}</span><span class="chk"></span></button>`).join('')}</div></div>`;
+    return;
+  }
+  sheet.innerHTML = `<div class="in">
+    <div class="sheethead"><button data-act="close">&lt; back</button><button data-act="viewset">[view on site ↗]</button></div>
+    <div class="fields" style="margin-top:0">
+      <label class="row"><span>title</span><input id="stitle" type="text" value="${esc(s.title)}" maxlength="80"></label>
+      <label class="row"><span>caption</span><input id="scap" type="text" value="${esc(s.caption)}" placeholder="about the whole set" maxlength="300"></label>
+      <div class="row"><label for="splace">place</label><input id="splace" type="text" value="${esc(places.length === 1 ? places[0] : '')}" placeholder="${places.length > 1 ? 'mixed: ' + esc(places.join(' / ').toLowerCase()) : 'name, suburb'}">
+        <span class="chips">${suggest(places[0]).filter((c) => c !== places[0]).map((c) => `<button data-spick="${esc(c)}">${esc(c.toLowerCase())}</button>`).join('')}</span></div>
+      <div class="row"><span>route</span><span>${s.route ? esc(s.route) + ' <button>[replace]</button> <button>[remove]</button>' : '<button>[+ add gpx route]</button>'}</span></div>
+    </div>
+    <div class="cmd"><span>&gt; <b>photos</b></span><span class="actions" style="margin:0"><button data-act="reorder">${editingSet.reorder ? '[done reordering]' : '[reorder]'}</button><button data-act="pick">[+ add photos]</button></span></div>
+    ${editingSet.reorder ? '<p class="note">// drag photos into order, or use ‹ › to nudge one. the set page shows them in this order.</p>' : '<p class="note">// tap a photo to edit it. × takes it out of the set (it stays on the timeline). ★ is the cover.</p>'}
+    ${editingSet.removing ? `<p class="confirm">take this photo out of the set? <button data-act="rm-yes">[yes, take out]</button> <button data-act="rm-no" style="color:var(--dim);text-decoration:none">[keep]</button></p>` : ''}
+    <div class="grid ${editingSet.reorder ? 'reorder' : ''}" id="setgrid">${ps.map((p, i) => `<div class="tile" data-sp="${p.id}" role="button" tabindex="0">${ph(p)}<span class="pos">${i + 1}</span>${s.cover === p.id ? '<span class="cover">★</span>' : ''}<span class="lbl">${day(p.date)}</span><button class="x" data-rm="${p.id}" aria-label="take out of set">×</button><button class="mv l" data-mv="-1" aria-label="move earlier">‹</button><button class="mv r" data-mv="1" aria-label="move later">›</button></div>`).join('')}</div>
+    <div class="actions" style="margin-top:22px"><span id="sstatus" class="status"></span>${editingSet.ungroup ? `<span class="confirm">ungroup this set? its photos stay on the timeline. <button data-act="ungroup-yes">[yes, ungroup]</button> <button data-act="ungroup-no" style="color:var(--dim);text-decoration:none">[keep]</button></span>` : '<button class="danger" data-act="ungroup">[ungroup set]</button>'}</div>
+  </div>`;
+  wireDrag();
+}
+
+// Drag to reorder (pointer events, works with touch and mouse).
+function wireDrag() {
+  const grid = $('#setgrid');
+  if (!grid || !editingSet.reorder) return;
+  let drag = null, over = null;
+  grid.querySelectorAll('.tile').forEach((t) => {
+    t.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('.mv')) return;
+      drag = t; t.classList.add('dragging'); t.setPointerCapture(e.pointerId);
+    });
+    t.addEventListener('pointermove', (e) => {
+      if (drag !== t) return;
+      const el = document.elementFromPoint(e.clientX, e.clientY)?.closest('#setgrid .tile');
+      if (over && over !== el) over.classList.remove('over');
+      over = el && el !== t ? el : null;
+      over?.classList.add('over');
+    });
+    t.addEventListener('pointerup', () => {
+      if (drag !== t) return;
+      t.classList.remove('dragging');
+      if (over) {
+        const s = setOf(editingSet.id), from = s.order.indexOf(t.dataset.sp), to = s.order.indexOf(over.dataset.sp);
+        s.order.splice(to, 0, s.order.splice(from, 1)[0]);
+        renderSet(); saved('#sstatus');
+      }
+      drag = over = null;
+    });
+  });
+}
+
+// ---------- events ----------
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('button, [data-sp]');
+  if (!t) return;
+  const d = t.dataset;
+  if (d.page) { state.page = d.page; state.selecting = false; state.selected.clear(); render(); return; }
+  if (d.tab) { state.tab = d.tab; state.selecting = false; state.selected.clear(); render(); return; }
+  if (d.filter) { state.filter = d.filter; render(); return; }
+  if (d.editset) { openSet(d.editset); return; }
+  if (d.editphoto) { openPhoto(d.editphoto, [d.editphoto]); return; }
+  if (d.open) {
+    if (state.selecting) { state.selected.has(d.open) ? state.selected.delete(d.open) : state.selected.add(d.open); state.pending = null; render(); return; }
+    openPhoto(d.open); return;
+  }
+  if (d.set) { openSet(d.set); return; }
+  if (d.approve || d.reject) { comments.splice(comments.findIndex((c) => c.id === (d.approve || d.reject)), 1); render(); return; }
+  if (d.pick) { $('#fplace').value = d.pick; byId(editing.id).place = d.pick; renderPhoto(); saved(); return; }
+  if (d.spick) { const s = setOf(editingSet.id); s.order.forEach((id) => (byId(id).place = d.spick)); renderSet(); saved('#sstatus'); return; }
+  if (d.pickphoto) { const ps = editingSet.pickSel; ps.has(d.pickphoto) ? ps.delete(d.pickphoto) : ps.add(d.pickphoto); renderSet(); return; }
+  if (d.rm) { e.stopPropagation(); editingSet.removing = d.rm; renderSet(); return; }
+  if (d.mv) {
+    e.stopPropagation();
+    const s = setOf(editingSet.id), id = t.closest('[data-sp]').dataset.sp, i = s.order.indexOf(id), j = i + Number(d.mv);
+    if (j >= 0 && j < s.order.length) { s.order.splice(j, 0, s.order.splice(i, 1)[0]); renderSet(); saved('#sstatus'); }
+    return;
+  }
+  if (d.sp && !editingSet.reorder && !e.target.closest('button')) { openPhoto(d.sp, setOf(editingSet.id).order); editing.fromSet = editingSet.id; return; }
+
+  switch (d.act) {
+    case 'select': state.selecting = !state.selecting; state.selected.clear(); state.pending = null; render(); break;
+    case 'bulkset': {
+      const v = $('#bset').value; if (!v || !state.selected.size) { $('#bstatus').textContent = state.selected.size ? 'choose a set' : 'select photos first'; break; }
+      state.selected.forEach((id) => moveToSet(id, v === '__none' ? null : v));
+      $('#bstatus').textContent = 'saved'; render(); break;
+    }
+    case 'bulkplace': { const v = $('#bplace').value.trim(); if (!v) { $('#bstatus').textContent = 'type a place'; break; } state.selected.forEach((id) => (byId(id).place = v)); render(); break; }
+    case 'tagadd': case 'tagrm': { const tg = $('#btag').value; state.selected.forEach((id) => { const p = byId(id); p.tags = d.act === 'tagadd' ? [...new Set([...p.tags, tg])] : p.tags.filter((x) => x !== tg); }); render(); break; }
+    case 'bulkdel': if (state.selected.size) { state.pending = 'bulkdelete'; renderBulk(); } break;
+    case 'bulkdel-yes': state.selected.forEach((id) => removePhoto(id)); state.selected.clear(); state.pending = null; render(); break;
+    case 'bulkdel-no': state.pending = null; renderBulk(); break;
+    case 'close':
+      if (editing?.fromSet) { const sid = editing.fromSet; editing = null; openSet(sid); break; }
+      $('#sheet').hidden = true; editing = editingSet = null; render(); break;
+    case 'prev': case 'next': { const i = editing.list.indexOf(editing.id) + (d.act === 'next' ? 1 : -1); editing.id = editing.list[i]; state.pending = null; renderPhoto(); break; }
+    case 'cover': { const p = byId(editing.id); setOf(p.set).cover = p.id; renderPhoto(); saved(); break; }
+    case 'view': case 'viewset': $('.status', $('#sheet')).textContent = 'opens the page on the site'; break;
+    case 'del': state.pending = 'delete'; renderPhoto(); break;
+    case 'del-no': state.pending = null; renderPhoto(); break;
+    case 'del-yes': {
+      const id = editing.id, list = editing.list.filter((x) => x !== id), from = editing.fromSet;
+      removePhoto(id); state.pending = null;
+      if (from) { editing = null; openSet(from); break; }
+      if (list.length) { editing.list = list; editing.id = list[Math.min(editing.list.indexOf(id) + 1, list.length - 1)] ?? list[0]; renderPhoto(); } else { $('#sheet').hidden = true; render(); }
+      break;
+    }
+    case 'reorder': editingSet.reorder = !editingSet.reorder; editingSet.removing = null; renderSet(); break;
+    case 'pick': editingSet.picking = true; editingSet.pickSel.clear(); renderSet(); break;
+    case 'pick-cancel': editingSet.picking = false; renderSet(); break;
+    case 'pick-add': editingSet.pickSel.forEach((id) => moveToSet(id, editingSet.id)); editingSet.picking = false; renderSet(); saved('#sstatus'); break;
+    case 'rm-yes': moveToSet(editingSet.removing, null); editingSet.removing = null; renderSet(); saved('#sstatus'); break;
+    case 'rm-no': editingSet.removing = null; renderSet(); break;
+    case 'ungroup': editingSet.ungroup = true; renderSet(); break;
+    case 'ungroup-no': editingSet.ungroup = false; renderSet(); break;
+    case 'ungroup-yes': { const s = setOf(editingSet.id); s.order.forEach((id) => (byId(id).set = null)); sets.splice(sets.indexOf(s), 1); $('#sheet').hidden = true; editingSet = null; render(); break; }
+  }
+});
+
+function moveToSet(id, setId) {
+  const p = byId(id);
+  if (p.set) { const old = setOf(p.set); old.order = old.order.filter((x) => x !== id); if (old.cover === id) old.cover = old.order[0]; }
+  p.set = setId;
+  if (setId) { const s = setOf(setId); if (!s.order.includes(id)) s.order.push(id); }
+}
+function removePhoto(id) { moveToSet(id, null); photos.splice(photos.findIndex((p) => p.id === id), 1); }
+
+document.addEventListener('change', (e) => {
+  const t = e.target;
+  if (t.id === 'tagf') { state.tag = t.value; render(); return; }
+  if (editing && !$('#sheet').hidden && !editingSet?.picking) {
+    const p = byId(editing.id);
+    if (t.id === 'fcap') { p.caption = t.value; saved(); }
+    if (t.id === 'fdate') { p.date = t.value; saved(); }
+    if (t.id === 'fplace') { p.place = t.value.trim() || null; renderPhoto(); saved(); }
+    if (t.dataset.tag) { p.tags = t.checked ? [...p.tags, t.dataset.tag] : p.tags.filter((x) => x !== t.dataset.tag); saved(); }
+    if (t.id === 'fset') { moveToSet(p.id, t.value || null); renderPhoto(); saved(); }
+  }
+  if (editingSet && !editing) {
+    const s = setOf(editingSet.id);
+    if (t.id === 'stitle') { s.title = t.value; saved('#sstatus'); }
+    if (t.id === 'scap') { s.caption = t.value; saved('#sstatus'); }
+    if (t.id === 'splace' && t.value.trim()) { s.order.forEach((id) => (byId(id).place = t.value.trim())); renderSet(); saved('#sstatus'); }
+  }
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.matches('[data-sp]')) e.target.click(); if (e.key === 'Escape' && !$('#sheet').hidden) $('[data-act=close]', $('#sheet'))?.click(); });
+
+render();
+</script>

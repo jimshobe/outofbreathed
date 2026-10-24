@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildEntries, fmtRange, fmtDay, assemblePage } from '../timeline';
+import { buildEntries, fmtRange, fmtDay, assemblePage, setOrder } from '../timeline';
 
 const m = (id: string, taken_at: string, set_id: string | null = null, place_name: string | null = 'Perth') => ({ id, taken_at, set_id, place_name });
 const perth = { id: 's1', title: 'Perth', caption: 'Long weekend', cover_id: null };
@@ -64,5 +64,21 @@ describe('assemblePage', () => {
     const shown = [...ids(assemblePage(oct, set, [s], '2026-10-01T00:00:00')), ...ids(assemblePage(sep, set, [s], '2026-09-01T00:00:00'))];
     expect(new Set(shown).size).toBe(shown.length);
     expect(shown).toEqual(['a', 'b', 'c', 'set:s1:3']);
+  });
+});
+
+describe('set order', () => {
+  it('puts positioned photos first, then the rest by time, without changing the set\'s dates', () => {
+    const ms = [
+      { ...m('a', '2026-09-30T10:00:00', 's1'), set_pos: 1 },
+      { ...m('b', '2026-10-01T10:00:00', 's1'), set_pos: 0 },
+      { ...m('c', '2026-09-29T10:00:00', 's1'), set_pos: null },
+      { ...m('d', '2026-09-28T10:00:00', 's1'), set_pos: null },
+    ];
+    expect(setOrder(ms).map((x) => x.id)).toEqual(['b', 'a', 'd', 'c']);
+    const [set] = buildEntries(ms, [perth]);
+    if (set.type !== 'set') throw new Error('expected a set');
+    expect(set.moments.map((x) => x.id)).toEqual(['b', 'a', 'd', 'c']);
+    expect([set.start, set.end, set.date]).toEqual(['2026-09-28T10:00:00', '2026-10-01T10:00:00', '2026-09-28T10:00:00']);
   });
 });

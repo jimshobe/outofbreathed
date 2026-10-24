@@ -3,7 +3,7 @@ import { env } from 'cloudflare:workers';
 import { readSession, isOwnerEmail, SESSION_COOKIE, type Session } from './lib/auth';
 
 // Viewing is public. Posting, editing and moderation are for the owner (an OWNER_EMAILS Google account).
-const OWNER_ONLY = /^\/(post|api)(\/|$)/;
+const OWNER_ONLY = /^\/(post|manage|api)(\/|$)/;
 
 // Old blog addresses that may be bookmarked or linked from elsewhere.
 const OLD_BLOG = [/^\/posts\//, /^\/rss\.xml$/, /^\/api\/posts\.json$/, /^\/admin\/?$/];
@@ -32,10 +32,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
   context.locals.viewer = { uid: session?.uid, email: session?.email, name: session?.name, avatar: session?.avatar ?? null, isOwner };
 
   if (OWNER_ONLY.test(url.pathname) && !isOwner) {
-    if (request.method === 'GET' && url.pathname.startsWith('/post')) {
+    if (request.method === 'GET' && !url.pathname.startsWith('/api/')) {
       return session
         ? new Response(`Signed in as ${session.email}, which isn't the owner account. Sign out at /auth/logout.`, { status: 403 })
-        : context.redirect(`/auth/login?next=${encodeURIComponent(url.pathname)}`);
+        : context.redirect(`/auth/login?next=${encodeURIComponent(url.pathname + url.search)}`);
     }
     return Response.json({ error: 'owner only' }, { status: 403 });
   }

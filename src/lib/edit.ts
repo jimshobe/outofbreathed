@@ -15,7 +15,7 @@ export interface MomentEdit {
 }
 
 export async function updateMoment(id: string, e: MomentEdit): Promise<boolean> {
-  const row = await env.DB.prepare('SELECT lat FROM moments WHERE id = ?').bind(id).first<{ lat: number | null }>();
+  const row = await env.DB.prepare('SELECT lat, set_id FROM moments WHERE id = ?').bind(id).first<{ lat: number | null; set_id: string | null }>();
   if (!row) return false;
 
   const sets: string[] = [];
@@ -43,6 +43,7 @@ export async function updateMoment(id: string, e: MomentEdit): Promise<boolean> 
   if (e.set_id !== undefined) {
     if (e.set_id && !(await env.DB.prepare('SELECT 1 FROM sets WHERE id = ?').bind(e.set_id).first())) throw new UploadError('that set no longer exists');
     set('set_id', e.set_id || null);
+    if ((e.set_id || null) !== row.set_id) set('set_pos', null); // joins its new set after the photos already placed
   }
   let newCategories: Category[] | undefined;
   if (e.categories !== undefined) {

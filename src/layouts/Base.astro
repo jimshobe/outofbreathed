@@ -2,7 +2,7 @@
 import '../styles/global.css';
 
 interface Props {
-  current: 'timeline' | 'map' | 'post';
+  current: 'timeline' | 'map' | 'post' | 'manage';
   /** Offer "Add to Home Screen" as a standalone app that opens on this page (the owner's post page). */
   homeScreen?: boolean;
   /** Full-screen page (the map): the header floats over the content without a background. */
@@ -33,6 +33,7 @@ const here = Astro.url.pathname + Astro.url.search;
         <a href="/" aria-current={current === 'timeline' ? 'page' : undefined}>timeline</a>
         <a href="/map" aria-current={current === 'map' ? 'page' : undefined}>map</a>
         {isOwner && <a href="/post" aria-current={current === 'post' ? 'page' : undefined}>post</a>}
+        {isOwner && <a href="/manage" aria-current={current === 'manage' ? 'page' : undefined}>manage</a>}
         {uid
           ? <a class="me" href={`/auth/logout?next=${encodeURIComponent(here)}`} title="sign out">{avatar && <img src={avatar} alt="" referrerpolicy="no-referrer" />}{name?.toLowerCase()} ×</a>
           : <a href={`/auth/login?next=${encodeURIComponent(here)}`}>sign in</a>}
