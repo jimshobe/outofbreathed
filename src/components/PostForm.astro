@@ -40,6 +40,11 @@ const { sets } = Astro.props;
   </div>
 </form>
 
+<script>
+  // The form's behaviour lives with the form, so any page that shows it also runs it.
+  import '../scripts/post-form';
+</script>
+
 <style>
   .pf .cmd { color: var(--dim); margin: 24px 0 14px; }
   .pf .cmd b { color: var(--fg); font-weight: 500; }
