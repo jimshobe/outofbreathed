@@ -31,6 +31,8 @@ npm run check                    # astro check (type-check)
 npm run build && npx wrangler deploy        # deploy to https://outofbreathed.com (also outofbreathed.jimshobe.workers.dev)
 npx wrangler types               # regenerate worker-configuration.d.ts after editing wrangler.jsonc
 npx wrangler d1 migrations apply outofbreathed --local|--remote   # schema changes live in migrations/
+# Apply --remote migrations and see the ✅ for each one BEFORE deploying code that uses them (a deploy
+# that ran ahead of migration 0015 took the timeline down for ~2 minutes).
 npx wrangler d1 execute outofbreathed --remote --command "SELECT ..."
 ```
 
