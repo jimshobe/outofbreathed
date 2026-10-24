@@ -81,9 +81,11 @@ const km = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`)
         <span class="grp">
           <select class="bset" aria-label="set for selected">
             <option value="">set…</option>
+            <option value="__new">+ new set…</option>
             <option value="__none">no set (take out)</option>
             {sets.map((s) => <option value={s.id}>{s.title.toLowerCase()}</option>)}
           </select>
+          <input class="bnewset" type="text" maxlength="80" placeholder="new set title" aria-label="new set title" hidden />
           <button type="button" data-bulk="set">[apply]</button>
         </span>
         <span class="grp">
@@ -104,7 +106,12 @@ const km = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`)
 
     <section data-panel="sets" class="sets" hidden>
       <div class="cmd"><span>&gt; <b>sets</b></span><span>newest first</span></div>
-      <p class="note">// make a set when posting, or select photos and choose a set. tap a set to edit it.</p>
+      <form class="newset" autocomplete="off">
+        <input name="title" type="text" maxlength="80" placeholder="new set title, e.g. Veg Korean" aria-label="new set title" required />
+        <button type="submit">[+ new set]</button>
+        <span class="status"></span>
+      </form>
+      <p class="note">// or in photos: [select] some, then set → + new set…. tap a set to edit it.</p>
       {sets.map((s) => {
         const cover = s.moments.find((m) => m.id === s.cover_id) ?? s.moments[0];
         const times = s.moments.map((m) => m.taken_at).sort();
@@ -244,6 +251,26 @@ const km = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`)
   const want = new URLSearchParams(location.search).get('edit');
   if (want) openEditor(want);
 
+  // "+ new set…" shows a title field next to the set menu.
+  pick<HTMLSelectElement>(bulk, '.bset').addEventListener('change', (e) => {
+    const isNew = (e.target as HTMLSelectElement).value === '__new', t = pick<HTMLInputElement>(bulk, '.bnewset');
+    t.hidden = !isNew;
+    if (isNew) t.focus();
+  });
+
+  // ---- sets: make an empty set and go straight to adding photos ----
+  const newSet = pick<HTMLFormElement>(document, '.newset');
+  newSet.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const st = pick(newSet, '.status'), title = (new FormData(newSet).get('title') as string).trim();
+    if (!title) return;
+    st.textContent = '…';
+    const res = await fetch('/api/sets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title }) });
+    const r = (await res.json().catch(() => ({}))) as { id?: string; error?: string; created?: boolean };
+    if (!res.ok || !r.id) { st.textContent = r.error ?? 'error'; return; }
+    location.href = `/manage/sets/${r.id}${r.created ? '?add=1' : ''}`;
+  });
+
   pick<HTMLSelectElement>(document, '#tagf')?.addEventListener('change', (e) => {
     const s = e.target as HTMLSelectElement, p = new URLSearchParams();
     if (s.dataset.f && s.dataset.f !== 'all') p.set('f', s.dataset.f);
@@ -258,6 +285,18 @@ const km = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`)
     if (action === 'set') {
       const v = pick<HTMLSelectElement>(bulk, '.bset').value;
       if (!v) { st.textContent = 'choose a set'; return; }
+      if (v === '__new') {
+        // Make the set first (or reuse one with the same title), then put the photos in it.
+        const title = pick<HTMLInputElement>(bulk, '.bnewset').value.trim();
+        if (!title) { st.textContent = 'type a title for the new set'; return; }
+        st.textContent = '…';
+        const made = await fetch('/api/sets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title }) });
+        const r = (await made.json().catch(() => ({}))) as { id?: string; error?: string };
+        if (!made.ok || !r.id) { st.textContent = r.error ?? 'error'; return; }
+        const res = await fetch('/api/moments/bulk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids, action: 'set', set_id: r.id }) });
+        if (res.ok) location.href = `/manage/sets/${r.id}`; else st.textContent = (await body(res)).error ?? 'error';
+        return;
+      }
       payload.set_id = v === '__none' ? null : v;
     }
     if (action.startsWith('tag')) payload.category = pick<HTMLSelectElement>(bulk, '.btag').value;
@@ -363,6 +402,10 @@ const km = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`)
   .bulk .count { color: var(--fg); }
   .bulk .grp { display: inline-flex; gap: 8px; align-items: center; }
   .bulk .bplace { width: 230px; }
+  .bulk .bnewset { width: 170px; }
+  .newset { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-bottom: 14px; }
+  .newset input { flex: 1; min-width: 0; }
+  .newset button { color: var(--fg); }
   .bulk .danger:hover { color: #ff6b6b; }
 
   /* sets */

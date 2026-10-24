@@ -243,7 +243,10 @@ const editorSets = JSON.stringify(allSets.map((s) => ({ id: s.id, title: s.title
   // ---- add photos from the library ----
   const picker = pick(document, '#picker'), pickGrid = pick(document, '#pickgrid'), addBtn = pick(document, '.pick-add');
   const chosen = () => all(pickGrid, '.tile.sel').map((t) => t.dataset.id!);
-  pick(document, '.add-btn').addEventListener('click', () => { picker.hidden = false; document.body.classList.add('sheet-open'); });
+  const openPicker = () => { picker.hidden = false; document.body.classList.add('sheet-open'); };
+  pick(document, '.add-btn').addEventListener('click', openPicker);
+  // ?add=1 (a set just made from manage → sets) opens the picker straight away.
+  if (new URLSearchParams(location.search).get('add')) { openPicker(); history.replaceState(null, '', location.pathname); }
   pick(document, '.pick-cancel').addEventListener('click', () => { picker.hidden = true; document.body.classList.remove('sheet-open'); });
   pickGrid.addEventListener('click', (e) => {
     const t = (e.target as El).closest('.tile') as El | null;
