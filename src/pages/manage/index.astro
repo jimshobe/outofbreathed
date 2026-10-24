@@ -86,7 +86,7 @@ const km = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`)
             {sets.map((s) => <option value={s.id}>{s.title.toLowerCase()}</option>)}
           </select>
           <input class="bnewset" type="text" maxlength="80" placeholder="new set title" aria-label="new set title" hidden />
-          <button type="button" data-bulk="set">[apply]</button>
+          <button type="button" class="bsetgo" data-bulk="set">[apply]</button>
         </span>
         <span class="grp">
           <input class="bplace" type="text" list="place-names" maxlength="120" placeholder="place, e.g. Seoul Kitchen, Southport" aria-label="place for selected" />
@@ -255,6 +255,9 @@ const km = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`)
   pick<HTMLSelectElement>(bulk, '.bset').addEventListener('change', (e) => {
     const isNew = (e.target as HTMLSelectElement).value === '__new', t = pick<HTMLInputElement>(bulk, '.bnewset');
     t.hidden = !isNew;
+    const go = pick(bulk, '.bsetgo');
+    go.textContent = isNew ? '[ make set ]' : '[apply]';
+    go.classList.toggle('primary', isNew);
     if (isNew) t.focus();
   });
 
@@ -360,8 +363,8 @@ const km = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`)
 </script>
 
 <style>
-  .manage { max-width: 760px; margin: 0 auto; padding: 64px 20px 120px; }
-  .tabs { position: sticky; top: 46px; z-index: 5; display: flex; gap: 4px 18px; flex-wrap: wrap; padding: 10px 0; background: var(--bg); border-bottom: 1px solid var(--faint); }
+  .manage { max-width: 760px; margin: 0 auto; padding: var(--top) 20px 120px; }
+  .tabs { position: sticky; top: var(--head); z-index: 5; display: flex; gap: 4px 18px; flex-wrap: wrap; padding: 10px 0; background: var(--bg); border-bottom: 1px solid var(--faint); }
   .tabs button { color: var(--dim); padding: 4px 0; }
   .tabs button:hover, .tabs button[aria-current='page'] { color: var(--fg); }
   .tabs button[aria-current='page']::before { content: '['; }
@@ -403,6 +406,8 @@ const km = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`)
   .bulk .grp { display: inline-flex; gap: 8px; align-items: center; }
   .bulk .bplace { width: 230px; }
   .bulk .bnewset { width: 170px; }
+  .bulk .primary { color: #000; background: var(--fg); padding: 6px 12px; }
+  .bulk .primary:hover { color: #000; }
   .newset { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-bottom: 14px; }
   .newset input { flex: 1; min-width: 0; }
   .newset button { color: var(--fg); }
@@ -445,10 +450,12 @@ const km = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`)
   .plink input { width: 100%; }
 
   @media (max-width: 700px) {
-    .manage { padding: 56px 16px 120px; }
-    .tabs { top: 42px; }
+    .manage { padding: var(--top) 16px 120px; }
     .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .bulk .bplace { width: 170px; }
+    .bulk { gap: 10px 16px; }
+    .bulk .grp { display: flex; width: 100%; }
+    .bulk .grp select, .bulk .grp input { flex: 1; min-width: 0; width: auto; }
+    .bulk .bplace, .bulk .bnewset { width: auto; }
     .plink { grid-template-columns: 1fr; gap: 2px; }
     .zonerow { grid-template-columns: 1fr auto; }
     .zaddr, .zshown { grid-column: 1 / -1; }

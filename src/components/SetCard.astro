@@ -51,7 +51,7 @@ const first = places.length ? moments.find((m) => m.place_name === places[0]) : 
 </article>
 
 <style>
-  .set { margin-bottom: 44px; scroll-margin-top: 70px; }
+  .set { margin-bottom: 44px; scroll-margin-top: calc(var(--head) + 24px); }
   .grid { display: grid; gap: 4px; aspect-ratio: 3 / 2; grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr; }
   .grid.n0 { grid-template-columns: 1fr; grid-template-rows: 1fr; }
   .grid.n1 { grid-template-rows: 1fr; }

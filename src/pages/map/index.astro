@@ -31,7 +31,7 @@ const routesJson = JSON.stringify(routes).replace(/</g, '\\u003c');
 
 <style>
   #map { position: fixed; inset: 0; }
-  #map :global(.maplibregl-ctrl-top-right) { top: 40px; }
+  #map :global(.maplibregl-ctrl-top-right) { top: calc(var(--head) - 6px); }
   #map :global(.maplibregl-ctrl-attrib) { background: #000 !important; color: #555; font: 10px var(--mono); }
   #map :global(.maplibregl-ctrl-attrib a) { color: #555 !important; }
   #map :global(.maplibregl-ctrl-attrib-button) { filter: invert(1) brightness(.4); }

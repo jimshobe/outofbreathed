@@ -36,7 +36,7 @@ const ratio = m.width && m.height ? Math.max(m.width / m.height, 0.8) : 4 / 5;
 </article>
 
 <style>
-  .mo { margin-bottom: 40px; scroll-margin-top: 70px; }
+  .mo { margin-bottom: 40px; scroll-margin-top: calc(var(--head) + 24px); }
   .media { display: block; width: 100%; background: #0d0d0d; overflow: hidden; }
   a.media { cursor: zoom-in; }
   .media img, .media iframe { width: 100%; height: 100%; object-fit: cover; display: block; border: 0; }

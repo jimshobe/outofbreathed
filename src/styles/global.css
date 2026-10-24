@@ -6,6 +6,14 @@
   --faint: #2a2a2a;
   --mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
   color-scheme: dark;
+  /* Height of the fixed header, and the page's top padding below it. On phones the owner's header
+     (timeline · map · post · manage · name) wraps onto two lines, so both grow. */
+  --head: 46px;
+  --top: 64px;
+}
+@media (max-width: 700px) {
+  :root { --head: 42px; --top: 56px; }
+  body[data-owner] { --head: 76px; --top: 90px; }
 }
 * { box-sizing: border-box; margin: 0; }
 html, body { background: var(--bg); color: var(--fg); font: 13px/1.5 var(--mono); -webkit-font-smoothing: antialiased; }
@@ -16,7 +24,11 @@ header.site { position: fixed; inset: 0 0 auto; z-index: 10; display: flex; just
 header.site h1 { font: 500 15px/1 var(--mono); }
 header.site.overlay { background: transparent; pointer-events: none; }
 header.site.overlay > * { pointer-events: auto; }
-header.site nav { display: flex; gap: 18px; }
+header.site nav { display: flex; flex-wrap: wrap; gap: 4px 18px; }
+@media (max-width: 700px) {
+  header.site { flex-wrap: wrap; row-gap: 8px; }
+  header.site nav { gap: 4px 14px; }
+}
 header.site nav a { color: var(--dim); text-decoration: none; }
 header.site nav a:hover { color: var(--fg); }
 header.site nav a[aria-current='page'] { color: var(--fg); }

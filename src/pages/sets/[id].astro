@@ -74,7 +74,7 @@ const mapJson = route?.length
 </script>
 
 <style>
-  .tl { max-width: 900px; margin: 0 auto; padding: 64px 20px 90px; }
+  .tl { max-width: 900px; margin: 0 auto; padding: var(--top) 20px 90px; }
   .back { color: var(--dim); text-decoration: none; }
   .back:hover { color: var(--fg); }
   .edit { float: right; color: var(--dim); text-decoration: none; }
@@ -94,7 +94,7 @@ const mapJson = route?.length
   .grid img { width: 100%; height: 100%; object-fit: cover; display: block; transition: opacity .2s; }
   .grid a:hover img { opacity: .85; }
   @media (max-width: 700px) {
-    .tl { padding: 56px 16px 80px; }
+    .tl { padding: var(--top) 16px 80px; }
     .grid { grid-template-columns: repeat(3, 1fr); gap: 2px; }
   }
 </style>
