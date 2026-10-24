@@ -69,8 +69,8 @@ const editorSets = JSON.stringify(allSets.map((s) => ({ id: s.id, title: s.title
     </div>
 
     <section class="picker" id="picker" hidden>
-      <div class="head"><button type="button" class="pick-cancel">&lt; {set.title.toLowerCase()}</button><button type="button" class="pick-add">[add 0]</button></div>
-      <p class="note">// tap photos to add them to this set. a photo already in another set moves here. showing the latest {others.length}.</p>
+      <div class="head"><button type="button" class="pick-cancel">&lt; back to {set.title.toLowerCase()}</button></div>
+      <p class="note">// tap photos to choose them, then [ add to set ] at the bottom. a photo already in another set moves here. showing the latest {others.length}.</p>
       <div class="grid selecting" id="pickgrid">
         {others.map((m) => (
           <button type="button" class="tile" data-id={m.id}>
@@ -80,6 +80,11 @@ const editorSets = JSON.stringify(allSets.map((s) => ({ id: s.id, title: s.title
             <span class="chk"></span>
           </button>
         ))}
+      </div>
+      <div class="pickbar">
+        <span class="pick-count">none chosen</span>
+        <button type="button" class="pick-add" disabled>[ add to set ]</button>
+        <button type="button" class="pick-cancel2">[cancel]</button>
       </div>
     </section>
   </main>
@@ -241,24 +246,29 @@ const editorSets = JSON.stringify(allSets.map((s) => ({ id: s.id, title: s.title
   }
 
   // ---- add photos from the library ----
-  const picker = pick(document, '#picker'), pickGrid = pick(document, '#pickgrid'), addBtn = pick(document, '.pick-add');
+  const picker = pick(document, '#picker'), pickGrid = pick(document, '#pickgrid'), addBtn = pick<HTMLButtonElement>(document, '.pick-add');
   const chosen = () => all(pickGrid, '.tile.sel').map((t) => t.dataset.id!);
   const openPicker = () => { picker.hidden = false; document.body.classList.add('sheet-open'); };
   pick(document, '.add-btn').addEventListener('click', openPicker);
   // ?add=1 (a set just made from manage → sets) opens the picker straight away.
   if (new URLSearchParams(location.search).get('add')) { openPicker(); history.replaceState(null, '', location.pathname); }
-  pick(document, '.pick-cancel').addEventListener('click', () => { picker.hidden = true; document.body.classList.remove('sheet-open'); });
+  const closePicker = () => { picker.hidden = true; document.body.classList.remove('sheet-open'); };
+  pick(document, '.pick-cancel').addEventListener('click', closePicker);
+  pick(document, '.pick-cancel2').addEventListener('click', closePicker);
   pickGrid.addEventListener('click', (e) => {
     const t = (e.target as El).closest('.tile') as El | null;
     if (!t) return;
     t.classList.toggle('sel');
-    addBtn.textContent = `[add ${chosen().length}]`;
+    const n = chosen().length;
+    pick(document, '.pick-count').textContent = n ? `${n} chosen` : 'none chosen';
+    addBtn.textContent = n ? `[ add ${n} to set ]` : '[ add to set ]';
+    addBtn.disabled = !n;
   });
   addBtn.addEventListener('click', async () => {
     if (!chosen().length) return;
-    addBtn.textContent = '…';
+    addBtn.textContent = 'adding…'; addBtn.disabled = true;
     const res = await fetch('/api/moments/bulk', json('POST', { ids: chosen(), action: 'set', set_id: id }));
-    if (res.ok) location.reload(); else addBtn.textContent = await errorOf(res);
+    if (res.ok) location.reload(); else { pick(document, '.pick-count').textContent = await errorOf(res); addBtn.disabled = false; addBtn.textContent = '[ add to set ]'; }
   });
 
   // ---- ungroup ----
@@ -321,7 +331,12 @@ const editorSets = JSON.stringify(allSets.map((s) => ({ id: s.id, title: s.title
 
   .picker { position: fixed; inset: 0; z-index: 30; background: var(--bg); overflow-y: auto; padding: max(14px, env(safe-area-inset-top)) 16px 40px; }
   .picker > * { max-width: 760px; margin-left: auto; margin-right: auto; }
-  .picker .pick-add { color: var(--fg); }
+  .picker { padding-bottom: 96px; }
+  .pickbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 31; display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; justify-content: flex-end;
+    max-width: none !important; padding: 12px 20px max(12px, env(safe-area-inset-bottom)); background: #000; border-top: 1px solid var(--fg); }
+  .pickbar .pick-count { margin-right: auto; color: var(--fg); }
+  .pickbar .pick-add { color: #000; background: var(--fg); padding: 10px 16px; }
+  .pickbar .pick-add:disabled { color: var(--dim); background: transparent; border: 1px solid var(--faint); }
   .picker .grid { margin-top: 8px; }
   .picker .flag { position: absolute; top: 4px; left: 6px; font-size: 11px; color: #fff; text-shadow: 0 1px 2px #000; }
   .picker .chk { position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; border: 1px solid #fff; background: #0006; }
