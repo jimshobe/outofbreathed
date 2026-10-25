@@ -34,6 +34,9 @@ const CSS = `
   .lb { padding: max(44px, env(safe-area-inset-top)) 0 0; }
   .lb-meta { padding-left: 16px; padding-right: 16px; }
   .lb-prev, .lb-next { display: none; }
+  /* A swipe that starts on a YouTube player goes to the player, so videos keep the arrows on phones
+     (placed low, clear of the player's own controls). Swiping above or below the video still works. */
+  .lb.video .lb-prev:not([hidden]), .lb.video .lb-next:not([hidden]) { display: block; top: auto; bottom: max(64px, calc(env(safe-area-inset-bottom) + 56px)); transform: none; color: var(--fg); }
   .lb-meta { flex-direction: column; gap: 2px; }
 }`;
 
@@ -96,6 +99,7 @@ function render() {
     ? `<iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(it.youtube)}?playsinline=1&rel=0" allow="encrypted-media; picture-in-picture; fullscreen" referrerpolicy="strict-origin-when-cross-origin" title="video"></iframe>`
     : '<img alt="">';
   if (!it.youtube) ($(stage, 'img') as unknown as HTMLImageElement).src = it.src ?? '';
+  root!.classList.toggle('video', !!it.youtube);
   $(root!, '.lb-meta .c')!.textContent = it.caption ?? '';
   $(root!, '.lb-meta .m')!.textContent = [it.meta, items.length > 1 ? `${index + 1}/${items.length}` : ''].filter(Boolean).join(' · ');
   const many = items.length > 1;

@@ -17,9 +17,9 @@ const img = (m: MomentView, small = false) =>
 const rest = moments.filter((m) => m.id !== cover.id);
 const shown = rest.slice(0, 4);
 const more = moments.length - 1 - shown.length;
-// Photos open in the lightbox over the whole set ("+N" goes to the set page); YouTube covers just link there.
+// Photos and videos open in the lightbox over the whole set ("+N" goes to the set page).
 const group = `set-${set.id}`;
-const opener = (m: MomentView) => (m.media_key ? { 'data-lb-open': group, 'data-lb-id': m.id } : {});
+const opener = (m: MomentView) => (m.media_key || m.youtube_id ? { 'data-lb-open': group, 'data-lb-id': m.id } : {});
 const stats = set.route_km != null ? fmtStats({ km: set.route_km, secs: set.route_secs ?? null, climb_m: set.route_climb_m ?? null }) : '';
 // The first place, linked like a photo's (see PlaceLinks).
 const first = places.length ? moments.find((m) => m.place_name === places[0]) : undefined;

@@ -1,9 +1,8 @@
 ---
-// One set: title, dates, caption, then a thumbnail grid that opens the lightbox. YouTube videos play
-// inline below the grid.
+// One set: title, dates, caption, then a thumbnail grid (photos and YouTube videos, in the set's order)
+// that opens the lightbox, where videos play.
 import Base from '../../layouts/Base.astro';
 import PlaceLinks from '../../components/PlaceLinks.astro';
-import Moment from '../../components/Moment.astro';
 import LightboxData from '../../components/LightboxData.astro';
 import { getSet, getSetRoute, listMoments, mediaUrl } from '../../lib/moments';
 import { fmtRange } from '../../lib/timeline';
@@ -15,7 +14,8 @@ const set = await getSet(Astro.params.id!);
 if (!set) return new Response('Not found', { status: 404 });
 const moments = await listMoments({ setId: set.id });
 const photos = moments.filter((m) => m.media_key);
-const videos = moments.filter((m) => m.source === 'youtube');
+// Photos and YouTube videos together, in the set's order: the grid and the lightbox both use this.
+const viewable = moments.filter((m) => m.media_key || m.youtube_id);
 // Each place once, from its first photo (for its map spot and links).
 const places = [...new Map(moments.filter((m) => m.place_name).map((m) => [m.place_name!, m] as const)).values()];
 const count = (await commentCounts([], [set.id])).get(`s:${set.id}`) ?? 0;
@@ -52,16 +52,16 @@ const mapJson = route?.length
     )}
 
     <div class="grid">
-      {photos.map((m) => (
-        <a href={`#p-${m.id}`} data-lb-open="set" data-lb-id={m.id} aria-label={m.caption ?? 'photo'}>
-          <img src={mediaUrl(m.thumb_key ?? m.media_key!)} alt="" loading="lazy" />
+      {viewable.map((m) => (
+        <a href={`#p-${m.id}`} data-lb-open="set" data-lb-id={m.id} aria-label={m.caption ?? (m.media_key ? 'photo' : 'video')}>
+          <img src={m.media_key ? mediaUrl(m.thumb_key ?? m.media_key) : `https://i.ytimg.com/vi/${m.youtube_id}/mqdefault.jpg`} alt="" loading="lazy" />
+          {!m.media_key && <span class="play">▶</span>}
         </a>
       ))}
     </div>
-    {videos.map((m) => <Moment m={m} group="set" />)}
     {moments.length === 0 && <p class="meta">this set is empty</p>}
     <Comments on={`s:${set.id}`} count={count} open />
-    <LightboxData group="set" moments={photos} />
+    <LightboxData group="set" moments={viewable} />
   </main>
 </Base>
 
@@ -90,7 +90,8 @@ const mapJson = route?.length
   .setmap :global(.maplibregl-ctrl-attrib a) { color: #555 !important; }
   .setmap :global(.maplibregl-ctrl-attrib-button) { filter: invert(1) brightness(.4); }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px; margin-bottom: 40px; }
-  .grid a { aspect-ratio: 1; background: #0d0d0d; overflow: hidden; cursor: zoom-in; }
+  .grid a { position: relative; aspect-ratio: 1; background: #0d0d0d; overflow: hidden; cursor: zoom-in; }
+  .grid .play { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-size: 22px; text-shadow: 0 1px 4px #000; pointer-events: none; }
   .grid img { width: 100%; height: 100%; object-fit: cover; display: block; transition: opacity .2s; }
   .grid a:hover img { opacity: .85; }
   @media (max-width: 700px) {

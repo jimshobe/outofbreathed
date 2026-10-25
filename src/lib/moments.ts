@@ -49,10 +49,11 @@ export const mediaUrl = (key: string) => `/media/${key.split('/').map(encodeURIC
 
 export { fmtDay } from './timeline';
 
-/** What the lightbox needs for one photo (YouTube videos play inline instead). */
+/** What the lightbox needs for one photo or YouTube video (which plays in the lightbox as a player). */
 export const lbItem = (m: MomentView) => ({
   id: m.id,
-  src: mediaUrl(m.media_key!),
+  src: m.media_key ? mediaUrl(m.media_key) : null,
+  youtube: m.media_key ? null : m.youtube_id,
   caption: m.caption,
   meta: [fmtDay(m.taken_at), m.place_name?.toLowerCase()].filter(Boolean).join(' · '),
 });
