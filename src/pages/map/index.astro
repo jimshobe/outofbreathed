@@ -70,10 +70,6 @@ const routesJson = JSON.stringify(routes).replace(/</g, '\\u003c');
   .panel :global(.sets) { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 4px 14px; }
   .panel :global(.sets a) { color: var(--fg); text-decoration: none; }
   .panel :global(.sets a:hover) { text-decoration: underline; }
-  .panel :global(ol) { list-style: none; padding: 0; margin-top: 16px; color: var(--dim); }
-  .panel :global(ol li) { display: grid; grid-template-columns: 104px 1fr; gap: 8px; cursor: pointer; }
-  .panel :global(ol li span:last-child) { color: #cfcfcf; }
-  .panel :global(ol li:hover span) { color: var(--fg); }
   .panel :global(.x) { position: absolute; top: 14px; right: 16px; color: var(--dim); }
   .panel :global(.x:hover) { color: var(--fg); }
   .panel :global(.note) { margin-top: 14px; }

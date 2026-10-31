@@ -164,8 +164,7 @@ function renderPhotos(p: Place, items: PlaceMoment[]) {
   panel.innerHTML = head(p) + `
     <div class="grid">${items.map((m) => (m.thumb
       ? `<button data-id="${m.id}">${`<img src="${m.thumb}" alt="" loading="lazy">`}${m.youtube ? '<span class="p">▶</span>' : ''}</button>` : '')).join('')}</div>
-    ${sets.length ? `<div class="sets">${sets.map((s) => `<a href="/sets/${s.id}">▸ ${esc(s.title.toLowerCase())}</a>`).join('')}</div>` : ''}
-    <ol>${items.map((m) => `<li data-id="${m.id}"><span>${esc(m.date)}</span><span>${esc(m.caption ?? '')}</span></li>`).join('')}</ol>`;
+    ${sets.length ? `<div class="sets">${sets.map((s) => `<a href="/sets/${s.id}">▸ ${esc(s.title.toLowerCase())}</a>`).join('')}</div>` : ''}`;
   $('.x', panel).onclick = closePanel;
   const open = (id?: string) => {
     const i = viewable.findIndex((m) => m.id === id);
