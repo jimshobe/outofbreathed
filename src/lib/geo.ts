@@ -3,6 +3,8 @@
 // The map shows where each photo was actually taken, except inside privacy zones (zone-math.ts), where
 // it shows the surrounding suburb. Location metadata is always stripped from image files (exif.ts).
 
+import { joinPlace } from './maps-link';
+
 // Nominatim's usage policy asks for an identifying User-Agent.
 const NOMINATIM_HEADERS = { 'User-Agent': 'outofbreathed.com family photo site' };
 
@@ -31,7 +33,6 @@ async function reverse(lat: number, lng: number): Promise<Reverse | null> {
 }
 
 const named = (v?: string) => (v && !/^[\d\s/-]+$/.test(v) ? v : null); // skip house numbers
-export const joinPlace = (venue: string | null, area: string | null) => (venue && area && venue !== area ? `${venue}, ${area}` : venue ?? area);
 
 /**
  * "Venue, Suburb" (or just the suburb/town) for a position, from OpenStreetMap's Nominatim. Used when
@@ -133,5 +134,49 @@ export async function geocodePlace(query: string): Promise<{ lat: number; lng: n
     return hit ? { lat: Number(hit.lat), lng: Number(hit.lon) } : null;
   } catch {
     return null;
+  }
+}
+
+export interface PlaceHit {
+  /** The text for the field being typed in: a business name, or a suburb/town. */
+  value: string;
+  /** A business's suburb, offered for the suburb field when it differs. */
+  area: string | null;
+  /** Where it is, shown dimmed beside the name. */
+  note: string;
+}
+
+// Photon (komoot's OpenStreetMap search) is built for search-as-you-type, which Nominatim's policy
+// forbids. Results lean towards the photo's position; ones within FAR_KM are listed first.
+const PHOTON = 'https://photon.komoot.io/api/';
+const FAR_KM = 50;
+const AREAS = /^(city|town|village|hamlet|suburb|quarter|neighbourhood|city_district|borough|locality|island|municipality)$/;
+type PhotonProps = { name?: string; osm_key?: string; osm_value?: string; street?: string; housenumber?: string;
+  locality?: string; district?: string; city?: string; county?: string; state?: string; country?: string };
+
+/** Businesses (kind 'venue') or suburbs and towns (kind 'area') matching typed text, nearest first. */
+export async function searchPlaces(q: string, kind: 'venue' | 'area', lat?: number, lng?: number): Promise<PlaceHit[]> {
+  const p = new URLSearchParams({ q, limit: '15', lang: 'en' });
+  if (lat != null && lng != null) { p.set('lat', String(lat)); p.set('lon', String(lng)); p.set('zoom', '12'); p.set('location_bias_scale', '0.1'); }
+  if (kind === 'area') p.set('osm_tag', 'place');
+  try {
+    const res = await fetch(`${PHOTON}?${p}`, { headers: NOMINATIM_HEADERS, signal: AbortSignal.timeout(4_000) });
+    if (!res.ok) return [];
+    const { features } = (await res.json()) as { features: { properties: PhotonProps; geometry: { coordinates: [number, number] } }[] };
+    const hits = features.flatMap(({ properties: f, geometry: { coordinates: [x, y] } }) => {
+      if (!named(f.name) || (kind === 'venue' ? NOT_VENUES.has(f.osm_key ?? '') : !AREAS.test(f.osm_value ?? ''))) return [];
+      const area = f.district ?? f.locality ?? f.city ?? null;
+      const street = [f.housenumber, f.street].filter(Boolean).join(' ');
+      const note = kind === 'venue'
+        ? [f.osm_value?.replace(/_/g, ' '), street, area].filter(Boolean).join(' · ')
+        : [f.osm_value, f.city ?? f.county, f.state, f.country].filter(Boolean).join(', ');
+      const far = lat != null && lng != null && distanceM(lat, lng, y, x) > FAR_KM * 1000;
+      return [{ hit: { value: f.name!, area: kind === 'venue' ? area : null, note }, far }];
+    });
+    const seen = new Set<string>();
+    return [...hits.filter((h) => !h.far), ...hits.filter((h) => h.far)].map((h) => h.hit)
+      .filter((h) => { const k = `${h.value}|${h.note}`; return !seen.has(k) && !!seen.add(k); }).slice(0, 8);
+  } catch {
+    return [];
   }
 }

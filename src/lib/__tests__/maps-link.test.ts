@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { googleMapsUrl, placeParts, splitVenue } from '../maps-link';
+import { googleMapsUrl, placeParts, splitVenue, placeFields, withParts } from '../maps-link';
 
 describe('googleMapsUrl', () => {
   it('links venue names', () => {
@@ -35,5 +35,24 @@ describe('placeParts', () => {
     expect(venue.href).toBe(gm);
     expect(area.href).toMatch(/^\/map\/go/);
     expect(placeParts('Tugun', 0, 1, 2, { gmaps_url: null, wiki_url: wp })[0].href).toBe(wp);
+  });
+});
+
+describe('withParts', () => {
+  it('reads a name as business and suburb', () => {
+    expect(placeFields('STABLE, Tugun')).toEqual({ venue: 'STABLE', area: 'Tugun' });
+    expect(placeFields('Tugun')).toEqual({ venue: null, area: 'Tugun' });
+    expect(placeFields(null)).toEqual({ venue: null, area: null });
+  });
+  it('changes only the part given', () => {
+    expect(withParts('Wrong Cafe, Miami', { venue: 'Barber Co' })).toBe('Barber Co, Miami');
+    expect(withParts('Barber Co, Miami', { area: 'Burleigh Heads' })).toBe('Barber Co, Burleigh Heads');
+    expect(withParts('Miami', { venue: 'Barber Co' })).toBe('Barber Co, Miami');
+    expect(withParts(null, { venue: 'Barber Co', area: 'Miami' })).toBe('Barber Co, Miami');
+  });
+  it('clears a part with an empty string', () => {
+    expect(withParts('Barber Co, Miami', { venue: ' ' })).toBe('Miami');
+    expect(withParts('Barber Co, Miami', { area: '' })).toBe('Barber Co');
+    expect(withParts('Miami', { area: '' })).toBeNull();
   });
 });

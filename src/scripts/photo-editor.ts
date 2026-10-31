@@ -3,6 +3,8 @@
 // before (PATCH /api/moments/:id, PATCH /api/sets/:id for the cover, DELETE to remove).
 import { fmtDay } from '../lib/timeline';
 import { CATEGORIES } from '../lib/categories';
+import { withParts } from '../lib/maps-link';
+import { placeFieldsHtml, attachPlaceFields } from './place-input';
 
 export interface EditorSet { id: string; title: string; cover_id: string | null }
 interface Moment {
@@ -68,8 +70,7 @@ function render() {
     <div class="efields">
       <label class="erow"><span>caption</span><input id="e-caption" type="text" value="${esc(m.caption ?? '')}" placeholder="caption" maxlength="300"></label>
       <label class="erow"><span>taken</span><input id="e-taken" type="datetime-local" step="1" value="${m.taken_at.slice(0, 19)}"></label>
-      <div class="erow"><label for="e-place">place</label><input id="e-place" type="text" value="${esc(m.place_name ?? '')}" placeholder="name, suburb, e.g. Seoul Kitchen, Southport" maxlength="120">
-        <span class="chips" id="e-chips">${m.lat != null ? '<span class="note">finding nearby places…</span>' : ''}</span></div>
+      ${placeFieldsHtml('e')}
       ${m.zoned ? '<p class="note">// inside a privacy zone: visitors see only the suburb.</p>' : ''}
       <div class="erow"><span>tags</span><span class="etags">${CATEGORIES.map((c) => `<label><input type="checkbox" data-tag="${c}"${m.categories.includes(c) ? ' checked' : ''}> ${c}</label>`).join('')}</span></div>
       <label class="erow"><span>set</span><select id="e-set"><option value="">no set</option>${opts.sets.map((s) => `<option value="${s.id}"${s.id === m.set_id ? ' selected' : ''}>${esc(s.title.toLowerCase())}</option>`).join('')}</select></label>
@@ -84,16 +85,11 @@ function render() {
     </div></div>`;
 }
 
-// Nearby venue names for the photo's position, as tap-to-use chips.
-async function suggest() {
-  const m = current;
-  if (!m || m.lat == null || m.lng == null) return;
-  const res = await fetch(`/api/places/nearby?lat=${m.lat}&lng=${m.lng}`).catch(() => null);
-  const r = res?.ok ? ((await res.json()) as { choices?: string[] }) : {};
-  const chips = sheet.querySelector('#e-chips') as unknown as El | null;
-  if (!chips || current !== m) return;
-  const choices = (r.choices ?? []).filter((c) => c !== m.place_name);
-  chips.innerHTML = choices.map((c) => `<button type="button" data-pick="${esc(c)}">${esc(c.toLowerCase())}</button>`).join('');
+// Business and suburb: each part saves on its own, keeping the rest of the name.
+function suggest() {
+  const m = current, pf = sheet.querySelector('.pf') as unknown as El | null;
+  if (!m || !pf) return;
+  attachPlaceFields(pf, { names: [m.place_name], lat: m.lat, lng: m.lng, save: (edit) => save({ place_name: withParts(m.place_name, edit) }) });
 }
 
 function status(text: string) {
@@ -121,11 +117,6 @@ sheet.addEventListener('click', async (e) => {
     return;
   }
   const m = current;
-  if (b.dataset.pick) {
-    ($<HTMLInputElement>('#e-place', sheet)).value = b.dataset.pick;
-    if (await save({ place_name: b.dataset.pick })) b.remove();
-    return;
-  }
   const i = opts.list.indexOf(m.id);
   switch (b.dataset.act) {
     case 'close': close(); break;
@@ -159,7 +150,6 @@ sheet.addEventListener('change', (e) => {
   const m = current;
   if (!m) return;
   if (t.id === 'e-caption') save({ caption: t.value });
-  if (t.id === 'e-place') save({ place_name: t.value });
   if (t.id === 'e-taken' && t.value) {
     // Keep the photo's own time-zone offset; a value without seconds gets :00.
     const v = t.value.length === 16 ? `${t.value}:00` : t.value;

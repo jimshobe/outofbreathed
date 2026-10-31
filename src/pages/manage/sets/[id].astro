@@ -8,13 +8,13 @@ import { managedSet, managedSets, libraryPage } from '../../../lib/manage';
 import { mediaUrl, fmtDay } from '../../../lib/moments';
 import { fmtRange } from '../../../lib/timeline';
 import { fmtStats } from '../../../lib/route';
+import { placeFieldsHtml } from '../../../scripts/place-input';
 
 const set = await managedSet(Astro.params.id!);
 if (!set) return Astro.redirect('/manage#sets');
 const [allSets, others] = await Promise.all([managedSets(), libraryPage({ excludeSet: set.id, limit: 300 })]);
 const thumb = (m: (typeof set.moments)[number]) =>
   m.thumb_key ?? (m.kind === 'photo' ? m.media_key : null) ? mediaUrl((m.thumb_key ?? m.media_key)!) : m.youtube_id ? `https://i.ytimg.com/vi/${m.youtube_id}/mqdefault.jpg` : null;
-const places = [...new Set(set.moments.map((m) => m.place_name).filter(Boolean))] as string[];
 const times = set.moments.map((m) => m.taken_at).sort();
 const gps = set.moments.find((m) => m.lat != null);
 const setTitle = new Map(allSets.map((s) => [s.id, s.title]));
@@ -29,12 +29,10 @@ const editorSets = JSON.stringify(allSets.map((s) => ({ id: s.id, title: s.title
     <div class="fields">
       <label class="row"><span>title</span><input id="s-title" type="text" value={set.title} maxlength="80" /></label>
       <label class="row"><span>caption</span><input id="s-caption" type="text" value={set.caption ?? ''} placeholder="about the whole set" maxlength="300" /></label>
-      <div class="row"><label for="s-place">place</label>
-        <input id="s-place" type="text" value={places.length === 1 ? places[0] : ''} maxlength="120"
-          placeholder={places.length > 1 ? `mixed: ${places.join(' / ').toLowerCase()}` : 'name, suburb, e.g. Seoul Kitchen, Southport'}
-          data-lat={gps?.lat ?? ''} data-lng={gps?.lng ?? ''} />
-        <span class="chips" id="s-chips">{gps && <span class="note">finding nearby places…</span>}</span>
-        <span class="hint">// sets the place on every photo in the set</span></div>
+      <div id="s-place" data-names={JSON.stringify(set.moments.map((m) => m.place_name))} data-lat={gps?.lat ?? ''} data-lng={gps?.lng ?? ''}>
+        <Fragment set:html={placeFieldsHtml('s')} />
+        <p class="hint">// changes every photo in the set; the other part of each photo's place stays.</p>
+      </div>
       <div class="row"><span>route</span>
         <span class="route">
           {set.route_km != null && <span>⤳ {fmtStats({ km: set.route_km, secs: set.route_secs ?? null, climb_m: set.route_climb_m ?? null })}</span>}
@@ -94,6 +92,7 @@ const editorSets = JSON.stringify(allSets.map((s) => ({ id: s.id, title: s.title
 
 <script>
   import { openPhotoEditor, tileLabel, type EditorSet } from '../../../scripts/photo-editor';
+  import { attachPlaceFields } from '../../../scripts/place-input';
 
   type El = HTMLElement;
   const pick = <T = El,>(root: { querySelector(sel: string): unknown }, sel: string) => root.querySelector(sel) as T;
@@ -117,30 +116,18 @@ const editorSets = JSON.stringify(allSets.map((s) => ({ id: s.id, title: s.title
   pick(document, '#s-title').addEventListener('change', (e) => patchSet({ title: (e.target as HTMLInputElement).value }));
   pick(document, '#s-caption').addEventListener('change', (e) => patchSet({ caption: (e.target as HTMLInputElement).value }));
 
-  // Place for every photo in the set; nearby venues for the set's first GPS photo as chips.
-  const placeIn = pick<HTMLInputElement>(document, '#s-place');
-  async function setPlace(name: string) {
-    if (!name.trim() || !ids().length) return;
-    status('…');
-    const res = await fetch('/api/moments/bulk', json('POST', { ids: ids(), action: 'place', place_name: name.trim() }));
-    if (!res.ok) return status(await errorOf(res));
-    placeIn.value = name.trim(); placeIn.placeholder = '';
-    status('saved');
-  }
-  placeIn.addEventListener('change', () => setPlace(placeIn.value));
-  if (placeIn.dataset.lat) {
-    fetch(`/api/places/nearby?lat=${placeIn.dataset.lat}&lng=${placeIn.dataset.lng}`).then((r) => (r.ok ? r.json() : {})).then((r: { choices?: string[] }) => {
-      const chips = pick(document, '#s-chips');
-      chips.innerHTML = '';
-      for (const c of r.choices ?? []) {
-        if (c === placeIn.value) continue;
-        const b = document.createElement('button') as unknown as El;
-        b.setAttribute('type', 'button'); b.textContent = c.toLowerCase();
-        b.addEventListener('click', () => setPlace(c));
-        chips.appendChild(b as never);
-      }
-    }).catch(() => { pick(document, '#s-chips').innerHTML = ''; });
-  }
+  // Business and suburb for every photo in the set, each part changed on its own.
+  const placeBox = pick(document, '#s-place'), pos = (k: string) => (placeBox.dataset[k] ? Number(placeBox.dataset[k]) : null);
+  attachPlaceFields(pick(placeBox, '.pf'), {
+    names: JSON.parse(placeBox.dataset.names ?? '[]') as (string | null)[], lat: pos('lat'), lng: pos('lng'),
+    save: async (edit) => {
+      if (!ids().length) { status('add photos first'); return false; }
+      status('…');
+      const res = await fetch('/api/moments/bulk', json('POST', { ids: ids(), action: 'place-parts', ...edit }));
+      status(res.ok ? 'saved' : await errorOf(res));
+      return res.ok;
+    },
+  });
 
   // Ride route: the server trims it out of privacy zones and works out the stats.
   pick<HTMLInputElement>(document, '.addroute input').addEventListener('change', async (e) => {
@@ -291,11 +278,7 @@ const editorSets = JSON.stringify(allSets.map((s) => ({ id: s.id, title: s.title
   .row { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 6px 12px; align-items: center; color: var(--dim); }
   .row input[type='text'] { font: inherit; color: var(--fg); background: #000; border: 0; border-bottom: 1px solid var(--faint); padding: 6px 0; border-radius: 0; width: 100%; }
   .row input:focus { outline: none; border-color: var(--fg); }
-  .chips { grid-column: 2; display: flex; flex-wrap: wrap; gap: 4px 14px; }
-  .chips :global(button) { color: var(--dim); }
-  .chips :global(button:hover) { color: var(--fg); }
-  .chips :global(button)::before { content: '+ '; color: var(--faint); }
-  .hint { grid-column: 2; color: var(--faint); }
+  .hint { color: var(--faint); margin: 4px 0 0 82px; }
   .route { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--fg); }
   .addroute, .rmroute { color: var(--dim); cursor: pointer; }
   .addroute:hover, .rmroute:hover { color: var(--fg); }
@@ -347,7 +330,7 @@ const editorSets = JSON.stringify(allSets.map((s) => ({ id: s.id, title: s.title
   @media (max-width: 700px) {
     .sedit { padding: var(--top) 16px 80px; }
     .row { grid-template-columns: 1fr; gap: 4px; }
-    .chips, .hint { grid-column: 1; }
+    .hint { margin-left: 0; }
     .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   }
 </style>

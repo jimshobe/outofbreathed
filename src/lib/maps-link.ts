@@ -14,6 +14,22 @@ export function splitVenue(name: string) {
   return { venue: name.slice(0, i), area: name.slice(i + 2) };
 }
 
+export const joinPlace = (venue: string | null, area: string | null) => (venue && area && venue !== area ? `${venue}, ${area}` : venue ?? area);
+
+/** A stored place name as the editors' business and suburb fields. A name without ", " is a suburb or town. */
+export function placeFields(name: string | null | undefined): { venue: string | null; area: string | null } {
+  if (!name) return { venue: null, area: null };
+  return name.includes(', ') ? splitVenue(name) : { venue: null, area: name };
+}
+
+/** The name with only the given part(s) changed ('' clears one), e.g. a new business at the same suburb. */
+export function withParts(name: string | null | undefined, parts: { venue?: string; area?: string }): string | null {
+  const f = placeFields(name);
+  if (parts.venue !== undefined) f.venue = parts.venue.trim() || null;
+  if (parts.area !== undefined) f.area = parts.area.trim() || null;
+  return joinPlace(f.venue, f.area);
+}
+
 export function googleMapsUrl(name: string | null | undefined, zoned: number | boolean = 0): string | null {
   return isVenue(name, zoned) ? GMAPS + encodeURIComponent(name!) : null;
 }
