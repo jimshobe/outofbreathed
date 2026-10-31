@@ -9,6 +9,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { openLightbox, initLightbox, type LbItem } from './lightbox';
 import { darkStyle, addRouteLayers, fade } from './map-style';
 import { placeParts, type LinkOverride } from '../lib/maps-link';
+import { joinSameName, merge, metres } from '../lib/map-places';
 
 interface Place { spot_lat: number; spot_lng: number; lat: number; lng: number; n: number; name: string | null; latest: string; zoned: number; link: LinkOverride | null; spots?: Place[] }
 interface PlaceMoment extends LbItem { thumb: string | null; date: string; taken_at: string; set: { id: string; title: string } | null }
@@ -20,8 +21,10 @@ const esc = (t: string) => t.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
 const key = (p: Place) => `${p.spot_lat},${p.spot_lng}`;
 const label = (p: Place) => (p.name ?? 'unnamed').toLowerCase();
 
-const places: Place[] = JSON.parse($('#places').textContent ?? '[]');
-const byKey = new Map(places.map((p) => [key(p), p]));
+// Spots of one named place (GPS drift splits a café across cells) show as one pin; every spot's key
+// finds it, so #@ deep links to any of them still work.
+const places: Place[] = joinSameName(JSON.parse($('#places').textContent ?? '[]') as Place[]);
+const byKey = new Map(places.flatMap((p) => (p.spots ?? [p]).map((s) => [key(s), p] as const)));
 const newest = [...places].sort((a, b) => b.latest.localeCompare(a.latest))[0];
 
 // Globe zooms are tuned for a ~900px tall window; scale so the globe fits any screen.
@@ -109,24 +112,8 @@ marks.addEventListener('click', (e) => {
 /** Largest distance in metres between any two of the places. */
 function spread(ps: Place[]) {
   let max = 0;
-  for (const a of ps) for (const b of ps) {
-    const x = (b.lng - a.lng) * DEG * Math.cos(((a.lat + b.lat) / 2) * DEG), y = (b.lat - a.lat) * DEG;
-    max = Math.max(max, Math.hypot(x, y) * 6_371_000);
-  }
+  for (const a of ps) for (const b of ps) max = Math.max(max, metres(a, b));
   return max;
-}
-
-/** Several neighbouring spots as one place: named after the biggest, photos from all of them. */
-function merge(ps: Place[]): Place {
-  const n = ps.reduce((s, p) => s + p.n, 0);
-  const top = [...ps].sort((a, b) => b.n - a.n)[0];
-  return {
-    ...top, n, spots: ps,
-    lat: ps.reduce((s, p) => s + p.lat * p.n, 0) / n,
-    lng: ps.reduce((s, p) => s + p.lng * p.n, 0) / n,
-    latest: ps.map((p) => p.latest).sort().at(-1)!,
-    zoned: Math.max(...ps.map((p) => p.zoned)),
-  };
 }
 
 // ---- place panel: my photos ----
