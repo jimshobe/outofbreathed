@@ -7,8 +7,10 @@ interface Props {
   homeScreen?: boolean;
   /** Full-screen page (the map): the header floats over the content without a background. */
   overlay?: boolean;
+  /** Page title before the site name (a musing's title). */
+  title?: string;
 }
-const { current, homeScreen = false, overlay = false } = Astro.props;
+const { current, homeScreen = false, overlay = false, title } = Astro.props;
 const { isOwner, uid, name, avatar } = Astro.locals.viewer;
 const here = Astro.url.pathname + Astro.url.search;
 ---
@@ -22,7 +24,7 @@ const here = Astro.url.pathname + Astro.url.search;
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" href="/favicon.ico" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <title>outofbreathed.com</title>
+    <title>{title ? `${title.toLowerCase()} · outofbreathed.com` : 'outofbreathed.com'}</title>
     {homeScreen && <link rel="manifest" href="/post.webmanifest" />}
     {homeScreen && <meta name="apple-mobile-web-app-title" content="post" />}
   </head>

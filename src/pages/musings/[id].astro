@@ -1,0 +1,80 @@
+---
+// One musing: title, date, the text with its photos (which open the lightbox), the set it's about, and
+// comments. Drafts are visible only to the owner.
+import Base from '../../layouts/Base.astro';
+import LightboxData from '../../components/LightboxData.astro';
+import Comments from '../../components/Comments.astro';
+import { getMusing, photoRef, photoIds } from '../../lib/musings';
+import { getSet, momentsByIds } from '../../lib/moments';
+import { renderMarkdown } from '../../lib/markdown';
+import { commentCounts } from '../../lib/comments';
+import { fmtDay } from '../../lib/timeline';
+
+const u = await getMusing(Astro.params.id!);
+const owner = Astro.locals.viewer.isOwner;
+if (!u || (!u.published && !owner)) return new Response('Not found', { status: 404 });
+const ids = photoIds(u.body);
+const [found, set, counts] = await Promise.all([
+  momentsByIds(ids), u.set_id ? getSet(u.set_id) : null, u.published ? commentCounts([], [], [u.id]) : null,
+]);
+const byId = new Map(found.map((m) => [m.id, m]));
+const html = renderMarkdown(u.body, (id) => { const m = byId.get(id); return m ? photoRef(m) : null; });
+// The lightbox steps through the placed photos in reading order.
+const placed = [...new Set(ids)].map((id) => byId.get(id)).filter((m) => m && (m.media_key || m.youtube_id)) as typeof found;
+---
+
+<Base current="timeline" title={u.title || 'musing'}>
+  <main class="tl">
+    <a class="back" href={u.published ? `/#mu-${u.id}` : '/manage#musings'}>&lt; {u.published ? 'timeline' : 'manage'}</a>
+    {owner && <a class="edit" href={`/manage/musings/${u.id}`}>[edit]</a>}
+    {!u.published && <p class="draft">// draft: only you can see this</p>}
+    <header>
+      <h2>{(u.title || 'untitled').toLowerCase()}</h2>
+      <p class="meta">{fmtDay(u.written_at)} · musing{set && <> · photos: <a href={`/sets/${set.id}`}>▸ {set.title.toLowerCase()}</a></>}</p>
+    </header>
+    <article class="body" set:html={html} />
+    {u.published && <Comments on={`mu:${u.id}`} count={counts?.get(`mu:${u.id}`) ?? 0} open />}
+    <LightboxData group="musing" moments={placed} />
+  </main>
+</Base>
+
+<script>
+  import { initLightbox } from '../../scripts/lightbox';
+  import '../../scripts/comments';
+  initLightbox();
+</script>
+
+<style>
+  .tl { max-width: 640px; margin: 0 auto; padding: var(--top) 20px 90px; }
+  .back, .edit { color: var(--dim); text-decoration: none; }
+  .back:hover, .edit:hover { color: var(--fg); }
+  .edit { float: right; }
+  .draft { color: #ffb547; margin-top: 16px; }
+  header { margin: 24px 0 28px; }
+  h2 { font: 500 15px/1.4 var(--mono); }
+  h2::before { content: '> '; color: var(--dim); }
+  .meta { color: var(--dim); margin-top: 4px; }
+  .meta a { color: var(--dim); }
+  .meta a:hover { color: var(--fg); }
+  .body { line-height: 1.7; margin-bottom: 40px; overflow-wrap: anywhere; }
+  .body :global(p), .body :global(ul), .body :global(ol), .body :global(blockquote), .body :global(figure) { margin: 0 0 20px; }
+  .body :global(h3) { font: 500 15px/1.4 var(--mono); margin: 32px 0 12px; }
+  .body :global(h3)::before { content: '## '; color: var(--faint); }
+  .body :global(ul), .body :global(ol) { padding-left: 22px; }
+  .body :global(blockquote) { padding-left: 14px; border-left: 1px solid var(--faint); color: var(--dim); }
+  .body :global(a) { color: var(--fg); text-underline-offset: 3px; }
+  .body :global(strong) { font-weight: 600; }
+  .body :global(.ph) { position: relative; display: block; background: #0d0d0d; overflow: hidden; cursor: zoom-in; }
+  .body :global(.ph img) { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .body :global(.photo .ph img) { height: auto; }
+  .body :global(.play) { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-size: 22px; text-shadow: 0 1px 4px #000; pointer-events: none; }
+  .body :global(figcaption) { margin-top: 8px; color: var(--dim); }
+  .body :global(.photos) { display: grid; gap: 4px; grid-template-columns: repeat(2, 1fr); }
+  .body :global(.photos.n3) { grid-template-columns: repeat(3, 1fr); }
+  .body :global(.photos.n4) { grid-template-columns: repeat(4, 1fr); }
+  .body :global(.photos .ph) { aspect-ratio: 1; }
+  @media (max-width: 700px) {
+    .tl { padding: var(--top) 16px 80px; }
+    .body :global(.photos.n4) { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>

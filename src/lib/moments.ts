@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:workers';
-import { assemblePage, monthStart, fmtDay, type SetInfo, type Entry } from './timeline';
+import { assemblePage, monthStart, fmtDay, withMusings, type SetInfo, type Entry, type MusingInfo } from './timeline';
 
 /** The fields a viewer may see. Exact lat/lng are deliberately never selected. */
 export interface MomentView {
@@ -112,18 +112,38 @@ export interface TimelinePage {
   older: string | null;
 }
 
-/** Up to ~PAGE_SIZE moments older than `before`, extended to whole months, with sets kept whole. */
+/** Published musings written in [from, before), newest first. */
+const musingsBetween = async (before: string, from: string, limit = 500) => (await env.DB.prepare(
+  // Compared on the 19-character local time, since cursors carry no offset.
+  'SELECT id, title, body, written_at, set_id FROM musings WHERE published = 1 AND substr(written_at, 1, 19) < ? AND substr(written_at, 1, 19) >= ? ORDER BY written_at DESC LIMIT ?',
+).bind(before, from, limit).all<MusingInfo>()).results;
+
+/** The timeline filter that shows only musings (alongside the photo tags). */
+export const MUSINGS = 'musings';
+const MUSINGS_PAGE = 30;
+
+/**
+ * Up to ~PAGE_SIZE moments older than `before`, extended to whole months, with sets kept whole, plus the
+ * musings written in the same span. `category` 'musings' pages through musings alone.
+ */
 export async function timelinePage(opts: { before?: string; category?: string }): Promise<TimelinePage> {
   const before = opts.before ?? '9999';
+  if (opts.category === MUSINGS) {
+    const list = await musingsBetween(before, '', MUSINGS_PAGE + 1);
+    const page = list.slice(0, MUSINGS_PAGE);
+    return { entries: withMusings([], page), older: list.length > MUSINGS_PAGE ? page[page.length - 1].written_at.slice(0, 19) : null };
+  }
   const where = (extra: string) => `WHERE taken_at < ? ${extra} ${opts.category ? `AND ${CATEGORY_FILTER}` : ''}`;
   const args = (...a: unknown[]) => [...a, ...(opts.category ? [opts.category, opts.category] : [])];
+  // Musings show in the unfiltered timeline only; on the last page, every older one too.
+  const musings = (from: string) => (opts.category ? Promise.resolve([]) : musingsBetween(before, from));
 
   // The PAGE_SIZE-th moment decides which month the page ends in; then take that whole month.
   const nth = await env.DB.prepare(`SELECT taken_at FROM moments ${where('')} ORDER BY taken_at DESC LIMIT 1 OFFSET ?`)
     .bind(before, ...args(), PAGE_SIZE - 1).first<{ taken_at: string }>();
   const oldestAll = nth ? null : await env.DB.prepare(`SELECT min(taken_at) AS t FROM moments ${where('')}`).bind(before, ...args()).first<{ t: string | null }>();
   const boundaryFrom = nth?.taken_at ?? oldestAll?.t;
-  if (!boundaryFrom) return { entries: [], older: null };
+  if (!boundaryFrom) return { entries: withMusings([], await musings('')), older: null };
   const boundary = monthStart(boundaryFrom);
 
   const { results: page } = await env.DB.prepare(`SELECT ${MOMENT_COLUMNS} FROM ${PUBLIC} ${where('AND taken_at >= ?')} ORDER BY taken_at DESC`)
@@ -138,15 +158,25 @@ export async function timelinePage(opts: { before?: string; category?: string })
       : Promise.resolve([] as SetInfo[]),
     env.DB.prepare(`SELECT 1 FROM moments ${where('')} LIMIT 1`).bind(boundary, ...args()).first(),
   ]);
-  return { entries: assemblePage(withCategories(page), withCategories(members), sets, boundary), older: more ? boundary : null };
+  const entries = assemblePage(withCategories(page), withCategories(members), sets, boundary);
+  return { entries: withMusings(entries, await musings(more ? boundary : '')), older: more ? boundary : null };
 }
 
-/** Years that have moments (for the jump row), newest first. */
+/** Years that have moments or musings (for the jump row), newest first. */
 export async function yearIndex(category?: string): Promise<string[]> {
-  const filter = category ? `WHERE ${CATEGORY_FILTER}` : '';
-  const { results } = await env.DB.prepare(`SELECT DISTINCT substr(taken_at, 1, 4) AS y FROM moments ${filter} ORDER BY y DESC`)
-    .bind(...(category ? [category, category] : [])).all<{ y: string }>();
+  const musingYears = "SELECT DISTINCT substr(written_at, 1, 4) AS y FROM musings WHERE published = 1";
+  const sql = category === MUSINGS ? `${musingYears} ORDER BY y DESC`
+    : category ? `SELECT DISTINCT substr(taken_at, 1, 4) AS y FROM moments WHERE ${CATEGORY_FILTER} ORDER BY y DESC`
+    : `SELECT substr(taken_at, 1, 4) AS y FROM moments UNION ${musingYears} ORDER BY y DESC`;
+  const { results } = await env.DB.prepare(sql).bind(...(category && category !== MUSINGS ? [category, category] : [])).all<{ y: string }>();
   return results.map((r) => r.y);
+}
+
+/** Moments by id, as viewers see them (for photos placed in a musing). */
+export async function momentsByIds(ids: string[]): Promise<MomentView[]> {
+  if (!ids.length) return [];
+  const { results } = await env.DB.prepare(`SELECT ${MOMENT_COLUMNS} FROM ${PUBLIC} WHERE id IN (${ids.map(() => '?').join(',')})`).bind(...ids).all<Row>();
+  return withCategories(results);
 }
 
 // ---- Map ----

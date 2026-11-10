@@ -1,7 +1,7 @@
 ---
 // Owner-only (middleware): everything after posting. Photos (a filterable grid with a per-photo editor and
-// bulk changes), sets (each opens /manage/sets/<id>), and settings (comments, privacy zones, place links).
-// Tabs are client-side, kept in the URL hash (#photos, #sets, #settings).
+// bulk changes), sets (each opens /manage/sets/<id>), musings (each opens /manage/musings/<id>), and
+// settings (comments, privacy zones, place links). Tabs are client-side, kept in the URL hash.
 import Base from '../../layouts/Base.astro';
 import EditorSheet from '../../components/EditorSheet.astro';
 import { libraryPage, managedSets, LIBRARY_PAGE, type LibraryFilter } from '../../lib/manage';
@@ -12,15 +12,17 @@ import { pendingComments } from '../../lib/comments';
 import { CATEGORIES } from '../../lib/categories';
 import { listPlaceNames, listPlaceLinks } from '../../lib/place-links';
 import { isVenue, splitVenue } from '../../lib/maps-link';
+import { allMusings } from '../../lib/musings';
 
 const q = Astro.url.searchParams;
 const filter = (['noplace', 'noset'].includes(q.get('f') ?? '') ? q.get('f') : 'all') as LibraryFilter;
 const tag = CATEGORIES.includes(q.get('tag') as never) ? q.get('tag')! : '';
 const older = q.get('older') ?? undefined;
 const ids = q.get('ids')?.split(',').filter(Boolean).slice(0, 200);
-const [photos, sets, pending, zones, placeNames, placeLinks] = await Promise.all([
-  libraryPage({ filter, tag, before: older, ids }), managedSets(), pendingComments(), listZones(), listPlaceNames(), listPlaceLinks(),
+const [photos, sets, pending, zones, placeNames, placeLinks, musings] = await Promise.all([
+  libraryPage({ filter, tag, before: older, ids }), managedSets(), pendingComments(), listZones(), listPlaceNames(), listPlaceLinks(), allMusings(),
 ]);
+const musingTitle = new Map(musings.map((u) => [u.id, u.title]));
 const setTitle = new Map(sets.map((s) => [s.id, s.title]));
 const link = (o: { f?: string; tag?: string; older?: string }) => {
   const p = new URLSearchParams();
@@ -43,6 +45,7 @@ const km = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`)
     <nav class="tabs" aria-label="manage sections">
       <button data-tab="photos">photos</button>
       <button data-tab="sets">sets</button>
+      <button data-tab="musings">musings</button>
       <button data-tab="settings">settings{pending.length > 0 && <b class="badge">{pending.length}</b>}</button>
     </nav>
 
@@ -128,6 +131,21 @@ const km = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`)
       {sets.length === 0 && <p class="note">// no sets yet</p>}
     </section>
 
+    <section data-panel="musings" class="musings" hidden>
+      <div class="cmd"><span>&gt; <b>musings</b></span><span>newest first</span></div>
+      <button type="button" class="newmusing">[+ new musing]</button>
+      <span class="status" id="mu-status"></span>
+      <p class="note">// occasional writing, shown on the timeline at its date. drafts are only seen by you.</p>
+      {musings.map((u) => (
+        <a class="setrow murow" href={`/manage/musings/${u.id}`}>
+          <span class="t">{(u.title || 'untitled').toLowerCase()}
+            <span>{fmtDay(u.written_at)}{u.set_id && setTitle.get(u.set_id) && ` · ${setTitle.get(u.set_id)!.toLowerCase()}`}</span></span>
+          <span class:list={['go', { draft: !u.published }]}>{u.published ? 'edit ›' : 'draft ›'}</span>
+        </a>
+      ))}
+      {musings.length === 0 && <p class="note">// none yet</p>}
+    </section>
+
     <section data-panel="settings" class="settings" hidden>
       <div class="block pending">
         <div class="cmd"><span>&gt; <b>comments waiting</b></span></div>
@@ -135,7 +153,7 @@ const km = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`)
         {pending.map((c) => (
           <div class="crow" data-comment={c.id}>
             <div class="cwho">{c.avatar_url && <img src={c.avatar_url} alt="" referrerpolicy="no-referrer" />}<b>{c.first_name.toLowerCase()}</b> <span>{c.email}</span>
-              · <a href={c.set_id ? `/sets/${c.set_id}` : `/#m-${c.moment_id}`}>on {c.set_id ? (setTitle.get(c.set_id)?.toLowerCase() ?? 'a set') : 'a photo'}</a></div>
+              · <a href={c.musing_id ? `/musings/${c.musing_id}` : c.set_id ? `/sets/${c.set_id}` : `/#m-${c.moment_id}`}>on {c.musing_id ? (musingTitle.get(c.musing_id)?.toLowerCase() || 'a musing') : c.set_id ? (setTitle.get(c.set_id)?.toLowerCase() ?? 'a set') : 'a photo'}</a></div>
             <p class="cbody">{c.body}</p>
             <div class="cact"><button type="button" data-status="approved">[approve]</button><button type="button" data-status="rejected">[reject]</button><span class="status"></span></div>
           </div>
@@ -272,6 +290,17 @@ const km = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`)
     const r = (await res.json().catch(() => ({}))) as { id?: string; error?: string; created?: boolean };
     if (!res.ok || !r.id) { st.textContent = r.error ?? 'error'; return; }
     location.href = `/manage/sets/${r.id}${r.created ? '?add=1' : ''}`;
+  });
+
+  // ---- musings: start a draft dated now (local time with this device's offset) and open it ----
+  pick(document, '.newmusing').addEventListener('click', async () => {
+    const st = pick(document, '#mu-status'), d = new Date(), off = -d.getTimezoneOffset();
+    const p2 = (n: number) => String(Math.floor(Math.abs(n))).padStart(2, '0');
+    const local = new Date(d.getTime() + off * 60_000).toISOString().slice(0, 19) + (off >= 0 ? '+' : '-') + p2(off / 60) + ':' + p2(off % 60);
+    st.textContent = '…';
+    const res = await fetch('/api/musings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ written_at: local }) });
+    const r = (await res.json().catch(() => ({}))) as { id?: string; error?: string };
+    if (res.ok && r.id) location.href = `/manage/musings/${r.id}`; else st.textContent = r.error ?? 'error';
   });
 
   pick<HTMLSelectElement>(document, '#tagf')?.addEventListener('change', (e) => {
@@ -421,6 +450,9 @@ const km = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`)
   .setrow .t span { color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .setrow .go { color: var(--dim); }
   .setrow:hover .go { color: var(--fg); }
+  .murow { grid-template-columns: minmax(0, 1fr) auto; }
+  .murow .draft { color: #ffb547; }
+  .newmusing { color: var(--fg); margin-bottom: 10px; }
 
   /* settings */
   .block { border-top: 1px solid var(--faint); margin-top: 22px; }

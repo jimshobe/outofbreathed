@@ -2,21 +2,23 @@
 import Base from '../layouts/Base.astro';
 import Moment from '../components/Moment.astro';
 import SetCard from '../components/SetCard.astro';
+import MusingCard from '../components/MusingCard.astro';
 import LightboxData from '../components/LightboxData.astro';
-import { timelinePage, yearIndex } from '../lib/moments';
+import { timelinePage, yearIndex, MUSINGS } from '../lib/moments';
 import { commentCounts } from '../lib/comments';
 import { CATEGORIES, type Category } from '../lib/categories';
 
-// ?c=moto filters by category; ?before=<month start> pages back in time (and jumps to a year).
+// ?c=moto filters by category (?c=musings shows only musings); ?before=<month start> pages back in time (and jumps to a year).
 const params = Astro.url.searchParams;
 const c = params.get('c');
-const category = CATEGORIES.includes(c as Category) ? (c as Category) : undefined;
+const category = CATEGORIES.includes(c as Category) || c === MUSINGS ? c! : undefined;
 const b = params.get('before');
 const before = b && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(b) ? b : undefined;
 
 const [{ entries, older }, years] = await Promise.all([timelinePage({ before, category }), yearIndex(category)]);
 const singles = entries.flatMap((e) => (e.type === 'moment' ? [e.moment] : []));
-const counts = await commentCounts(singles.map((m) => m.id), entries.flatMap((e) => (e.type === 'set' ? [e.set.id] : [])));
+const counts = await commentCounts(singles.map((m) => m.id), entries.flatMap((e) => (e.type === 'set' ? [e.set.id] : [])),
+  entries.flatMap((e) => (e.type === 'musing' ? [e.musing.id] : [])));
 
 const link = (o: { c?: string; before?: string }) => {
   const q = new URLSearchParams();
@@ -32,7 +34,7 @@ const shownYear = entries[0]?.date.slice(0, 4);
   <main class="tl">
     <nav class="filters" aria-label="categories">
       <a href={link({})} class:list={[{ on: !category }]}>all</a>
-      {CATEGORIES.map((k) => <a href={link({ c: k })} class:list={[{ on: category === k }]}>{k}</a>)}
+      {[...CATEGORIES, MUSINGS].map((k) => <a href={link({ c: k })} class:list={[{ on: category === k }]}>{k}</a>)}
     </nav>
     {years.length > 1 && (
       <nav class="years" aria-label="years">
@@ -47,7 +49,9 @@ const shownYear = entries[0]?.date.slice(0, 4);
     <div class="entries">
       {entries.map((e) => e.type === 'set'
         ? <SetCard set={e.set} moments={e.moments} cover={e.cover} start={e.start} end={e.end} places={e.places} comments={counts.get(`s:${e.set.id}`) ?? 0} />
-        : <Moment m={e.moment} group="tl" comments={counts.get(`m:${e.moment.id}`) ?? 0} />)}
+        : e.type === 'musing'
+          ? <MusingCard musing={e.musing} comments={counts.get(`mu:${e.musing.id}`) ?? 0} />
+          : <Moment m={e.moment} group="tl" comments={counts.get(`m:${e.moment.id}`) ?? 0} />)}
     </div>
 
     {older

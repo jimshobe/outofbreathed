@@ -42,6 +42,13 @@ Every photo or video is a **moment** with a date, a place, a category, an option
 
 - Optional tags for filtering: family, travel, moto, food. A moment can have none (it shows under "all"); there is no catch-all category.
 
+**Musings**
+
+- Occasional written pieces; photos and video stay the main content. A musing is a dated entry in the timeline (title and opening words, "read ›"), and the "musings" filter shows only them. There is no separate tab: they belong in the chronology next to the photos they're about, and the filter can become a tab later if writing grows.
+- Written in /manage → musings in a small Markdown (paragraphs, headings, quotes, lists, bold/italic, links). Photos are placed from the library by reference, so they stay on the timeline and map too; one alone shows full width with an optional caption, several in a row sit side by side, and all open the lightbox.
+- Drafts save as you type and are seen only by the owner until published. A musing can be linked to the set it's about (the set page links back). Each has its own page (`/musings/<id>`) with comments.
+- The old blog's posts are not imported.
+
 ## Posting from iPhone
 
 **Current approach:** posting happens on the owner-only `/post` page, saved to the iPhone home screen as a "post" app. Picked photos and YouTube links go into a queue: each row has its own caption and asks for a date or place only when the item lacks one (Safari strips location unless **Options → Location** is on in the photo picker). A batch can be named as a set (the batch caption becomes the set caption). Photos are shrunk on the device to 2048 px before upload, three upload at a time, failures can be retried, and tags/set are remembered. The Shortcut below is paused until the upload API settles.
@@ -177,6 +184,8 @@ Build in five phases, each ending with something usable. Phase 2 is the most imp
 5. **Video and extras**
    - YouTube embeds (done), ride routes (done): a GPX file on a set shows as a dotted line on the globe and a route map on the set page, with distance, time and climb. Routes are trimmed out of privacy zones; the original GPX is kept privately (`private/` in R2, never served) so routes re-trim when zones change.
    - Then: move the domain over and invite everyone.
+6. **Musings**
+   - Built: `musings` table (migration 0016, which also lets comments be on a musing), Markdown renderer with placed photos, timeline entries and filter, musing pages with comments, editor in /manage with photo picker and preview, links to and from sets.
 
 ## Getting started in Claude Code
 

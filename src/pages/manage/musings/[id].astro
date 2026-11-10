@@ -1,0 +1,253 @@
+---
+// Owner-only (middleware): one musing's editor. Title, date, the set it's about, and the Markdown text
+// (src/lib/markdown.ts), which saves as you type. [+ photo] places library photos at the cursor;
+// [preview] renders it as the page will. Drafts are seen only by the owner until [publish].
+import Base from '../../../layouts/Base.astro';
+import { getMusing, photoRef, photoIds } from '../../../lib/musings';
+import { libraryPage, managedSets } from '../../../lib/manage';
+import { mediaUrl, fmtDay } from '../../../lib/moments';
+import type { PhotoRef } from '../../../lib/markdown';
+
+const u = await getMusing(Astro.params.id!);
+if (!u) return Astro.redirect('/manage#musings');
+const placed = photoIds(u.body);
+const [library, placedRows, sets] = await Promise.all([
+  libraryPage({ limit: 300 }), placed.length ? libraryPage({ ids: placed.slice(0, 200) }) : [], managedSets(),
+]);
+const refs: Record<string, PhotoRef> = {};
+for (const m of [...library, ...placedRows]) { const r = photoRef(m); if (r) refs[m.id] = r; }
+const refsJson = JSON.stringify(refs).replace(/</g, '\\u003c');
+const thumb = (m: (typeof library)[number]) =>
+  m.thumb_key ?? m.media_key ? mediaUrl((m.thumb_key ?? m.media_key)!) : m.youtube_id ? `https://i.ytimg.com/vi/${m.youtube_id}/mqdefault.jpg` : null;
+const setTitle = new Map(sets.map((s) => [s.id, s.title]));
+---
+
+<Base current="manage" title={u.title || 'musing'}>
+  <main class="medit" data-id={u.id} data-published={u.published ? '1' : '0'} data-written={u.written_at}>
+    <div class="head"><a href="/manage#musings">&lt; musings</a><a href={`/musings/${u.id}`} target="_blank" rel="noopener">[view ↗]</a></div>
+    <div class="state"><span class="pub"></span><button type="button" class="toggle"></button><span class="status" id="u-status"></span></div>
+
+    <div class="fields">
+      <label class="row"><span>title</span><input id="u-title" type="text" maxlength="120" value={u.title} placeholder="e.g. the ride to ebor" /></label>
+      <label class="row"><span>date</span><input id="u-date" type="datetime-local" step="1" value={u.written_at.slice(0, 19)} /></label>
+      <label class="row"><span>photos</span>
+        <select id="u-set"><option value="">no set</option>{sets.map((s) => <option value={s.id} selected={s.id === u.set_id}>{s.title.toLowerCase()}</option>)}</select></label>
+    </div>
+
+    <div class="tools">
+      <button type="button" class="addphoto">[+ photo]</button>
+      <button type="button" class="prevbtn">[preview]</button>
+      <span class="help">**bold** *italic* ## heading &gt; quote - list [text](https://…)</span>
+    </div>
+    <textarea id="u-body" spellcheck="true" placeholder="write here. a blank line starts a new paragraph.">{u.body}</textarea>
+    <article class="preview" hidden></article>
+
+    <div class="foot">
+      <button type="button" class="danger del">[delete musing]</button>
+      <span class="confirm" hidden>delete this musing and its comments? <button type="button" class="del-yes">[yes, delete]</button> <button type="button" class="del-no">[keep]</button></span>
+    </div>
+
+    <section class="picker" hidden>
+      <div class="phead"><button type="button" class="pick-cancel">&lt; back to writing</button></div>
+      <p class="note">// tap photos to choose them, then [ place ] at the bottom. they go in at the cursor; several in a row sit side by side. showing the latest {library.length}.</p>
+      <div class="grid">
+        {library.map((m) => (
+          <button type="button" class="tile" data-id={m.id}>
+            {thumb(m) && <img src={thumb(m)} alt="" loading="lazy" />}
+            {m.youtube_id && <span class="yt">▶</span>}
+            <span class="lbl">{[fmtDay(m.taken_at), m.set_id ? setTitle.get(m.set_id)?.toLowerCase() : m.place_name?.toLowerCase()].filter(Boolean).join(' · ')}</span>
+            <span class="chk"></span>
+          </button>
+        ))}
+      </div>
+      <div class="pickbar"><span class="pick-count">none chosen</span><button type="button" class="pick-add" disabled>[ place ]</button><button type="button" class="pick-cancel2">[cancel]</button></div>
+    </section>
+  </main>
+  <script type="application/json" id="u-refs" set:html={refsJson} />
+</Base>
+
+<script>
+  import { renderMarkdown, type PhotoRef } from '../../../lib/markdown';
+
+  type El = HTMLElement;
+  const pick = <T = El,>(root: { querySelector(sel: string): unknown }, sel: string) => root.querySelector(sel) as T;
+  const all = <T = El,>(root: { querySelectorAll(sel: string): unknown }, sel: string) => Array.from(root.querySelectorAll(sel) as unknown as T[]);
+
+  const main = pick(document, '.medit'), id = main.dataset.id!;
+  const refs = JSON.parse(pick(document, '#u-refs').textContent ?? '{}') as Record<string, PhotoRef>;
+  const title = pick<HTMLInputElement>(document, '#u-title'), body = pick<HTMLTextAreaElement>(document, '#u-body');
+  const statusEl = pick(document, '#u-status');
+  const status = (t: string) => { statusEl.textContent = t; };
+  let published = main.dataset.published === '1';
+
+  // ---- saving: text as you type (after a pause), the rest on change ----
+  let pending: Record<string, unknown> = {}, timer = 0;
+  async function flush() {
+    clearTimeout(timer);
+    if (!Object.keys(pending).length) return true;
+    const edit = pending; pending = {};
+    status('saving…');
+    const res = await fetch(`/api/musings/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(edit), keepalive: true });
+    if (!res.ok) { pending = { ...edit, ...pending }; status(((await res.json().catch(() => ({}))) as { error?: string }).error ?? 'not saved'); return false; }
+    status('saved');
+    return true;
+  }
+  const queue = (edit: Record<string, unknown>, wait = 1000) => { Object.assign(pending, edit); status('…'); clearTimeout(timer); timer = window.setTimeout(flush, wait); };
+  title.addEventListener('input', () => queue({ title: title.value }));
+  body.addEventListener('input', () => queue({ body: body.value }));
+  pick(document, '#u-set').addEventListener('change', (e) => queue({ set_id: (e.target as HTMLSelectElement).value || null }, 0));
+  pick(document, '#u-date').addEventListener('change', (e) => {
+    const v = (e.target as HTMLInputElement).value;
+    if (!v) return;
+    // Keep the original time-zone offset; a value without seconds gets :00.
+    queue({ written_at: (v.length === 16 ? `${v}:00` : v) + main.dataset.written!.slice(19).replace(/^\.\d+/, '') }, 0);
+  });
+  addEventListener('pagehide', () => { flush(); });
+  addEventListener('keydown', (e) => { if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); flush(); } });
+
+  // ---- publish ----
+  const showState = () => {
+    pick(document, '.pub').textContent = published ? 'published' : 'draft';
+    pick(document, '.pub').classList.toggle('draft', !published);
+    pick(document, '.toggle').textContent = published ? '[unpublish]' : '[ publish ]';
+    pick(document, '.toggle').classList.toggle('primary', !published);
+  };
+  showState();
+  pick(document, '.toggle').addEventListener('click', async () => {
+    if (!(await flush())) return;
+    status('…');
+    const res = await fetch(`/api/musings/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ published: !published }) });
+    if (!res.ok) return status(((await res.json().catch(() => ({}))) as { error?: string }).error ?? 'error');
+    published = !published;
+    showState();
+    status(published ? 'published: it’s on the timeline' : 'back to draft');
+  });
+
+  // ---- preview ----
+  const preview = pick(document, '.preview'), prevBtn = pick(document, '.prevbtn');
+  prevBtn.addEventListener('click', () => {
+    const on = preview.hidden;
+    if (on) preview.innerHTML = `<h2>${(title.value || 'untitled').toLowerCase().replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`)}</h2>` +
+      (renderMarkdown(body.value, (pid) => refs[pid] ?? null) || '<p class="note">// nothing written yet</p>');
+    preview.hidden = !on; body.hidden = on;
+    prevBtn.textContent = on ? '[write]' : '[preview]';
+  });
+
+  // ---- place photos at the cursor ----
+  const picker = pick(document, '.picker'), pickAdd = pick<HTMLButtonElement>(picker, '.pick-add');
+  let chosen: string[] = [], cursor = 0;
+  const pickTiles = () => all(picker, '.tile');
+  function openPicker() {
+    cursor = body.hidden ? body.value.length : body.selectionStart;
+    chosen = []; pickTiles().forEach((t) => t.classList.remove('sel')); updatePick();
+    picker.hidden = false; document.body.style.overflow = 'hidden';
+  }
+  function closePicker() { picker.hidden = true; document.body.style.overflow = ''; }
+  function updatePick() {
+    pick(picker, '.pick-count').textContent = chosen.length ? `${chosen.length} chosen` : 'none chosen';
+    pickAdd.disabled = !chosen.length;
+    pickAdd.textContent = chosen.length > 1 ? `[ place ${chosen.length} ]` : '[ place ]';
+  }
+  pick(document, '.addphoto').addEventListener('click', openPicker);
+  pick(picker, '.pick-cancel').addEventListener('click', closePicker);
+  pick(picker, '.pick-cancel2').addEventListener('click', closePicker);
+  pick(picker, '.grid').addEventListener('click', (e) => {
+    const t = (e.target as unknown as El).closest('.tile') as unknown as El | null;
+    if (!t) return;
+    const pid = t.dataset.id!;
+    chosen = chosen.includes(pid) ? chosen.filter((x) => x !== pid) : [...chosen, pid];
+    t.classList.toggle('sel', chosen.includes(pid));
+    updatePick();
+  });
+  pickAdd.addEventListener('click', () => {
+    // Photos go on their own lines, with a blank line around them so they stand apart from the text.
+    const before = body.value.slice(0, cursor), after = body.value.slice(cursor);
+    const lead = !before ? '' : before.endsWith('\n\n') ? '' : before.endsWith('\n') ? '\n' : '\n\n';
+    const trail = !after ? '\n\n' : after.startsWith('\n\n') ? '' : after.startsWith('\n') ? '\n' : '\n\n';
+    const block = chosen.map((pid) => `![](photo:${pid})`).join('\n');
+    body.value = before + lead + block + trail + after;
+    const end = (before + lead + block + trail).length;
+    closePicker();
+    if (!preview.hidden) prevBtn.click();
+    body.focus(); body.setSelectionRange(end, end);
+    queue({ body: body.value }, 0);
+  });
+
+  // ---- delete ----
+  const confirmEl = pick(document, '.confirm');
+  pick(document, '.del').addEventListener('click', () => { confirmEl.hidden = false; });
+  pick(document, '.del-no').addEventListener('click', () => { confirmEl.hidden = true; });
+  pick(document, '.del-yes').addEventListener('click', async () => {
+    pending = {};
+    const res = await fetch(`/api/musings/${id}`, { method: 'DELETE' });
+    if (res.ok) location.href = '/manage#musings'; else status('delete failed');
+  });
+</script>
+
+<style>
+  .medit { max-width: 760px; margin: 0 auto; padding: var(--top) 20px 80px; }
+  .head, .phead { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .head a, .phead button { color: var(--dim); text-decoration: none; }
+  .head a:hover, .phead button:hover { color: var(--fg); }
+  button { color: var(--dim); }
+  button:hover:not(:disabled) { color: var(--fg); }
+  .state { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; margin-top: 16px; }
+  .pub { color: var(--fg); }
+  .pub.draft { color: #ffb547; }
+  .primary { color: #000 !important; background: var(--fg); padding: 4px 10px; }
+  .status { color: var(--dim); }
+  .fields { display: grid; gap: 12px; margin-top: 18px; }
+  .row { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 6px 12px; align-items: center; color: var(--dim); }
+  .row input, .row select { font: inherit; color: var(--fg); background: var(--bg); border: 0; border-bottom: 1px solid var(--faint); padding: 6px 0; border-radius: 0; width: 100%; color-scheme: dark; }
+  .row input:focus, .row select:focus, textarea:focus { outline: none; border-color: var(--fg); }
+  .tools { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: baseline; margin: 22px 0 8px; }
+  .tools .addphoto, .tools .prevbtn { color: var(--fg); }
+  .help { color: var(--faint); font-size: 12px; }
+  textarea { display: block; width: 100%; min-height: 60vh; font: inherit; line-height: 1.7; color: var(--fg); background: #050505; border: 1px solid var(--faint); padding: 14px; resize: vertical; }
+  .preview { min-height: 60vh; border: 1px dashed var(--faint); padding: 14px 16px; line-height: 1.7; overflow-wrap: anywhere; }
+  .preview :global(h2) { font: 500 15px/1.4 var(--mono); margin-bottom: 18px; }
+  .preview :global(p), .preview :global(ul), .preview :global(ol), .preview :global(blockquote), .preview :global(figure) { margin: 0 0 18px; }
+  .preview :global(h3) { font: 500 15px/1.4 var(--mono); margin: 26px 0 10px; }
+  .preview :global(ul), .preview :global(ol) { padding-left: 22px; }
+  .preview :global(blockquote) { padding-left: 14px; border-left: 1px solid var(--faint); color: var(--dim); }
+  .preview :global(a) { color: var(--fg); }
+  .preview :global(.ph) { position: relative; display: block; background: #0d0d0d; overflow: hidden; pointer-events: none; }
+  .preview :global(.ph img) { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .preview :global(.photo .ph img) { height: auto; }
+  .preview :global(.play) { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; }
+  .preview :global(figcaption) { margin-top: 8px; color: var(--dim); }
+  .preview :global(.photos) { display: grid; gap: 4px; grid-template-columns: repeat(2, 1fr); }
+  .preview :global(.photos.n3) { grid-template-columns: repeat(3, 1fr); }
+  .preview :global(.photos.n4) { grid-template-columns: repeat(4, 1fr); }
+  .preview :global(.photos .ph) { aspect-ratio: 1; }
+  .preview :global(.note) { color: var(--dim); }
+  .foot { margin-top: 26px; display: flex; flex-wrap: wrap; gap: 14px; }
+  .danger:hover { color: #ff6b6b !important; }
+  .confirm, .confirm button { color: #ff6b6b; }
+  .confirm .del-no { color: var(--dim); }
+
+  .picker { position: fixed; inset: 0; z-index: 30; background: var(--bg); overflow-y: auto; padding: max(14px, env(safe-area-inset-top)) 16px 96px; }
+  .picker > * { max-width: 760px; margin-left: auto; margin-right: auto; }
+  .picker .note { color: var(--dim); margin: 12px auto; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 4px; }
+  .tile { position: relative; aspect-ratio: 1; overflow: hidden; background: #0d0d0d; display: block; width: 100%; padding: 0; }
+  .tile img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .tile .lbl { position: absolute; left: 6px; right: 6px; bottom: 4px; font-size: 11px; color: #fff; text-shadow: 0 1px 2px #000, 0 0 6px #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+  .tile .yt { position: absolute; top: 4px; left: 6px; color: #fff; text-shadow: 0 1px 2px #000; }
+  .tile .chk { position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; border: 1px solid #fff; background: #0006; }
+  .tile.sel { outline: 2px solid var(--fg); outline-offset: -2px; }
+  .tile.sel .chk { background: var(--fg); }
+  .tile.sel .chk::after { content: '✓'; color: #000; position: absolute; inset: 0; display: grid; place-items: center; font-size: 13px; }
+  .pickbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 31; display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; justify-content: flex-end;
+    max-width: none !important; padding: 12px 20px max(12px, env(safe-area-inset-bottom)); background: #000; border-top: 1px solid var(--fg); }
+  .pick-count { margin-right: auto; color: var(--fg); }
+  .pick-add { color: #000 !important; background: var(--fg); padding: 10px 16px; }
+  .pick-add:disabled { color: var(--dim) !important; background: transparent; border: 1px solid var(--faint); }
+
+  @media (max-width: 700px) {
+    .medit { padding: var(--top) 16px 80px; }
+    .row { grid-template-columns: 1fr; gap: 4px; }
+    .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    textarea { min-height: 55vh; padding: 12px; }
+  }
+</style>

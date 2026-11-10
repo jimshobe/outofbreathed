@@ -27,9 +27,19 @@ export interface SetInfo {
   route_climb_m?: number | null;
 }
 
-export type Entry<M extends TimelineMoment> =
+/** A written piece (src/lib/musings.ts); `written_at` is local time with offset, like taken_at. */
+export interface MusingInfo { id: string; title: string; body: string; written_at: string; set_id: string | null }
+
+/** A photo or a set: what buildEntries and assemblePage make. */
+export type PhotoEntry<M extends TimelineMoment> =
   | { type: 'moment'; date: string; moment: M }
   | { type: 'set'; date: string; set: SetInfo; moments: M[]; cover: M; start: string; end: string; places: string[] };
+
+export type Entry<M extends TimelineMoment> = PhotoEntry<M> | { type: 'musing'; date: string; musing: MusingInfo };
+
+/** Adds musings to timeline entries, newest first. */
+export const withMusings = <M extends TimelineMoment>(entries: PhotoEntry<M>[], musings: MusingInfo[]): Entry<M>[] =>
+  [...entries, ...musings.map((m) => ({ type: 'musing' as const, date: m.written_at, musing: m }))].sort((a, b) => b.date.localeCompare(a.date));
 
 // taken_at is the camera's local wall-clock time with its offset (e.g. 2026-10-10T09:12:00+10:00).
 // Show the date as the photographer saw it: read the date part directly instead of converting zones.
@@ -43,9 +53,9 @@ export function fmtRange(start: string, end: string): string {
 }
 
 /** Newest-first entries. `moments` may be in any order; sets without loaded moments are skipped. */
-export function buildEntries<M extends TimelineMoment>(moments: M[], sets: SetInfo[]): Entry<M>[] {
+export function buildEntries<M extends TimelineMoment>(moments: M[], sets: SetInfo[]): PhotoEntry<M>[] {
   const members = new Map<string, M[]>();
-  const entries: Entry<M>[] = [];
+  const entries: PhotoEntry<M>[] = [];
   for (const m of moments) {
     if (m.set_id && sets.some((s) => s.id === m.set_id)) {
       const list = members.get(m.set_id) ?? [];
@@ -79,7 +89,7 @@ export const monthStart = (iso: string) => `${iso.slice(0, 7)}-01T00:00:00`;
  * the page, wherever they fall. A set is shown whole on the page that holds its first moment; on newer
  * pages its moments are left out, because the set appears further down, on an older page.
  */
-export function assemblePage<M extends TimelineMoment>(page: M[], members: M[], sets: SetInfo[], boundary: string): Entry<M>[] {
+export function assemblePage<M extends TimelineMoment>(page: M[], members: M[], sets: SetInfo[], boundary: string): PhotoEntry<M>[] {
   const firstOf = new Map<string, string>();
   for (const m of [...page, ...members]) {
     if (!m.set_id) continue;

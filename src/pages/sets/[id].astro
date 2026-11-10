@@ -9,6 +9,7 @@ import { fmtRange } from '../../lib/timeline';
 import { fmtStats } from '../../lib/route';
 import Comments from '../../components/Comments.astro';
 import { commentCounts } from '../../lib/comments';
+import { musingForSet } from '../../lib/musings';
 
 const set = await getSet(Astro.params.id!);
 if (!set) return new Response('Not found', { status: 404 });
@@ -19,7 +20,7 @@ const viewable = moments.filter((m) => m.media_key || m.youtube_id);
 // Each place once, from its first photo (for its map spot and links).
 const places = [...new Map(moments.filter((m) => m.place_name).map((m) => [m.place_name!, m] as const)).values()];
 const count = (await commentCounts([], [set.id])).get(`s:${set.id}`) ?? 0;
-const route = await getSetRoute(set.id);
+const [route, musing] = await Promise.all([getSetRoute(set.id), musingForSet(set.id)]);
 const stats = set.route_km != null ? fmtStats({ km: set.route_km, secs: set.route_secs ?? null, climb_m: set.route_climb_m ?? null }) : '';
 // The route map shows the ride plus photos at their (public) map positions.
 const mapJson = route?.length
@@ -42,6 +43,7 @@ const mapJson = route?.length
       )}
       {stats && <p class="stats">{stats}</p>}
       {set.caption && <p class="caption">{set.caption}</p>}
+      {musing && <p class="musing"><a href={`/musings/${musing.id}`}>read the musing: {musing.title.toLowerCase()} ›</a></p>}
     </header>
 
     {mapJson && (
@@ -85,6 +87,8 @@ const mapJson = route?.length
   .meta { color: var(--dim); margin-top: 4px; }
   .caption { margin-top: 10px; }
   .stats { margin-top: 4px; color: var(--fg); }
+  .musing { margin-top: 10px; }
+  .musing a { color: var(--fg); }
   .setmap { height: min(360px, 55vh); margin-bottom: 24px; background: #080808; }
   .setmap :global(.maplibregl-ctrl-attrib) { background: #000 !important; color: #555; font: 10px var(--mono); }
   .setmap :global(.maplibregl-ctrl-attrib a) { color: #555 !important; }

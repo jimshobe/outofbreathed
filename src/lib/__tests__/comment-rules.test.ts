@@ -17,8 +17,9 @@ describe('comment rules', () => {
   });
 
   it('parses targets and rejects anything else', () => {
-    expect(parseTarget('m:mv3abc')).toEqual({ moment_id: 'mv3abc', set_id: null });
-    expect(parseTarget('s:smv49')).toEqual({ moment_id: null, set_id: 'smv49' });
-    for (const bad of ['x:1', 'm:', "m:1' OR 1=1", null]) expect(() => parseTarget(bad)).toThrow();
+    expect(parseTarget('m:mv3abc')).toEqual({ moment_id: 'mv3abc', set_id: null, musing_id: null });
+    expect(parseTarget('s:smv49')).toEqual({ moment_id: null, set_id: 'smv49', musing_id: null });
+    expect(parseTarget('mu:umv5')).toEqual({ moment_id: null, set_id: null, musing_id: 'umv5' });
+    for (const bad of ['x:1', 'm:', 'mus:1', "m:1' OR 1=1", null]) expect(() => parseTarget(bad)).toThrow();
   });
 });

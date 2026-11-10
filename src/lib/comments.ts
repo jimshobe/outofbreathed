@@ -1,4 +1,4 @@
-// Comments on moments and sets. Signed-in Google users comment as their first name + avatar; a
+// Comments on moments, sets and musings. Signed-in Google users comment as their first name + avatar; a
 // person's comments wait for the owner's approval until the owner has approved one of them.
 import { env } from 'cloudflare:workers';
 import { UploadError } from './ingest';
@@ -19,13 +19,13 @@ const asUploadError = <T>(f: () => T): T => {
 /** Approved comments, plus the viewer's own pending ones (and every pending one for the owner). */
 export async function listComments(on: string, viewer: { uid?: string; isOwner: boolean }): Promise<CommentView[]> {
   const t = asUploadError(() => parseTarget(on));
-  const col = t.moment_id ? 'moment_id' : 'set_id';
+  const col = t.moment_id ? 'moment_id' : t.set_id ? 'set_id' : 'musing_id';
   const { results } = await env.DB.prepare(
     `SELECT c.id, c.body, c.status, c.created_at, c.user_id, u.first_name, u.avatar_url
        FROM comments c JOIN users u ON u.id = c.user_id
       WHERE c.${col} = ? AND (c.status = 'approved' OR (c.status = 'pending' AND (c.user_id = ? OR ?)))
       ORDER BY c.created_at`,
-  ).bind(t.moment_id ?? t.set_id, viewer.uid ?? '', viewer.isOwner ? 1 : 0).all<Omit<CommentView, 'mine'>>();
+  ).bind(t.moment_id ?? t.set_id ?? t.musing_id, viewer.uid ?? '', viewer.isOwner ? 1 : 0).all<Omit<CommentView, 'mine'>>();
   return results.map((c) => ({ ...c, mine: c.user_id === viewer.uid }));
 }
 
@@ -38,12 +38,14 @@ export async function addComment(on: unknown, body: unknown, viewer: { uid?: str
   const status = asUploadError(() => newCommentStatus(user, viewer.isOwner));
   const exists = t.moment_id
     ? await env.DB.prepare('SELECT 1 FROM moments WHERE id = ?').bind(t.moment_id).first()
-    : await env.DB.prepare('SELECT 1 FROM sets WHERE id = ?').bind(t.set_id).first();
+    : t.set_id
+      ? await env.DB.prepare('SELECT 1 FROM sets WHERE id = ?').bind(t.set_id).first()
+      : await env.DB.prepare('SELECT 1 FROM musings WHERE id = ? AND published = 1').bind(t.musing_id).first();
   if (!exists) throw new UploadError('that post no longer exists', 404);
   const id = newId();
   const row = await env.DB.prepare(
-    `INSERT INTO comments (id, moment_id, set_id, user_id, body, status) VALUES (?, ?, ?, ?, ?, ?) RETURNING created_at`,
-  ).bind(id, t.moment_id, t.set_id, user.id, text, status).first<{ created_at: string }>();
+    `INSERT INTO comments (id, moment_id, set_id, musing_id, user_id, body, status) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING created_at`,
+  ).bind(id, t.moment_id, t.set_id, t.musing_id, user.id, text, status).first<{ created_at: string }>();
   return { id, body: text, status, created_at: row!.created_at, user_id: user.id, first_name: user.first_name, avatar_url: user.avatar_url, mine: true };
 }
 
@@ -68,20 +70,20 @@ export async function moderate(id: string, status: unknown): Promise<boolean> {
   return true;
 }
 
-export interface PendingComment { id: string; body: string; created_at: string; first_name: string; email: string; avatar_url: string | null; moment_id: string | null; set_id: string | null }
+export interface PendingComment { id: string; body: string; created_at: string; first_name: string; email: string; avatar_url: string | null; moment_id: string | null; set_id: string | null; musing_id: string | null }
 
 /** Owner: comments waiting for approval, oldest first. */
 export async function pendingComments(): Promise<PendingComment[]> {
   return (await env.DB.prepare(
-    `SELECT c.id, c.body, c.created_at, c.moment_id, c.set_id, u.first_name, u.email, u.avatar_url
+    `SELECT c.id, c.body, c.created_at, c.moment_id, c.set_id, c.musing_id, u.first_name, u.email, u.avatar_url
        FROM comments c JOIN users u ON u.id = c.user_id WHERE c.status = 'pending' ORDER BY c.created_at`,
   ).all<PendingComment>()).results;
 }
 
-/** Approved comment counts for a page's moments and sets ("m:<id>" / "s:<id>" → count). */
-export async function commentCounts(momentIds: string[], setIds: string[]): Promise<Map<string, number>> {
+/** Approved comment counts for a page's moments, sets and musings ("m:<id>" / "s:<id>" / "mu:<id>" → count). */
+export async function commentCounts(momentIds: string[], setIds: string[], musingIds: string[] = []): Promise<Map<string, number>> {
   const counts = new Map<string, number>();
-  const q = async (col: 'moment_id' | 'set_id', ids: string[], prefix: string) => {
+  const q = async (col: 'moment_id' | 'set_id' | 'musing_id', ids: string[], prefix: string) => {
     for (let i = 0; i < ids.length; i += 90) {
       const chunk = ids.slice(i, i + 90);
       const { results } = await env.DB.prepare(
@@ -90,6 +92,6 @@ export async function commentCounts(momentIds: string[], setIds: string[]): Prom
       for (const r of results) counts.set(`${prefix}:${r.id}`, r.n);
     }
   };
-  await Promise.all([q('moment_id', momentIds, 'm'), q('set_id', setIds, 's')]);
+  await Promise.all([q('moment_id', momentIds, 'm'), q('set_id', setIds, 's'), q('musing_id', musingIds, 'mu')]);
   return counts;
 }

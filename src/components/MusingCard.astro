@@ -1,0 +1,32 @@
+---
+// A musing on the timeline: date, title and its opening words; the title and "read ›" open its page.
+import Comments from './Comments.astro';
+import { fmtDay, type MusingInfo } from '../lib/timeline';
+import { excerpt } from '../lib/markdown';
+
+interface Props { musing: MusingInfo; comments?: number }
+const { musing: u, comments = 0 } = Astro.props;
+const href = `/musings/${u.id}`;
+---
+
+<article class="mu" id={`mu-${u.id}`}>
+  <div class="line">
+    <span class="d">{fmtDay(u.written_at)} · musing</span>
+    {Astro.locals.viewer.isOwner && <a class="ed" href={`/manage/musings/${u.id}`}>[edit]</a>}
+  </div>
+  <h3><a href={href}>{u.title.toLowerCase()}</a></h3>
+  <p class="ex">{excerpt(u.body)} <a class="more" href={href}>read ›</a></p>
+  <Comments on={`mu:${u.id}`} count={comments} />
+</article>
+
+<style>
+  .mu { margin-bottom: 44px; padding-left: 14px; border-left: 1px solid var(--faint); scroll-margin-top: calc(var(--head) + 24px); }
+  .line { display: flex; gap: 12px; align-items: baseline; color: var(--dim); }
+  .ed { margin-left: auto; color: var(--faint); text-decoration: none; }
+  .ed:hover { color: var(--fg); }
+  h3 { font: 500 15px/1.4 var(--mono); margin-top: 6px; }
+  h3 a { color: var(--fg); text-decoration: none; }
+  h3 a:hover { text-decoration: underline; }
+  .ex { margin-top: 6px; color: #cfcfcf; line-height: 1.6; }
+  .more { color: var(--fg); white-space: nowrap; }
+</style>

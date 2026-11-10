@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildEntries, fmtRange, fmtDay, assemblePage, setOrder } from '../timeline';
+import { buildEntries, fmtRange, fmtDay, assemblePage, setOrder, withMusings } from '../timeline';
 
 const m = (id: string, taken_at: string, set_id: string | null = null, place_name: string | null = 'Perth') => ({ id, taken_at, set_id, place_name });
 const perth = { id: 's1', title: 'Perth', caption: 'Long weekend', cover_id: null };
@@ -80,5 +80,13 @@ describe('set order', () => {
     if (set.type !== 'set') throw new Error('expected a set');
     expect(set.moments.map((x) => x.id)).toEqual(['b', 'a', 'd', 'c']);
     expect([set.start, set.end, set.date]).toEqual(['2026-09-28T10:00:00', '2026-10-01T10:00:00', '2026-09-28T10:00:00']);
+  });
+});
+
+describe('withMusings', () => {
+  it('slots musings among photos by date, newest first', () => {
+    const entries = buildEntries([m('a', '2026-10-05T10:00:00+10:00'), m('b', '2026-09-01T10:00:00+10:00')], []);
+    const out = withMusings(entries, [{ id: 'u1', title: 'Ride', body: '', written_at: '2026-09-20T20:00:00+10:00', set_id: null }]);
+    expect(out.map((e) => (e.type === 'musing' ? e.musing.id : e.type === 'moment' ? e.moment.id : ''))).toEqual(['a', 'u1', 'b']);
   });
 });
