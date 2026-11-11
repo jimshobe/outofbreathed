@@ -28,13 +28,15 @@ const link = (o: { c?: string; before?: string }) => {
   return s ? `/?${s}` : '/';
 };
 const shownYear = entries[0]?.date.slice(0, 4);
+// The filters shown for now (the other tags still work as ?c= links and in /manage).
+const FILTERS = ['moto', MUSINGS];
 ---
 
 <Base current="timeline">
   <main class="tl">
     <nav class="filters" aria-label="categories">
       <a href={link({})} class:list={[{ on: !category }]}>all</a>
-      {[...CATEGORIES, MUSINGS].map((k) => <a href={link({ c: k })} class:list={[{ on: category === k }]}>{k}</a>)}
+      {FILTERS.map((k) => <a href={link({ c: k })} class:list={[{ on: category === k }]}>{k}</a>)}
     </nav>
     {years.length > 1 && (
       <nav class="years" aria-label="years">
