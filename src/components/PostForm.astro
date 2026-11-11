@@ -13,6 +13,8 @@ const { sets } = Astro.props;
   <div class="adders">
     <label class="add">[+ photos]<input type="file" accept="image/*" multiple hidden /></label>
     <button type="button" class="add addyt">[+ youtube link]</button>
+    <button type="button" class="add addmu">[+ musing]</button>
+    <span class="mustatus" aria-live="polite"></span>
   </div>
   <p class="hint" hidden>
     // some photos have no location. type a place on them below, or re-pick them with
@@ -51,6 +53,7 @@ const { sets } = Astro.props;
   .adders { display: flex; flex-wrap: wrap; gap: 10px; }
   .add { display: inline-block; padding: 12px 16px; border: 1px solid var(--faint); color: var(--fg); cursor: pointer; }
   .add:hover { border-color: var(--fg); }
+  .mustatus { align-self: center; color: var(--dim); }
   .hint { color: #ffb547; margin: 14px 0 0; }
   .hint b { font-weight: 500; }
   .queue { list-style: none; padding: 0; margin: 14px 0 0; display: grid; gap: 10px; }

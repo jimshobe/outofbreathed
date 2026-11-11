@@ -208,6 +208,7 @@ const km = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`)
 
 <script>
   import { openPhotoEditor, tileLabel, type EditorSet } from '../../scripts/photo-editor';
+  import { startMusing } from '../../scripts/new-musing';
 
   type El = HTMLElement;
   const pick = <T = El,>(root: { querySelector(sel: string): unknown }, sel: string) => root.querySelector(sel) as T;
@@ -292,16 +293,8 @@ const km = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`)
     location.href = `/manage/sets/${r.id}${r.created ? '?add=1' : ''}`;
   });
 
-  // ---- musings: start a draft dated now (local time with this device's offset) and open it ----
-  pick(document, '.newmusing').addEventListener('click', async () => {
-    const st = pick(document, '#mu-status'), d = new Date(), off = -d.getTimezoneOffset();
-    const p2 = (n: number) => String(Math.floor(Math.abs(n))).padStart(2, '0');
-    const local = new Date(d.getTime() + off * 60_000).toISOString().slice(0, 19) + (off >= 0 ? '+' : '-') + p2(off / 60) + ':' + p2(off % 60);
-    st.textContent = '…';
-    const res = await fetch('/api/musings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ written_at: local }) });
-    const r = (await res.json().catch(() => ({}))) as { id?: string; error?: string };
-    if (res.ok && r.id) location.href = `/manage/musings/${r.id}`; else st.textContent = r.error ?? 'error';
-  });
+  // ---- musings: start a draft dated now and open it ----
+  pick(document, '.newmusing').addEventListener('click', () => startMusing(pick(document, '#mu-status')));
 
   pick<HTMLSelectElement>(document, '#tagf')?.addEventListener('change', (e) => {
     const s = e.target as HTMLSelectElement, p = new URLSearchParams();

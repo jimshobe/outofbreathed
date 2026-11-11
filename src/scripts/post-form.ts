@@ -10,6 +10,7 @@
 // one (or typing "other…") sets the place for every photo at that spot.
 import { readJpegMeta } from '../lib/exif';
 import { shrink } from './shrink';
+import { startMusing } from './new-musing';
 import { fmtDay as day } from '../lib/timeline';
 
 interface Spot {
@@ -198,6 +199,12 @@ $('.addyt', form).addEventListener('click', () => {
   items.push({ id: nextId++, kind: 'youtube', url: '', caption: '', place: '', date: '', status: 'ready', message: '' });
   render();
   ($<HTMLInputElement>(`li[data-id="${nextId - 1}"] [data-f=url]`, queueEl))?.focus();
+});
+
+// A musing is written in its own editor; anything queued here would be lost by leaving, so ask first.
+$('.addmu', form).addEventListener('click', () => {
+  if (items.some((x) => x.status !== 'done') && !confirm('leave the photos queued here and start a musing?')) return;
+  startMusing($('.mustatus', form));
 });
 
 // Typing updates the item in place (no re-render, so focus and cursor stay put).
