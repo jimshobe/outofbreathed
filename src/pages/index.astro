@@ -8,26 +8,28 @@ import { timelinePage, yearIndex, MUSINGS } from '../lib/moments';
 import { commentCounts } from '../lib/comments';
 import { CATEGORIES, type Category } from '../lib/categories';
 
-// ?c=moto filters by category (?c=musings shows only musings); ?before=<month start> pages back in time (and jumps to a year).
+// ?c=moto filters by category (?c=musings shows only musings); ?year=2026 keeps to one year; ?before=<month start> pages back in time.
 const params = Astro.url.searchParams;
 const c = params.get('c');
 const category = CATEGORIES.includes(c as Category) || c === MUSINGS ? c! : undefined;
 const b = params.get('before');
 const before = b && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(b) ? b : undefined;
+const y = params.get('year');
+const year = y && /^\d{4}$/.test(y) ? y : undefined;
 
-const [{ entries, older }, years] = await Promise.all([timelinePage({ before, category }), yearIndex(category)]);
+const [{ entries, older }, years] = await Promise.all([timelinePage({ before, category, year }), yearIndex(category)]);
 const singles = entries.flatMap((e) => (e.type === 'moment' ? [e.moment] : []));
 const counts = await commentCounts(singles.map((m) => m.id), entries.flatMap((e) => (e.type === 'set' ? [e.set.id] : [])),
   entries.flatMap((e) => (e.type === 'musing' ? [e.musing.id] : [])));
 
-const link = (o: { c?: string; before?: string }) => {
+const link = (o: { c?: string; year?: string; before?: string }) => {
   const q = new URLSearchParams();
   if (o.c) q.set('c', o.c);
+  if (o.year) q.set('year', o.year);
   if (o.before) q.set('before', o.before);
   const s = q.toString();
   return s ? `/?${s}` : '/';
 };
-const shownYear = entries[0]?.date.slice(0, 4);
 // The filters shown for now (the other tags still work as ?c= links and in /manage).
 const FILTERS = ['moto', MUSINGS];
 ---
@@ -35,15 +37,13 @@ const FILTERS = ['moto', MUSINGS];
 <Base current="timeline">
   <main class="tl">
     <nav class="filters" aria-label="categories">
-      <a href={link({})} class:list={[{ on: !category }]}>all</a>
-      {FILTERS.map((k) => <a href={link({ c: k })} class:list={[{ on: category === k }]}>{k}</a>)}
+      <a href={link({ year })} class:list={[{ on: !category }]}>all</a>
+      {FILTERS.map((k) => <a href={link({ c: k, year })} class:list={[{ on: category === k }]}>{k}</a>)}
     </nav>
     {years.length > 1 && (
       <nav class="years" aria-label="years">
-        {years.map((y) => (
-          <a href={y === years[0] ? link({ c: category }) : link({ c: category, before: `${Number(y) + 1}-01-01T00:00:00` })}
-            class:list={[{ on: y === shownYear }]}>{y}</a>
-        ))}
+        <a href={link({ c: category })} class:list={[{ on: !year }]}>all years</a>
+        {years.map((y) => <a href={link({ c: category, year: y })} class:list={[{ on: y === year }]}>{y}</a>)}
       </nav>
     )}
 
@@ -57,7 +57,7 @@ const FILTERS = ['moto', MUSINGS];
     </div>
 
     {older
-      ? <a class="more" href={link({ c: category, before: older })}>older ↓</a>
+      ? <a class="more" href={link({ c: category, year, before: older })}>older ↓</a>
       : entries.length > 0 && <div class="end">that's everything<i></i></div>}
 
     <LightboxData group="tl" moments={singles} />

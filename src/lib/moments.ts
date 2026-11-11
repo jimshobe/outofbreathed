@@ -124,19 +124,22 @@ const MUSINGS_PAGE = 30;
 
 /**
  * Up to ~PAGE_SIZE moments older than `before`, extended to whole months, with sets kept whole, plus the
- * musings written in the same span. `category` 'musings' pages through musings alone.
+ * musings written in the same span. `category` 'musings' pages through musings alone. `year` keeps to
+ * that year; a set reaching into it from another year is shown whole.
  */
-export async function timelinePage(opts: { before?: string; category?: string }): Promise<TimelinePage> {
-  const before = opts.before ?? '9999';
+export async function timelinePage(opts: { before?: string; category?: string; year?: string }): Promise<TimelinePage> {
+  const yearEnd = opts.year ? `${Number(opts.year) + 1}-01-01T00:00:00` : '9999';
+  const before = [opts.before ?? '9999', yearEnd].sort()[0];
+  const floor = opts.year ? `${opts.year}-01-01T00:00:00` : '';
   if (opts.category === MUSINGS) {
-    const list = await musingsBetween(before, '', MUSINGS_PAGE + 1);
+    const list = await musingsBetween(before, floor, MUSINGS_PAGE + 1);
     const page = list.slice(0, MUSINGS_PAGE);
     return { entries: withMusings([], page), older: list.length > MUSINGS_PAGE ? page[page.length - 1].written_at.slice(0, 19) : null };
   }
-  const where = (extra: string) => `WHERE taken_at < ? ${extra} ${opts.category ? `AND ${CATEGORY_FILTER}` : ''}`;
-  const args = (...a: unknown[]) => [...a, ...(opts.category ? [opts.category, opts.category] : [])];
+  const where = (extra: string) => `WHERE taken_at < ? AND taken_at >= ? ${extra} ${opts.category ? `AND ${CATEGORY_FILTER}` : ''}`;
+  const args = (...a: unknown[]) => [floor, ...a, ...(opts.category ? [opts.category, opts.category] : [])];
   // Musings show in the unfiltered timeline only; on the last page, every older one too.
-  const musings = (from: string) => (opts.category ? Promise.resolve([]) : musingsBetween(before, from));
+  const musings = (from: string) => (opts.category ? Promise.resolve([]) : musingsBetween(before, from || floor));
 
   // The PAGE_SIZE-th moment decides which month the page ends in; then take that whole month.
   const nth = await env.DB.prepare(`SELECT taken_at FROM moments ${where('')} ORDER BY taken_at DESC LIMIT 1 OFFSET ?`)
@@ -147,7 +150,7 @@ export async function timelinePage(opts: { before?: string; category?: string })
   const boundary = monthStart(boundaryFrom);
 
   const { results: page } = await env.DB.prepare(`SELECT ${MOMENT_COLUMNS} FROM ${PUBLIC} ${where('AND taken_at >= ?')} ORDER BY taken_at DESC`)
-    .bind(before, boundary, ...args()).all<Row>();
+    .bind(before, ...args(boundary)).all<Row>();
   const setIds = [...new Set(page.map((m) => m.set_id).filter((x): x is string => !!x))];
   const [members, sets, more] = await Promise.all([
     setIds.length
@@ -158,7 +161,7 @@ export async function timelinePage(opts: { before?: string; category?: string })
       : Promise.resolve([] as SetInfo[]),
     env.DB.prepare(`SELECT 1 FROM moments ${where('')} LIMIT 1`).bind(boundary, ...args()).first(),
   ]);
-  const entries = assemblePage(withCategories(page), withCategories(members), sets, boundary);
+  const entries = assemblePage(withCategories(page), withCategories(members), sets, boundary, floor);
   return { entries: withMusings(entries, await musings(more ? boundary : '')), older: more ? boundary : null };
 }
 

@@ -60,6 +60,12 @@ describe('assemblePage', () => {
     expect(ids(assemblePage(sep, set, [s], '2026-09-01T00:00:00'))).toEqual(['c', 'set:s1:3']);
   });
 
+  it('in a year view, shows a set reaching in from the year before, whole', () => {
+    const nye = [m('n1', '2025-12-30T10:00:00', 's1'), m('n2', '2026-01-02T10:00:00', 's1')];
+    expect(ids(assemblePage([nye[1], m('d', '2026-01-01T09:00:00')], nye, [s], '2026-01-01T00:00:00', '2026-01-01T00:00:00')))
+      .toEqual(['d', 'set:s1:2']);
+  });
+
   it('never shows a moment twice across pages', () => {
     const shown = [...ids(assemblePage(oct, set, [s], '2026-10-01T00:00:00')), ...ids(assemblePage(sep, set, [s], '2026-09-01T00:00:00'))];
     expect(new Set(shown).size).toBe(shown.length);

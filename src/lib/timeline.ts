@@ -87,12 +87,14 @@ export const monthStart = (iso: string) => `${iso.slice(0, 7)}-01T00:00:00`;
  * One page of the timeline. `page` holds every (filtered) moment from `boundary` (a month start) up to
  * the cursor, so pages always break between months. `members` holds every moment of any set touched by
  * the page, wherever they fall. A set is shown whole on the page that holds its first moment; on newer
- * pages its moments are left out, because the set appears further down, on an older page.
+ * pages its moments are left out, because the set appears further down, on an older page. With a
+ * `floor` (a year's start), moments before it don't count, so a set reaching into the year from the one
+ * before is shown on the year's last page.
  */
-export function assemblePage<M extends TimelineMoment>(page: M[], members: M[], sets: SetInfo[], boundary: string): PhotoEntry<M>[] {
+export function assemblePage<M extends TimelineMoment>(page: M[], members: M[], sets: SetInfo[], boundary: string, floor = ''): PhotoEntry<M>[] {
   const firstOf = new Map<string, string>();
   for (const m of [...page, ...members]) {
-    if (!m.set_id) continue;
+    if (!m.set_id || m.taken_at < floor) continue;
     const f = firstOf.get(m.set_id);
     if (!f || m.taken_at < f) firstOf.set(m.set_id, m.taken_at);
   }
