@@ -80,6 +80,14 @@ export async function pendingComments(): Promise<PendingComment[]> {
   ).all<PendingComment>()).results;
 }
 
+/** Owner: the latest published comments, newest first (to delete one from /manage). */
+export async function recentComments(limit = 40): Promise<PendingComment[]> {
+  return (await env.DB.prepare(
+    `SELECT c.id, c.body, c.created_at, c.moment_id, c.set_id, c.musing_id, u.first_name, u.email, u.avatar_url
+       FROM comments c JOIN users u ON u.id = c.user_id WHERE c.status = 'approved' ORDER BY c.created_at DESC LIMIT ?`,
+  ).bind(limit).all<PendingComment>()).results;
+}
+
 /** Owner: how many comments are waiting (for the header's notice). */
 export async function pendingCount(): Promise<number> {
   return (await env.DB.prepare("SELECT count(*) AS n FROM comments WHERE status = 'pending'").first<{ n: number }>())?.n ?? 0;

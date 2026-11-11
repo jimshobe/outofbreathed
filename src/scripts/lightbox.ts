@@ -3,7 +3,8 @@
 // Pages embed their photo lists as <script type="application/json" data-lb-group="NAME">[items]</script>
 // and mark tappable elements with data-lb-open="NAME" data-lb-id="MOMENT_ID". Tapping opens the viewer
 // at that photo; swipe or arrow keys move through the group; swipe down, Esc, or the phone's back
-// gesture closes it. The open photo is in the URL (#p-ID), so a link opens straight to it.
+// gesture closes it. The open photo is in the URL (#p-ID), so a link opens straight to it. The owner
+// also gets [edit] (top left), which opens the photo in /manage.
 
 export interface LbItem { id: string; src?: string | null; caption?: string | null; meta?: string | null; /** YouTube video id: shown as an embedded player instead of a photo. */ youtube?: string | null }
 
@@ -28,6 +29,8 @@ const CSS = `
 .lb button { position: absolute; color: var(--dim); font: 13px var(--mono); padding: 12px; }
 .lb button:hover { color: var(--fg); }
 .lb-close { top: max(4px, env(safe-area-inset-top)); right: 8px; }
+.lb-edit { position: absolute; top: max(4px, env(safe-area-inset-top)); left: 8px; padding: 12px; color: var(--dim); font: 13px var(--mono); text-decoration: none; }
+.lb-edit:hover { color: var(--fg); }
 .lb-prev, .lb-next { top: 50%; transform: translateY(-50%); font-size: 20px !important; }
 .lb-prev { left: 4px; } .lb-next { right: 4px; }
 @media (max-width: 700px) {
@@ -64,7 +67,8 @@ function build(): El {
     <div class="lb-meta"><span class="c"></span><span class="m"></span></div>
     <button class="lb-close" aria-label="Close">[esc]</button>
     <button class="lb-prev" aria-label="Previous">‹</button>
-    <button class="lb-next" aria-label="Next">›</button>`;
+    <button class="lb-next" aria-label="Next">›</button>
+    ${document.body.dataset.owner === '1' ? '<a class="lb-edit" href="">[edit]</a>' : ''}`;
   document.body.appendChild(el as unknown as Node);
   $(el, '.lb-close')!.onclick = () => close();
   $(el, '.lb-prev')!.onclick = () => step(-1);
@@ -100,6 +104,8 @@ function render() {
     : '<img alt="">';
   if (!it.youtube) ($(stage, 'img') as unknown as HTMLImageElement).src = it.src ?? '';
   root!.classList.toggle('video', !!it.youtube);
+  const edit = $(root!, '.lb-edit') as unknown as HTMLAnchorElement | null;
+  if (edit) edit.href = `/manage?edit=${encodeURIComponent(it.id)}`;
   $(root!, '.lb-meta .c')!.textContent = it.caption ?? '';
   $(root!, '.lb-meta .m')!.textContent = [it.meta, items.length > 1 ? `${index + 1}/${items.length}` : ''].filter(Boolean).join(' · ');
   const many = items.length > 1;

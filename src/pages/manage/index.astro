@@ -8,7 +8,7 @@ import { libraryPage, managedSets, LIBRARY_PAGE, type LibraryFilter } from '../.
 import { mediaUrl, fmtDay } from '../../lib/moments';
 import { fmtRange } from '../../lib/timeline';
 import { listZones, shownDistanceM } from '../../lib/zones';
-import { pendingComments } from '../../lib/comments';
+import { pendingComments, recentComments, type PendingComment } from '../../lib/comments';
 import { CATEGORIES } from '../../lib/categories';
 import { listPlaceNames, listPlaceLinks } from '../../lib/place-links';
 import { isVenue, splitVenue } from '../../lib/maps-link';
@@ -19,11 +19,16 @@ const filter = (['noplace', 'noset'].includes(q.get('f') ?? '') ? q.get('f') : '
 const tag = CATEGORIES.includes(q.get('tag') as never) ? q.get('tag')! : '';
 const older = q.get('older') ?? undefined;
 const ids = q.get('ids')?.split(',').filter(Boolean).slice(0, 200);
-const [photos, sets, pending, zones, placeNames, placeLinks, musings] = await Promise.all([
-  libraryPage({ filter, tag, before: older, ids }), managedSets(), pendingComments(), listZones(), listPlaceNames(), listPlaceLinks(), allMusings(),
+const [photos, sets, pending, recent, zones, placeNames, placeLinks, musings] = await Promise.all([
+  libraryPage({ filter, tag, before: older, ids }), managedSets(), pendingComments(), recentComments(), listZones(), listPlaceNames(), listPlaceLinks(), allMusings(),
 ]);
 const musingTitle = new Map(musings.map((u) => [u.id, u.title]));
 const setTitle = new Map(sets.map((s) => [s.id, s.title]));
+/** Where a comment was left, as a link. */
+const commentOn = (c: PendingComment) => c.musing_id
+  ? { href: `/musings/${c.musing_id}`, label: musingTitle.get(c.musing_id)?.toLowerCase() || 'a musing' }
+  : c.set_id ? { href: `/sets/${c.set_id}`, label: setTitle.get(c.set_id)?.toLowerCase() ?? 'a set' }
+  : { href: `/#m-${c.moment_id}`, label: 'a photo' };
 const link = (o: { f?: string; tag?: string; older?: string }) => {
   const p = new URLSearchParams();
   if (o.f && o.f !== 'all') p.set('f', o.f);
@@ -153,9 +158,22 @@ const km = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`)
         {pending.map((c) => (
           <div class="crow" data-comment={c.id}>
             <div class="cwho">{c.avatar_url && <img src={c.avatar_url} alt="" referrerpolicy="no-referrer" />}<b>{c.first_name.toLowerCase()}</b> <span>{c.email}</span>
-              · <a href={c.musing_id ? `/musings/${c.musing_id}` : c.set_id ? `/sets/${c.set_id}` : `/#m-${c.moment_id}`}>on {c.musing_id ? (musingTitle.get(c.musing_id)?.toLowerCase() || 'a musing') : c.set_id ? (setTitle.get(c.set_id)?.toLowerCase() ?? 'a set') : 'a photo'}</a></div>
+              · <a href={commentOn(c).href}>on {commentOn(c).label}</a></div>
             <p class="cbody">{c.body}</p>
             <div class="cact"><button type="button" data-status="approved">[approve]</button><button type="button" data-status="rejected">[reject]</button><span class="status"></span></div>
+          </div>
+        ))}
+      </div>
+
+      <div class="block">
+        <div class="cmd"><span>&gt; <b>recent comments</b></span><span>newest first</span></div>
+        <p class="note">{recent.length ? '// published comments. [delete] removes one for good.' : '// none yet.'}</p>
+        {recent.map((c) => (
+          <div class="crow" data-comment={c.id}>
+            <div class="cwho">{c.avatar_url && <img src={c.avatar_url} alt="" referrerpolicy="no-referrer" />}<b>{c.first_name.toLowerCase()}</b> <span>{fmtDay(c.created_at)}</span>
+              · <a href={commentOn(c).href}>on {commentOn(c).label}</a></div>
+            <p class="cbody">{c.body}</p>
+            <div class="cact"><button type="button" class="cdel">[delete]</button><span class="status"></span></div>
           </div>
         ))}
       </div>
@@ -341,6 +359,11 @@ const km = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`)
       const res = await fetch(`/api/comments/${row.dataset.comment}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: b.dataset.status }) });
       if (res.ok) row.remove(); else pick(row, '.status').textContent = (await body(res)).error ?? 'error';
     }));
+    row.querySelector('.cdel')?.addEventListener('click', async () => {
+      if (!confirm("Delete this comment? This can't be undone.")) return;
+      const res = await fetch(`/comments/${row.dataset.comment}.json`, { method: 'DELETE' });
+      if (res.ok) row.remove(); else pick(row, '.status').textContent = (await body(res)).error ?? 'error';
+    });
   });
 
   // ---- settings: privacy zones (add looks up the address; relabel, radius, remove) ----
@@ -457,7 +480,7 @@ const km = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`)
   .cwho a { color: var(--dim); }
   .cbody { margin: 6px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
   .cact { display: flex; gap: 14px; }
-  .cact button[data-status='rejected']:hover { color: #ff6b6b; }
+  .cact button[data-status='rejected']:hover, .cact .cdel:hover { color: #ff6b6b; }
   .zonerow { display: grid; grid-template-columns: 110px minmax(0, 1fr) auto; gap: 4px 14px; align-items: center; padding: 8px 0; border-bottom: 1px solid #111; color: var(--dim); }
   .zonerow input { width: 100%; }
   .zaddr { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg); }
