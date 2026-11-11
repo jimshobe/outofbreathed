@@ -80,6 +80,11 @@ export async function pendingComments(): Promise<PendingComment[]> {
   ).all<PendingComment>()).results;
 }
 
+/** Owner: how many comments are waiting (for the header's notice). */
+export async function pendingCount(): Promise<number> {
+  return (await env.DB.prepare("SELECT count(*) AS n FROM comments WHERE status = 'pending'").first<{ n: number }>())?.n ?? 0;
+}
+
 /** Approved comment counts for a page's moments, sets and musings ("m:<id>" / "s:<id>" / "mu:<id>" → count). */
 export async function commentCounts(momentIds: string[], setIds: string[], musingIds: string[] = []): Promise<Map<string, number>> {
   const counts = new Map<string, number>();

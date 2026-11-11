@@ -1,5 +1,6 @@
 ---
 import '../styles/global.css';
+import { pendingCount } from '../lib/comments';
 
 interface Props {
   current: 'timeline' | 'map' | 'post' | 'manage';
@@ -13,6 +14,8 @@ interface Props {
 const { current, homeScreen = false, overlay = false, title } = Astro.props;
 const { isOwner, uid, name, avatar } = Astro.locals.viewer;
 const here = Astro.url.pathname + Astro.url.search;
+// The owner sees a mark by their name while comments wait for approval.
+const waiting = isOwner ? await pendingCount() : 0;
 ---
 
 <html lang="en">
@@ -37,10 +40,27 @@ const here = Astro.url.pathname + Astro.url.search;
         {isOwner && <a href="/post" aria-current={current === 'post' ? 'page' : undefined}>post</a>}
         {isOwner && <a href="/manage" aria-current={current === 'manage' ? 'page' : undefined}>manage</a>}
         {uid
-          ? <a class="me" href={`/auth/logout?next=${encodeURIComponent(here)}`} title="sign out">{avatar && <img src={avatar} alt="" referrerpolicy="no-referrer" />}{name?.toLowerCase()} ×</a>
+          ? <details class="me">
+              <summary title={waiting ? 'comments waiting' : undefined}>
+                {avatar && <img src={avatar} alt="" referrerpolicy="no-referrer" />}{name?.toLowerCase()}{waiting > 0 && <i class="dot" aria-label="comments waiting"></i>} ▾
+              </summary>
+              <div class="menu">
+                {waiting > 0 && <a href="/manage#settings">{waiting} comment{waiting > 1 ? 's' : ''} waiting ›</a>}
+                <a href={`/auth/logout?next=${encodeURIComponent(here)}`}>sign out</a>
+              </div>
+            </details>
           : <a href={`/auth/login?next=${encodeURIComponent(here)}`}>sign in</a>}
       </nav>
     </header>
     <slot />
   </body>
 </html>
+
+<script>
+  // The name menu closes on a click elsewhere or Esc.
+  const me = document.querySelector('header.site .me') as unknown as HTMLDetailsElement | null;
+  if (me) {
+    document.addEventListener('click', (e) => { if (me.open && !me.contains(e.target as unknown as Node)) me.open = false; });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') me.open = false; });
+  }
+</script>

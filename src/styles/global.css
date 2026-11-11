@@ -34,8 +34,13 @@ header.site nav a:hover { color: var(--fg); }
 header.site nav a[aria-current='page'] { color: var(--fg); }
 header.site nav a[aria-current='page']::before { content: '['; }
 header.site nav a[aria-current='page']::after { content: ']'; }
-header.site nav .me { display: inline-flex; align-items: center; gap: 6px; }
+header.site nav .me { position: relative; }
+header.site nav .me summary { display: inline-flex; align-items: center; gap: 6px; color: var(--dim); cursor: pointer; list-style: none; }
+header.site nav .me summary::-webkit-details-marker { display: none; }
+header.site nav .me summary:hover, header.site nav .me[open] summary { color: var(--fg); }
 header.site nav .me img { width: 16px; height: 16px; border-radius: 50%; }
+header.site nav .me .dot { width: 7px; height: 7px; background: var(--fg); }
+header.site nav .me .menu { position: absolute; right: 0; top: calc(100% + 8px); z-index: 11; display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; background: var(--bg); border: 1px solid var(--faint); white-space: nowrap; }
 
 [hidden] { display: none !important; }
 
