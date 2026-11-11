@@ -1,6 +1,6 @@
 // Comment threads under timeline entries and sets. Markup: src/components/Comments.astro.
 // Threads load when opened (or immediately with data-open). Signed-in people can comment; their own
-// pending comments show as "waiting for approval"; the owner sees everyone's pending comments.
+// pending comments show as "waiting for approval". The owner sees threads as everyone does.
 
 interface C { id: string; body: string; status: string; created_at: string; first_name: string; avatar_url: string | null; mine: boolean }
 
@@ -9,7 +9,6 @@ type El = HTMLElement;
 const $ = (sel: string, root: { querySelector(s: string): unknown }) => root.querySelector(sel) as El;
 const esc = (t: string) => t.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
 const signedIn = document.body.dataset.signedIn === '1';
-const isOwner = document.body.dataset.owner === '1';
 // dd-mm-yy in the viewer's own time zone (comment times are UTC instants).
 const day = (iso: string) => { const d = new Date(iso); return [d.getDate(), d.getMonth() + 1, d.getFullYear() % 100].map((n) => String(n).padStart(2, '0')).join('-'); };
 
@@ -20,8 +19,8 @@ function render(thread: El, on: string, list: C[]) {
       <li data-id="${c.id}">
         ${c.avatar_url ? `<img src="${esc(c.avatar_url)}" alt="" referrerpolicy="no-referrer">` : '<span class="ph"></span>'}
         <div><span class="who">${esc(c.first_name.toLowerCase())}</span><span class="when">${day(c.created_at)}</span>
-          ${c.status === 'pending' ? `<span class="pend">${c.mine ? 'waiting for approval' : 'pending'}</span>` : ''}
-          ${c.mine || isOwner ? '<button class="del" aria-label="Delete comment">[×]</button>' : ''}
+          ${c.status === 'pending' ? '<span class="pend">waiting for approval</span>' : ''}
+          ${c.mine ? '<button class="del" aria-label="Delete comment">[×]</button>' : ''}
           <p>${esc(c.body).replace(/\n/g, '<br>')}</p></div>
       </li>`).join('')}</ol>
     ${signedIn

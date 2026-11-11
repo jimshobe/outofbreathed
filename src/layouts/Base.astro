@@ -10,8 +10,10 @@ interface Props {
   overlay?: boolean;
   /** Page title before the site name (a musing's title). */
   title?: string;
+  /** The owner's editor for what this page shows, offered in the name menu. */
+  edit?: { href: string; label: string };
 }
-const { current, homeScreen = false, overlay = false, title } = Astro.props;
+const { current, homeScreen = false, overlay = false, title, edit } = Astro.props;
 const { isOwner, uid, name, avatar } = Astro.locals.viewer;
 const here = Astro.url.pathname + Astro.url.search;
 // The owner sees a mark by their name while comments wait for approval.
@@ -37,14 +39,15 @@ const waiting = isOwner ? await pendingCount() : 0;
       <nav>
         <a href="/" aria-current={current === 'timeline' ? 'page' : undefined}>timeline</a>
         <a href="/map" aria-current={current === 'map' ? 'page' : undefined}>map</a>
-        {isOwner && <a href="/post" aria-current={current === 'post' ? 'page' : undefined}>post</a>}
-        {isOwner && <a href="/manage" aria-current={current === 'manage' ? 'page' : undefined}>manage</a>}
         {uid
           ? <details class="me">
-              <summary title={waiting ? 'comments waiting' : undefined}>
-                {avatar && <img src={avatar} alt="" referrerpolicy="no-referrer" />}{name?.toLowerCase()}{waiting > 0 && <i class="dot" aria-label="comments waiting"></i>} ▾
+              <summary class:list={[{ pic: avatar }]} title={waiting ? 'comments waiting' : name?.toLowerCase()}>
+                {avatar && <img src={avatar} alt="" referrerpolicy="no-referrer" />}<span class="nm">{name?.toLowerCase()}</span>{waiting > 0 && <i class="dot" aria-label="comments waiting"></i>} ▾
               </summary>
               <div class="menu">
+                {isOwner && edit && <a href={edit.href}>{edit.label} ›</a>}
+                {isOwner && <a href="/post" aria-current={current === 'post' ? 'page' : undefined}>post</a>}
+                {isOwner && <a href="/manage" aria-current={current === 'manage' ? 'page' : undefined}>manage</a>}
                 {waiting > 0 && <a href="/manage#settings">{waiting} comment{waiting > 1 ? 's' : ''} waiting ›</a>}
                 <a href={`/auth/logout?next=${encodeURIComponent(here)}`}>sign out</a>
               </div>
@@ -57,6 +60,17 @@ const waiting = isOwner ? await pendingCount() : 0;
 </html>
 
 <script>
+  // When the header wraps onto a second line (narrow phones, long names), push the page down to match.
+  const head = document.querySelector('header.site') as unknown as HTMLElement | null;
+  if (head) {
+    const fit = () => {
+      const d = head.querySelector('nav')!.getBoundingClientRect().bottom - head.querySelector('h1')!.getBoundingClientRect().bottom;
+      document.documentElement.style.setProperty('--wrap', `${d > 8 ? Math.round(d) : 0}px`);
+    };
+    fit();
+    new ResizeObserver(fit).observe(head);
+  }
+
   // The name menu closes on a click elsewhere or Esc.
   const me = document.querySelector('header.site .me') as unknown as HTMLDetailsElement | null;
   if (me) {

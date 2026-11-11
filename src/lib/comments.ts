@@ -16,16 +16,16 @@ const asUploadError = <T>(f: () => T): T => {
   try { return f(); } catch (e) { throw new UploadError((e as Error).message); }
 };
 
-/** Approved comments, plus the viewer's own pending ones (and every pending one for the owner). */
+/** Approved comments, plus the viewer's own pending ones (the owner approves others' in /manage). */
 export async function listComments(on: string, viewer: { uid?: string; isOwner: boolean }): Promise<CommentView[]> {
   const t = asUploadError(() => parseTarget(on));
   const col = t.moment_id ? 'moment_id' : t.set_id ? 'set_id' : 'musing_id';
   const { results } = await env.DB.prepare(
     `SELECT c.id, c.body, c.status, c.created_at, c.user_id, u.first_name, u.avatar_url
        FROM comments c JOIN users u ON u.id = c.user_id
-      WHERE c.${col} = ? AND (c.status = 'approved' OR (c.status = 'pending' AND (c.user_id = ? OR ?)))
+      WHERE c.${col} = ? AND (c.status = 'approved' OR (c.status = 'pending' AND c.user_id = ?))
       ORDER BY c.created_at`,
-  ).bind(t.moment_id ?? t.set_id ?? t.musing_id, viewer.uid ?? '', viewer.isOwner ? 1 : 0).all<Omit<CommentView, 'mine'>>();
+  ).bind(t.moment_id ?? t.set_id ?? t.musing_id, viewer.uid ?? '').all<Omit<CommentView, 'mine'>>();
   return results.map((c) => ({ ...c, mine: c.user_id === viewer.uid }));
 }
 
